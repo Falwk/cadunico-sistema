@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container" style="max-width:1000px">
+
+  <div class="flex" style="margin-bottom:20px;flex-wrap:wrap;gap:10px">
+    <div>
+      <h1 class="page-title mb-0">Histórico de Visitas da Família</h1>
+      {% if nome_rf %}
+      <p style="margin:4px 0 0;color:var(--cinza-t);font-size:.9rem">
+        {{ nome_rf }} — CPF: {{ cpf[:3] }}.{{ cpf[3:6] }}.{{ cpf[6:9] }}-{{ cpf[9:] }}
+      </p>
+      {% else %}
+      <p style="margin:4px 0 0;color:var(--cinza-t);font-size:.9rem">
+        CPF: {{ cpf[:3] }}.{{ cpf[3:6] }}.{{ cpf[6:9] }}-{{ cpf[9:] }}
+      </p>
+      {% endif %}
+    </div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:flex-start">
+      <a href="{{ url_for('nova_visita') }}?cpf={{ cpf }}"
+         class="btn btn-primary btn-sm">+ Nova Solicitação</a>
+      <a href="javascript:history.back()" class="btn btn-outline btn-sm">← Voltar</a>
+    </div>
+  </div>
+
+  {% if erro %}
+  <div class="alerta alerta-erro">{{ erro }}</div>
+  {% endif %}
+
+  {% if visitas %}
+  <div class="card" style="padding:0">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nº VD</th>
+            <th>Data/Hora</th>
+            <th>Motivo</th>
+            <th>Status</th>
+            <th>Responsável</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in visitas %}
+          {% set s = v.status %}
+          {% if s == 'Pendente' %}
+            {% set bg = '#FFF3CD' %}{% set fg = '#856404' %}
+          {% elif s == 'Em Andamento' %}
+            {% set bg = '#BDD7EE' %}{% set fg = '#1F4E79' %}
+          {% elif s == 'Realizada' %}
+            {% set bg = '#D4EDDA' %}{% set fg = '#1A6B3C' %}
+          {% elif s == 'Cancelada' %}
+            {% set bg = '#FDECEA' %}{% set fg = '#8B1A1A' %}
+          {% else %}
+            {% set bg = '#F5F6F8' %}{% set fg = '#6B7280' %}
+          {% endif %}
+          <tr>
+            <td style="font-weight:600;white-space:nowrap">
+              {{ v.numero_vd or ('—') }}
+            </td>
+            <td style="white-space:nowrap;font-size:.85rem">
+              {{ v.criado_em[:16].replace('T',' ') if v.criado_em else '—' }}
+            </td>
+            <td style="font-size:.9rem">{{ v.motivo or '—' }}</td>
+            <td>
+              <span style="display:inline-block;background:{{ bg }};color:{{ fg }};
+                           border:1px solid {{ fg }};border-radius:12px;
+                           padding:2px 10px;font-size:.8rem;font-weight:600">
+                {{ s }}
+              </span>
+            </td>
+            <td style="font-size:.9rem">{{ v.responsavel_nome or 'Não atribuído' }}</td>
+            <td>
+              <a href="{{ url_for('detalhe_visita', visita_id=v.id) }}"
+                 class="btn btn-outline btn-sm">Ver</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="card" style="text-align:center;padding:40px;color:var(--cinza-t)">
+    Nenhuma visita domiciliar registrada para este CPF.
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

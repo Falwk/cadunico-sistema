@@ -1,0 +1,212 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container" style="max-width:860px">
+  <h1 class="page-title">Nova Solicitação de Visita</h1>
+
+  {% for e in erros %}<div class="alerta alerta-erro">{{ e }}</div>{% endfor %}
+
+  <form method="POST" enctype="multipart/form-data" novalidate>
+
+    {# ── Seção 1: Dados do Beneficiário ──────────────────────────────── #}
+    <div class="card">
+      <div class="card-title">Dados do Beneficiário</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label for="cpf_rf">CPF do Responsável Familiar *</label>
+          <input type="text" id="cpf_rf" name="cpf_rf" placeholder="000.000.000-00"
+                 value="{{ form.get('cpf_rf', '') }}" maxlength="14" required autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="nome_rf">Nome do Responsável Familiar *</label>
+          <input type="text" id="nome_rf" name="nome_rf" placeholder="Nome completo"
+                 value="{{ form.get('nome_rf', '') }}" required>
+        </div>
+      </div>
+    </div>
+
+    {# ── Seção 2: Endereço Completo ───────────────────────────────────── #}
+    <div class="card">
+      <div class="card-title">Endereço Completo</div>
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
+        <div class="form-group">
+          <label for="logradouro">Logradouro *</label>
+          <input type="text" id="logradouro" name="logradouro"
+                 placeholder="Rua, Avenida, Travessa…"
+                 value="{{ form.get('logradouro', '') }}" required>
+        </div>
+        <div class="form-group">
+          <label for="numero">Número *</label>
+          <input type="text" id="numero" name="numero"
+                 placeholder="S/N ou número"
+                 value="{{ form.get('numero', '') }}" required>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label for="complemento">Complemento <span class="text-muted">(opcional)</span></label>
+          <input type="text" id="complemento" name="complemento"
+                 placeholder="Ap., Casa, Bloco…"
+                 value="{{ form.get('complemento', '') }}">
+        </div>
+        <div class="form-group">
+          <label for="bairro">Bairro *</label>
+          <input type="text" id="bairro" name="bairro"
+                 placeholder="Nome do bairro"
+                 value="{{ form.get('bairro', '') }}" required>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="referencia">Ponto de Referência <span class="text-muted">(opcional)</span></label>
+        <textarea id="referencia" name="referencia" rows="2"
+                  placeholder="Próximo a…, em frente ao…">{{ form.get('referencia', '') }}</textarea>
+      </div>
+      <div class="form-group">
+        <label>Zona *</label>
+        <div class="radio-group">
+          <label class="radio-item">
+            <input type="radio" name="zona" value="Urbana"
+                   {% if form.get('zona', 'Urbana') == 'Urbana' %}checked{% endif %}>
+            <span>Urbana</span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="zona" value="Rural"
+                   {% if form.get('zona') == 'Rural' %}checked{% endif %}>
+            <span>Rural</span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    {# ── Seção 3: Contato ─────────────────────────────────────────────────── #}
+    <div class="card">
+      <div class="card-title">Contato <span class="text-muted" style="font-weight:400">(opcional)</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label for="telefone1">Telefone 1</label>
+          <input type="tel" id="telefone1" name="telefone1"
+                 placeholder="(00) 00000-0000"
+                 value="{{ form.get('telefone1', '') }}" maxlength="20">
+        </div>
+        <div class="form-group">
+          <label for="telefone2">Telefone 2</label>
+          <input type="tel" id="telefone2" name="telefone2"
+                 placeholder="(00) 00000-0000"
+                 value="{{ form.get('telefone2', '') }}" maxlength="20">
+        </div>
+      </div>
+    </div>
+
+    {# ── Seção 4: Detalhes da Visita ──────────────────────────────────────── #}
+    <div class="card">
+      <div class="card-title">Detalhes da Visita</div>
+      <div class="form-group">
+        <label for="motivo">Motivo da Visita *</label>
+        <select id="motivo" name="motivo" required>
+          <option value="">— Selecione o motivo —</option>
+          {% set motivos = [
+            "Família Unipessoal","Averiguação Cadastral","Revisão Cadastral",
+            "Busca Ativa","Denúncia","Suspeita de Inconsistência Cadastral",
+            "Verificação de Endereço","Verificação da Composição Familiar",
+            "Inclusão Cadastral Domiciliar","Atualização Cadastral Domiciliar",
+            "Pessoa Idosa com dificuldade de locomoção","Pessoa com Deficiência",
+            "Pessoa Acamada","Encaminhamento do CRAS","Encaminhamento do CREAS",
+            "Solicitação da Gestão do Cadastro Único",
+            "Solicitação da Secretaria de Assistência Social",
+            "Solicitação do Ministério Público","Solicitação do Poder Judiciário","Outro"
+          ] %}
+          {% for m in motivos %}
+          <option value="{{ m }}"
+            {% if form.get('motivo') == m %}selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="observacoes">Observações <span class="text-muted">(opcional)</span></label>
+        <textarea id="observacoes" name="observacoes" rows="3"
+                  placeholder="Informações adicionais relevantes para a visita…">{{ form.get('observacoes', '') }}</textarea>
+      </div>
+
+      {% if session.get('perfil') == 'admin' %}
+      <div class="form-group">
+        <label for="responsavel_id">Entrevistador Responsável <span class="text-muted">(opcional)</span></label>
+        <select id="responsavel_id" name="responsavel_id">
+          <option value="">— Não atribuído —</option>
+          {% for u in usuarios %}
+          <option value="{{ u.id }}"
+            {% if form.get('responsavel_id', session['usuario_id']|string)|string == u.id|string %}selected{% endif %}>
+            {{ u.nome }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+    </div>
+
+    {# ── Seção 4: Anexo ───────────────────────────────────────────────── #}
+    <div class="card">
+      <div class="card-title">Anexo <span class="text-muted" style="font-weight:400">(opcional)</span></div>
+      <div class="form-group">
+        <label for="anexo">Arquivo</label>
+        <input type="file" id="anexo" name="anexo"
+               accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+               style="padding:8px 0">
+        <p class="text-muted" style="margin-top:6px;font-size:.82rem">
+          Formatos aceitos: PDF, DOC, DOCX, PNG, JPG/JPEG. Tamanho máximo: 10 MB.
+        </p>
+      </div>
+    </div>
+
+    <div class="flex">
+      <a href="{{ url_for('painel_visitas') }}" class="btn btn-outline">Cancelar</a>
+      <button type="submit" class="btn btn-primary" style="margin-left:auto">Salvar</button>
+    </div>
+  </form>
+</div>
+
+<script>
+const cpfInput  = document.getElementById('cpf_rf');
+const nomeInput = document.getElementById('nome_rf');
+
+// Formata CPF enquanto o usuário digita
+cpfInput.addEventListener('input', function (e) {
+  let v = e.target.value.replace(/\D/g, '').slice(0, 11);
+  if (v.length > 9)      v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+  else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+  else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+  e.target.value = v;
+});
+
+// Ao sair do campo CPF, tenta preencher automaticamente o nome via API
+cpfInput.addEventListener('blur', function () {
+  const digits = cpfInput.value.replace(/\D/g, '');
+  if (digits.length === 11 && !nomeInput.value.trim()) {
+    fetch('/api/cpf/' + cpfInput.value)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.nome_rf) {
+          nomeInput.value = data.nome_rf;
+          nomeInput.style.background = '#EBF3FB';
+          nomeInput.title = 'Preenchido automaticamente pelo histórico';
+          setTimeout(function () { nomeInput.style.background = ''; }, 2000);
+        }
+      })
+      .catch(function () {});
+  }
+});
+
+// Limpa destaque ao editar nome manualmente
+nomeInput.addEventListener('input', function () {
+  this.style.background = '';
+  this.title = '';
+});
+
+// Valida tamanho do arquivo (10 MB)
+document.getElementById('anexo').addEventListener('change', function () {
+  const MAX = 10 * 1024 * 1024;
+  if (this.files[0] && this.files[0].size > MAX) {
+    alert('O arquivo selecionado excede o limite de 10 MB.');
+    this.value = '';
+  }
+});
+</script>
+{% endblock %}

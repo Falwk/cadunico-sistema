@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container" style="max-width:520px">
+  <h1 class="page-title">Editar Usuário</h1>
+  {% for e in erros %}<div class="alerta alerta-erro">{{ e }}</div>{% endfor %}
+  <div class="card">
+    <form method="POST">
+      <div class="form-group">
+        <label>Nome completo *</label>
+        <input type="text" name="nome" value="{{ u.nome }}" required>
+      </div>
+      <div class="form-group">
+        <label>Login *</label>
+        <input type="text" name="login" value="{{ u.login }}" required>
+      </div>
+      <div class="form-group">
+        <label>Nova senha <span class="text-muted">(deixe em branco para manter)</span></label>
+        <input type="password" name="senha">
+      </div>
+      <div class="form-group">
+        <label>Perfil</label>
+        <select name="perfil">
+          <option value="entrevistador" {% if u.perfil=='entrevistador' %}selected{% endif %}>Entrevistador</option>
+          <option value="admin" {% if u.perfil=='admin' %}selected{% endif %}>Administrador</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group">
+          <label>E-mail <span class="text-muted">(recuperação de senha)</span></label>
+          <input type="email" name="email" value="{{ u.email or '' }}" placeholder="email@exemplo.com">
+        </div>
+        <div class="form-group">
+          <label>WhatsApp <span class="text-muted">(com DDD)</span></label>
+          <input type="text" name="telefone" value="{{ u.telefone or '' }}" placeholder="91912345678" maxlength="20">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="check-item" style="display:flex">
+          <input type="checkbox" name="acesso_sibec" {% if u.acesso_sibec %}checked{% endif %}>
+          <span>Acesso ao SIBEC</span>
+        </label>
+      </div>
+      <hr class="divider">
+      <div class="flex">
+        <a href="{{ url_for('admin_usuarios') }}" class="btn btn-outline">Cancelar</a>
+        <button type="submit" class="btn btn-primary" style="margin-left:auto">Salvar Alterações</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

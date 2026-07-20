@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Redefinir Senha - CadÚnico</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#1F4E79 0%,#2E6FAD 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .box{background:#fff;border-radius:16px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 8px 40px rgba(0,0,0,.22)}
+  h1{font-size:1.2rem;font-weight:700;color:#1F4E79;margin-bottom:6px}
+  .sub{font-size:.83rem;color:#6B7280;margin-bottom:24px}
+  .erro{background:#FDECEA;color:#8B1A1A;border-left:4px solid #8B1A1A;padding:10px 14px;border-radius:6px;font-size:.87rem;margin-bottom:16px}
+  .form-group{margin-bottom:16px}
+  label{display:block;font-size:.83rem;font-weight:600;color:#1F4E79;margin-bottom:6px}
+  input{width:100%;padding:11px 14px;border:1.5px solid #E0E4EA;border-radius:8px;font-size:.95rem;font-family:inherit;transition:border .18s}
+  input:focus{outline:none;border-color:#2E6FAD}
+  .btn{width:100%;padding:12px;background:#1F4E79;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;margin-top:8px;transition:background .18s}
+  .btn:hover{background:#2E6FAD}
+  .voltar{display:block;text-align:center;margin-top:18px;color:#6B7280;font-size:.83rem;text-decoration:none}
+  .voltar:hover{color:#1F4E79}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>🔒 Nova Senha</h1>
+  <p class="sub">Digite e confirme sua nova senha abaixo.</p>
+
+  {% for e in erros %}<div class="erro">{{ e }}</div>{% endfor %}
+
+  <form method="POST">
+    <div class="form-group">
+      <label for="nova_senha">Nova Senha *</label>
+      <input type="password" id="nova_senha" name="nova_senha" placeholder="Mínimo 6 caracteres" required minlength="6" autofocus>
+    </div>
+    <div class="form-group">
+      <label for="confirmar_senha">Confirmar Senha *</label>
+      <input type="password" id="confirmar_senha" name="confirmar_senha" placeholder="Repita a nova senha" required minlength="6">
+    </div>
+    <button type="submit" class="btn">Salvar Nova Senha</button>
+  </form>
+  <a href="{{ url_for('login') }}" class="voltar">← Voltar para o login</a>
+</div>
+</body>
+</html>

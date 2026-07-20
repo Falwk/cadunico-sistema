@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CadÚnico - Registro de Atendimentos</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --azul:#1F4E79;--azul-m:#2E6FAD;--azul-c:#BDD7EE;--azul-f:#EBF3FB;
+    --verde:#1A6B3C;--verde-c:#D4EDDA;
+    --vermelho:#8B1A1A;--vermelho-c:#FDECEA;
+    --amarelo:#856404;--amarelo-c:#FFF3CD;
+    --cinza:#F5F6F8;--cinza-b:#E0E4EA;--cinza-t:#6B7280;
+    --texto:#1A2233;--branco:#FFFFFF;
+    --radius:10px;--shadow:0 2px 12px rgba(31,78,121,.10);
+  }
+  body{font-family:'Inter',sans-serif;background:var(--cinza);color:var(--texto);min-height:100vh}
+  nav{background:var(--azul);padding:0 28px;display:flex;align-items:center;height:58px;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+  .nav-brand{color:#fff;font-weight:700;font-size:1.08rem;letter-spacing:.3px;margin-right:auto;display:flex;align-items:center;gap:10px}
+  .nav-brand svg{opacity:.85}
+  .nav-user{color:var(--azul-c);font-size:.85rem;margin-right:16px;white-space:nowrap}
+  .nav-link{color:rgba(255,255,255,.82);text-decoration:none;font-size:.88rem;padding:6px 13px;border-radius:6px;transition:background .18s;white-space:nowrap}
+  .nav-link:hover,.nav-link.ativo{background:rgba(255,255,255,.15);color:#fff}
+  .nav-link.destaque{background:rgba(255,255,255,.18);color:#fff;font-weight:600}
+  .container{max-width:1200px;margin:0 auto;padding:28px 20px}
+  .page-title{font-size:1.35rem;font-weight:700;color:var(--azul);margin-bottom:20px}
+  .card{background:var(--branco);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;margin-bottom:20px}
+  .card-title{font-size:1rem;font-weight:700;color:var(--azul);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--azul-c)}
+  .alerta{padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:.9rem}
+  .alerta-erro{background:var(--vermelho-c);border-left:4px solid var(--vermelho);color:var(--vermelho)}
+  .alerta-ok{background:var(--verde-c);border-left:4px solid var(--verde);color:var(--verde)}
+  .alerta-aviso{background:var(--amarelo-c);border-left:4px solid var(--amarelo);color:var(--amarelo)}
+  .form-group{margin-bottom:18px}
+  label{display:block;font-size:.85rem;font-weight:600;color:var(--azul);margin-bottom:6px}
+  input[type=text],input[type=password],input[type=date],input[type=month],input[type=search],select,textarea{
+    width:100%;padding:10px 13px;border:1.5px solid var(--cinza-b);border-radius:8px;
+    font-size:.93rem;font-family:inherit;transition:border .18s;background:#fff;color:var(--texto)}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--azul-m)}
+  .checks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
+  .check-item{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;
+    border:1.5px solid var(--cinza-b);cursor:pointer;transition:all .16s;background:#fff}
+  .check-item:hover{border-color:var(--azul-m);background:var(--azul-f)}
+  .check-item.sibec{border-color:#D4BEEC;background:#F8F3FF}
+  .check-item.sibec:hover{border-color:#9B72CF}
+  .check-item input[type=checkbox]{width:17px;height:17px;accent-color:var(--azul-m);cursor:pointer}
+  .check-item span{font-size:.88rem;font-weight:500}
+  .badge-sibec{font-size:.65rem;background:#9B72CF;color:#fff;padding:1px 6px;border-radius:10px;margin-left:4px}
+  .radio-group{display:flex;gap:10px;flex-wrap:wrap}
+  .radio-item{display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:8px;
+    border:1.5px solid var(--cinza-b);cursor:pointer;transition:all .16s;background:#fff}
+  .radio-item:hover{border-color:var(--azul-m);background:var(--azul-f)}
+  .radio-item input{accent-color:var(--azul-m)}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:8px;
+    font-size:.9rem;font-weight:600;cursor:pointer;border:none;text-decoration:none;transition:all .18s}
+  .btn-primary{background:var(--azul);color:#fff}.btn-primary:hover{background:var(--azul-m)}
+  .btn-success{background:var(--verde);color:#fff}.btn-success:hover{background:#1e7a45}
+  .btn-danger{background:var(--vermelho);color:#fff;font-size:.8rem;padding:6px 12px}
+  .btn-danger:hover{background:#a01f1f}
+  .btn-outline{background:transparent;color:var(--azul);border:1.5px solid var(--azul-c)}.btn-outline:hover{background:var(--azul-f)}
+  .btn-sm{padding:6px 14px;font-size:.82rem}
+  .btn-warning{background:var(--amarelo-c);color:var(--amarelo);border:1.5px solid #d4aa00;font-size:.8rem;padding:6px 12px}
+  .btn-warning:hover{background:#fde68a}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  th{background:var(--azul);color:#fff;padding:10px 12px;text-align:left;font-weight:600;font-size:.82rem}
+  td{padding:9px 12px;border-bottom:1px solid var(--cinza-b)}
+  tr:hover td{background:var(--azul-f)}
+  .tag{display:inline-block;background:var(--azul-c);color:var(--azul);padding:2px 8px;border-radius:12px;font-size:.75rem;font-weight:600;margin:2px}
+  .tag-origem{background:var(--amarelo-c);color:var(--amarelo)}
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:24px}
+  .stat-card{background:var(--branco);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;text-align:center}
+  .stat-num{font-size:2rem;font-weight:700;color:var(--azul)}
+  .stat-label{font-size:.8rem;color:var(--cinza-t);margin-top:4px}
+  .flex{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .mb-0{margin-bottom:0}
+  .text-muted{color:var(--cinza-t);font-size:.85rem}
+  .divider{border:none;border-top:1px solid var(--cinza-b);margin:16px 0}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .pagination{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .page-btn{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;
+    padding:0 8px;border-radius:6px;font-size:.83rem;font-weight:600;text-decoration:none;
+    border:1.5px solid var(--cinza-b);background:#fff;color:var(--azul);transition:all .16s}
+  .page-btn:hover{background:var(--azul-f);border-color:var(--azul-c)}
+  .page-btn.ativo{background:var(--azul);color:#fff;border-color:var(--azul)}
+  .page-btn.disabled{opacity:.4;pointer-events:none}
+  a.cpf-link{color:var(--azul-m);text-decoration:none;font-weight:600}
+  a.cpf-link:hover{text-decoration:underline}
+  /* logos na navbar */
+  .nav-logo{height:36px;width:auto;object-fit:contain;border-radius:4px}
+  .nav-logos-prog{display:flex;align-items:center;gap:8px;margin-right:8px;padding:0 8px;border-right:1px solid rgba(255,255,255,.2)}
+  .nav-logo-prog{height:32px;width:auto;object-fit:contain;filter:brightness(0) invert(1);opacity:.88}
+  .nav-brand-text{font-weight:700;font-size:1rem;letter-spacing:.3px}
+  @media(max-width:768px){
+    nav{padding:0 12px;gap:4px}
+    .nav-user{display:none}
+    .nav-logos-prog{display:none}
+    .container{padding:16px 12px}
+  }
+</style>
+</head>
+<body>
+{% if session.usuario_id %}
+<nav>
+  <div class="nav-brand">
+    {% if logo_prefeitura %}
+      <img src="{{ logo_prefeitura }}" alt="Prefeitura de Tomé-Açu" class="nav-logo">
+    {% else %}
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+    {% endif %}
+    {% if logo_setas %}
+      <img src="{{ logo_setas }}" alt="SETAS" class="nav-logo">
+    {% endif %}
+    <span class="nav-brand-text">CadÚnico / PBF</span>
+  </div>
+  {% if logo_cadunico or logo_bolsafamilia %}
+  <div class="nav-logos-prog">
+    {% if logo_cadunico %}
+      <img src="{{ logo_cadunico }}" alt="Cadastro Único" class="nav-logo-prog">
+    {% endif %}
+    {% if logo_bolsafamilia %}
+      <img src="{{ logo_bolsafamilia }}" alt="Bolsa Família" class="nav-logo-prog">
+    {% endif %}
+  </div>
+  {% endif %}
+  <span class="nav-user">{{ session.usuario_nome }}</span>
+  <a href="{{ url_for('dashboard') }}" class="nav-link">Início</a>
+  <a href="{{ url_for('registrar') }}" class="nav-link destaque">+ Novo</a>
+  <a href="{{ url_for('relatorio') }}" class="nav-link">Relatório</a>
+  <a href="{{ url_for('painel_visitas') }}" class="nav-link {% if request.endpoint in ('painel_visitas', 'nova_visita', 'detalhe_visita', 'editar_visita') %}ativo{% endif %}">Visitas</a>
+  {% if session.perfil == 'admin' %}
+  <a href="{{ url_for('admin_usuarios') }}" class="nav-link">Usuários</a>
+  <a href="{{ url_for('config_relatorio') }}" class="nav-link">Config. Relatório</a>
+  <a href="{{ url_for('auditoria') }}" class="nav-link">Auditoria</a>
+  {% endif %}
+  <a href="{{ url_for('meu_perfil') }}" class="nav-link">Meu Perfil</a>
+  <a href="{{ url_for('logout') }}" class="nav-link">Sair</a>
+</nav>
+{% endif %}
+<div style="max-width:1200px;margin:0 auto;padding:0 20px">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}
+      <div class="alerta alerta-{{ cat }}" style="margin-top:12px">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+</div>
+{% block content %}{% endblock %}
+</body>
+</html>

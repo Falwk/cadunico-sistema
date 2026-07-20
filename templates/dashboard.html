@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+  <div class="flex" style="margin-bottom:20px;flex-wrap:wrap;gap:12px">
+    <h1 class="page-title mb-0">
+      {% if session.perfil == 'admin' %}Painel Geral{% else %}Meus Atendimentos{% endif %}
+    </h1>
+    <a href="{{ url_for('registrar') }}" class="btn btn-primary" style="margin-left:auto">+ Novo Atendimento</a>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-num">{{ total_mes }}</div>
+      <div class="stat-label">Atendimentos no mês</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">{{ total_filtrado }}</div>
+      <div class="stat-label">Resultados encontrados</div>
+    </div>
+    <a href="{{ url_for('painel_visitas', status='Pendente') }}" style="text-decoration:none">
+      <div class="stat-card">
+        <div class="stat-num" style="color:var(--amarelo)">{{ total_visitas_pendentes|default(0) }}</div>
+        <div class="stat-label">Visitas Pendentes</div>
+      </div>
+    </a>
+  </div>
+
+  <div class="card">
+    <div class="flex card-title mb-0" style="margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <span>Atendimentos</span>
+      <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+        <a href="{{ url_for('relatorio', mes=mes) }}" class="btn btn-outline btn-sm">Ver Relatório</a>
+        <a href="{{ url_for('exportar_relatorio', mes=mes, formato='excel') }}" class="btn btn-success btn-sm">Exportar Excel</a>
+      </div>
+    </div>
+
+    <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+      <input type="month" name="mes" value="{{ mes }}" style="max-width:160px">
+      <input type="search" name="busca" value="{{ busca }}" placeholder="Buscar CPF ou nome…" style="flex:1;min-width:180px">
+      <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
+      {% if busca or mes != mes_atual %}
+      <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm">Limpar</a>
+      {% endif %}
+    </form>
+
+    {% if atendimentos %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            {% if session.perfil == 'admin' %}<th>Entrevistador</th>{% endif %}
+            <th>CPF do RF</th>
+            <th>Nome do RF</th>
+            <th>Origem</th>
+            <th>Tipos de Atendimento</th>
+            <th style="width:120px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for at in atendimentos %}
+          <tr>
+            <td>{{ at.data[8:] }}/{{ at.data[5:7] }}/{{ at.data[:4] }}</td>
+            {% if session.perfil == 'admin' %}<td>{{ at.entrevistador }}</td>{% endif %}
+            <td><a href="{{ url_for('historico_cpf', cpf=at.cpf) }}" class="cpf-link" title="Ver histórico deste CPF">{{ at.cpf }}</a></td>
+            <td>{{ at.nome_rf }}</td>
+            <td><span class="tag tag-origem">{{ at.origem }}</span></td>
+            <td>{% for t in at.tipos.split('|') %}<span class="tag">{{ t }}</span>{% endfor %}</td>
+            <td style="display:flex;gap:4px">
+              {% if session.perfil == 'admin' or at.usuario_id == session.usuario_id %}
+              <a href="{{ url_for('editar_atendimento', at_id=at.id) }}" class="btn btn-warning">Editar</a>
+              <form method="POST" action="{{ url_for('excluir_atendimento', at_id=at.id) }}"
+                    onsubmit="return confirm('Excluir este atendimento?')">
+                <button class="btn btn-danger">Excluir</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if total_paginas > 1 %}
+    <nav class="pagination" aria-label="Paginação">
+      <a href="?mes={{ mes }}&busca={{ busca }}&pagina={{ pagina - 1 }}"
+         class="page-btn {% if pagina == 1 %}disabled{% endif %}" aria-label="Anterior">‹</a>
+      {% for p in range(1, total_paginas + 1) %}
+        {% if p == pagina or p == 1 or p == total_paginas or (p >= pagina - 2 and p <= pagina + 2) %}
+          <a href="?mes={{ mes }}&busca={{ busca }}&pagina={{ p }}"
+             class="page-btn {% if p == pagina %}ativo{% endif %}">{{ p }}</a>
+        {% elif p == pagina - 3 or p == pagina + 3 %}
+          <span class="page-btn disabled">…</span>
+        {% endif %}
+      {% endfor %}
+      <a href="?mes={{ mes }}&busca={{ busca }}&pagina={{ pagina + 1 }}"
+         class="page-btn {% if pagina == total_paginas %}disabled{% endif %}" aria-label="Próxima">›</a>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <p class="text-muted" style="text-align:center;padding:32px">
+      {% if busca %}Nenhum resultado para "<strong>{{ busca }}</strong>".{% else %}Nenhum atendimento registrado neste mês.{% endif %}
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

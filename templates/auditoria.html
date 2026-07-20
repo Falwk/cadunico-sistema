@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+  <div class="flex" style="margin-bottom:20px">
+    <h1 class="page-title mb-0">Log de Auditoria</h1>
+    <span class="text-muted" style="margin-left:auto">Últimas 200 ações</span>
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data/Hora</th>
+            <th>Usuário</th>
+            <th>Ação</th>
+            <th>Detalhe</th>
+            <th>IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in registros %}
+          <tr>
+            <td style="white-space:nowrap;font-size:.8rem">{{ r.criado_em[:19].replace('T',' ') }}</td>
+            <td>{{ r.usuario_nome or '—' }}</td>
+            <td><span class="tag">{{ r.acao }}</span></td>
+            <td style="font-size:.82rem;color:var(--cinza-t)">{{ r.detalhe or '—' }}</td>
+            <td style="font-size:.8rem;color:var(--cinza-t)">{{ r.ip or '—' }}</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--cinza-t)">Nenhum registro.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

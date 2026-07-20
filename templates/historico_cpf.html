@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+  <div class="flex" style="margin-bottom:20px">
+    <div>
+      <h1 class="page-title mb-0">Histórico do CPF</h1>
+      <p class="text-muted">{{ cpf }} · {{ nome_rf }}</p>
+    </div>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm" style="margin-left:auto">← Voltar</a>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-num">{{ atendimentos|length }}</div>
+      <div class="stat-label">Total de atendimentos</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Todos os Atendimentos</div>
+    {% if atendimentos %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            {% if session.perfil == 'admin' %}<th>Entrevistador</th>{% endif %}
+            <th>Origem</th>
+            <th>Tipos de Atendimento</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for at in atendimentos %}
+          <tr>
+            <td>{{ at.data[8:] }}/{{ at.data[5:7] }}/{{ at.data[:4] }}</td>
+            {% if session.perfil == 'admin' %}<td>{{ at.entrevistador }}</td>{% endif %}
+            <td><span class="tag tag-origem">{{ at.origem }}</span></td>
+            <td>{% for t in at.tipos.split('|') %}<span class="tag">{{ t }}</span>{% endfor %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted" style="text-align:center;padding:32px">Nenhum atendimento encontrado para este CPF.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

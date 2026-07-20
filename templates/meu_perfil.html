@@ -1,0 +1,257 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+
+  <div class="flex" style="margin-bottom:20px;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1 class="page-title mb-0">Meu Perfil</h1>
+      <p class="text-muted">{{ u.nome }} · {{ u.perfil | capitalize }}</p>
+    </div>
+  </div>
+
+  {# ── Abas ── #}
+  <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:2px solid var(--azul-c);padding-bottom:0">
+    <a href="{{ url_for('meu_perfil', secao='dados') }}"
+       style="padding:8px 18px;border-radius:8px 8px 0 0;text-decoration:none;font-weight:600;font-size:.88rem;
+              {% if secao == 'dados' %}background:var(--azul);color:#fff{% else %}background:var(--cinza);color:var(--azul){% endif %}">
+      📋 Meus Dados
+    </a>
+    <a href="{{ url_for('meu_perfil', secao='senha') }}"
+       style="padding:8px 18px;border-radius:8px 8px 0 0;text-decoration:none;font-weight:600;font-size:.88rem;
+              {% if secao == 'senha' %}background:var(--azul);color:#fff{% else %}background:var(--cinza);color:var(--azul){% endif %}">
+      🔒 Alterar Senha
+    </a>
+    <a href="{{ url_for('meu_perfil', secao='stats') }}"
+       style="padding:8px 18px;border-radius:8px 8px 0 0;text-decoration:none;font-weight:600;font-size:.88rem;
+              {% if secao == 'stats' %}background:var(--azul);color:#fff{% else %}background:var(--cinza);color:var(--azul){% endif %}">
+      📊 Estatísticas
+    </a>
+  </div>
+
+  {# ── DADOS PESSOAIS ── #}
+  {% if secao == 'dados' %}
+  <div class="card" style="max-width:560px">
+    <div class="card-title">Informações Pessoais</div>
+    {% for e in erros %}<div class="alerta alerta-erro">{{ e }}</div>{% endfor %}
+    <form method="POST">
+      <input type="hidden" name="acao" value="dados">
+      <div class="form-group">
+        <label>Nome completo *</label>
+        <input type="text" name="nome" value="{{ u.nome }}" required>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label>E-mail <span class="text-muted">(para recuperação de senha)</span></label>
+          <input type="email" name="email" value="{{ u.email or '' }}" placeholder="seu@email.com">
+        </div>
+        <div class="form-group">
+          <label>WhatsApp <span class="text-muted">(com DDD, só números)</span></label>
+          <input type="text" name="telefone" value="{{ u.telefone or '' }}"
+                 placeholder="91912345678" maxlength="20" id="fone">
+        </div>
+      </div>
+      <div class="form-group" style="background:var(--azul-f);border-radius:8px;padding:12px">
+        <p style="font-size:.82rem;color:var(--azul)">
+          <strong>Login:</strong> {{ u.login }} &nbsp;·&nbsp;
+          <strong>Perfil:</strong> {{ u.perfil | capitalize }}
+          {% if u.acesso_sibec %}&nbsp;·&nbsp; <strong>Acesso SIBEC:</strong> ✓{% endif %}
+        </p>
+      </div>
+      <div class="flex" style="margin-top:8px">
+        <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+      </div>
+    </form>
+  </div>
+
+  {# ── ALTERAR SENHA ── #}
+  {% elif secao == 'senha' %}
+  <div class="card" style="max-width:440px">
+    <div class="card-title">Alterar Senha</div>
+    {% for e in erros %}<div class="alerta alerta-erro">{{ e }}</div>{% endfor %}
+    <form method="POST">
+      <input type="hidden" name="acao" value="senha">
+      <div class="form-group">
+        <label>Senha atual *</label>
+        <input type="password" name="senha_atual" placeholder="Digite sua senha atual" required autofocus>
+      </div>
+      <div class="form-group">
+        <label>Nova senha *</label>
+        <input type="password" name="nova_senha" placeholder="Mínimo 6 caracteres" required minlength="6" id="nova">
+      </div>
+      <div class="form-group">
+        <label>Confirmar nova senha *</label>
+        <input type="password" name="confirmar_senha" placeholder="Repita a nova senha" required minlength="6" id="conf">
+      </div>
+      <div id="forca-bar" style="height:4px;border-radius:4px;background:#E0E4EA;margin-bottom:12px;transition:all .3s"></div>
+      <p id="forca-txt" style="font-size:.78rem;color:var(--cinza-t);margin-bottom:12px"></p>
+      <div class="flex">
+        <button type="submit" class="btn btn-primary">Alterar Senha</button>
+      </div>
+    </form>
+  </div>
+
+  {# ── ESTATÍSTICAS ── #}
+  {% else %}
+  {# Cards de resumo #}
+  <div class="stats-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr))">
+    <div class="stat-card">
+      <div class="stat-num">{{ total_hoje }}</div>
+      <div class="stat-label">Hoje</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">{{ total_mes }}</div>
+      <div class="stat-label">{{ mes_nome_atual }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">{{ total_ano }}</div>
+      <div class="stat-label">Em {{ ano_atual }}</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">{{ total_geral }}</div>
+      <div class="stat-label">Total histórico</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">{{ media_dia }}</div>
+      <div class="stat-label">Média/dia no mês</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">{{ dias_trabalhados }}</div>
+      <div class="stat-label">Dias atendidos no mês</div>
+    </div>
+  </div>
+
+  {# Destaques do mês #}
+  {% if tipo_top or dia_top %}
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    {% if tipo_top %}
+    <div class="card" style="margin-bottom:0">
+      <div class="card-title" style="font-size:.88rem">🏆 Tipo mais atendido no mês</div>
+      {% set tipos_lista = tipo_top.tipos.split('|') %}
+      {% for t in tipos_lista %}
+        <span class="tag">{{ t }}</span>
+      {% endfor %}
+      <p style="margin-top:8px;font-size:.82rem;color:var(--cinza-t)">{{ tipo_top.n }} registro{{ 's' if tipo_top.n != 1 }}</p>
+    </div>
+    {% endif %}
+    {% if dia_top %}
+    <div class="card" style="margin-bottom:0">
+      <div class="card-title" style="font-size:.88rem">📅 Dia mais produtivo no mês</div>
+      <p style="font-size:1.4rem;font-weight:700;color:var(--azul)">
+        {{ dia_top.data[8:] }}/{{ dia_top.data[5:7] }}/{{ dia_top.data[:4] }}
+      </p>
+      <p style="font-size:.82rem;color:var(--cinza-t)">{{ dia_top.n }} atendimento{{ 's' if dia_top.n != 1 }}</p>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# Gráfico de barras mensal #}
+  {% if grafico_labels %}
+  <div class="card">
+    <div class="card-title">Atendimentos por Mês (últimos 12 meses)</div>
+    <canvas id="chart-mensal" height="120" aria-label="Gráfico mensal" role="img"></canvas>
+  </div>
+  {% endif %}
+
+  {# Histórico em tabela #}
+  {% if historico %}
+  <div class="card">
+    <div class="card-title">Histórico Completo por Mês</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Mês</th><th style="text-align:center">Atendimentos</th><th>Barra</th></tr>
+        </thead>
+        <tbody>
+          {% set max_h = historico | map(attribute='total') | max %}
+          {% for row in historico %}
+          {% set mes_dt = row.mes + '-01' %}
+          <tr>
+            <td style="font-weight:600;white-space:nowrap">
+              {{ row.mes[5:7] }}/{{ row.mes[:4] }}
+            </td>
+            <td style="text-align:center;font-weight:700;color:var(--azul)">{{ row.total }}</td>
+            <td style="min-width:120px">
+              <div style="height:10px;background:#E8EEF5;border-radius:999px;overflow:hidden">
+                <div style="height:100%;background:var(--azul);border-radius:999px;width:{{ (row.total / max_h * 100)|round(0,'floor') }}%"></div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% endif %}{# fim secao stats #}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+// ── Gráfico mensal ──
+{% if grafico_labels %}
+(function(){
+  const ctx = document.getElementById('chart-mensal');
+  if (!ctx) return;
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: {{ grafico_labels | tojson }},
+      datasets: [{
+        label: 'Atendimentos',
+        data: {{ grafico_valores | tojson }},
+        backgroundColor: '#2E6FAD',
+        borderRadius: 6,
+        hoverBackgroundColor: '#1F4E79',
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} atendimentos` } }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { stepSize: 1 } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+})();
+{% endif %}
+
+// ── Força da senha ──
+const novaInput = document.getElementById('nova');
+const confInput = document.getElementById('conf');
+const forca = document.getElementById('forca-bar');
+const forcaTxt = document.getElementById('forca-txt');
+if (novaInput) {
+  novaInput.addEventListener('input', function() {
+    const v = this.value;
+    let pts = 0;
+    if (v.length >= 6) pts++;
+    if (v.length >= 10) pts++;
+    if (/[A-Z]/.test(v)) pts++;
+    if (/[0-9]/.test(v)) pts++;
+    if (/[^A-Za-z0-9]/.test(v)) pts++;
+    const cores = ['#E0E4EA','#E74C3C','#E67E22','#F1C40F','#2ECC71','#1A6B3C'];
+    const textos = ['','Muito fraca','Fraca','Razoável','Boa','Forte'];
+    forca.style.background = cores[pts];
+    forca.style.width = (pts * 20) + '%';
+    forcaTxt.textContent = textos[pts] || '';
+  });
+}
+
+// ── Formatação de telefone ──
+const foneInput = document.getElementById('fone');
+if (foneInput) {
+  foneInput.addEventListener('input', function(e) {
+    let v = e.target.value.replace(/\D/g,'').slice(0,11);
+    if (v.length > 6) v = v.replace(/(\d{2})(\d{5})(\d{0,4})/,'$1 $2-$3');
+    else if (v.length > 2) v = v.replace(/(\d{2})(\d+)/,'$1 $2');
+    e.target.value = v;
+  });
+}
+</script>
+{% endblock %}

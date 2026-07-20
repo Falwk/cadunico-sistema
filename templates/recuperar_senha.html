@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recuperar Senha - CadÚnico</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#1F4E79 0%,#2E6FAD 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .box{background:#fff;border-radius:16px;padding:40px 36px;width:100%;max-width:400px;box-shadow:0 8px 40px rgba(0,0,0,.22)}
+  h1{font-size:1.2rem;font-weight:700;color:#1F4E79;margin-bottom:6px}
+  .sub{font-size:.83rem;color:#6B7280;margin-bottom:24px}
+  label{display:block;font-size:.83rem;font-weight:600;color:#1F4E79;margin-bottom:6px}
+  input[type=text]{width:100%;padding:11px 14px;border:1.5px solid #E0E4EA;border-radius:8px;font-size:.95rem;font-family:inherit;transition:border .18s;margin-bottom:16px}
+  input:focus{outline:none;border-color:#2E6FAD}
+  .canal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
+  .canal-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    padding:14px 10px;border:2px solid #E0E4EA;border-radius:10px;cursor:pointer;transition:all .18s;background:#fff}
+  .canal-btn:hover{border-color:#2E6FAD;background:#EBF3FB}
+  .canal-btn input{display:none}
+  .canal-btn.selecionado{border-color:#1A6B3C;background:#D4EDDA}
+  .canal-btn span{font-size:.82rem;font-weight:600;color:#1A2233}
+  .canal-icon{font-size:1.8rem}
+  .btn{width:100%;padding:12px;background:#1F4E79;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;transition:background .18s}
+  .btn:hover{background:#2E6FAD}
+  .btn-wpp{background:#1A6B3C}.btn-wpp:hover{background:#1e7a45}
+  .erro{background:#FDECEA;color:#8B1A1A;border-left:4px solid #8B1A1A;padding:10px 14px;border-radius:6px;font-size:.87rem;margin-bottom:16px}
+  .ok{background:#D4EDDA;color:#1A6B3C;border-left:4px solid #1A6B3C;padding:12px 14px;border-radius:6px;font-size:.87rem;margin-bottom:16px}
+  .aviso{background:#FFF3CD;color:#856404;border-left:4px solid #856404;padding:12px 14px;border-radius:6px;font-size:.87rem;margin-bottom:16px}
+  .voltar{display:block;text-align:center;margin-top:18px;color:#6B7280;font-size:.83rem;text-decoration:none}
+  .voltar:hover{color:#1F4E79}
+</style>
+</head>
+<body>
+<div class="box">
+  <h1>🔑 Recuperar Senha</h1>
+  <p class="sub">Informe seu login e escolha como receber o link de redefinição.</p>
+
+  {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+
+  {% if msg == 'whatsapp' %}
+  <div class="ok">
+    <strong>Link gerado!</strong> Clique no botão abaixo para enviar via WhatsApp
+    para o número cadastrado ({{ telefone_mascarado }}).
+    O link expira em <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>.
+  </div>
+  <a href="{{ canal }}" target="_blank" class="btn btn-wpp" style="display:block;text-align:center;text-decoration:none;padding:12px">
+    📱 Abrir WhatsApp e enviar link
+  </a>
+  <hr style="margin:18px 0;border:none;border-top:1px solid #E0E4EA">
+  <p style="font-size:.78rem;color:#6B7280;text-align:center">
+    Se o WhatsApp não abrir automaticamente, copie e cole este link no seu navegador:<br>
+    <a href="{{ canal }}" target="_blank" style="color:#1F4E79;word-break:break-all">{{ canal }}</a>
+  </p>
+
+  {% elif msg == 'email' %}
+  <div class="aviso">
+    <strong>Atenção:</strong> O envio automático de e-mail não está configurado neste servidor.
+    Copie o link abaixo e envie manualmente para <strong>{{ email_mascarado }}</strong>.
+    O link expira em <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>.
+  </div>
+  <div style="background:#F5F6F8;border-radius:8px;padding:12px;font-size:.82rem;word-break:break-all;color:#1F4E79;margin-bottom:16px">
+    {{ link }}
+  </div>
+  <button onclick="navigator.clipboard.writeText('{{ link }}');this.textContent='✓ Copiado!'"
+    class="btn" style="background:#2E6FAD">📋 Copiar Link</button>
+
+  {% else %}
+  <form method="POST" id="form-recuperar">
+    <div>
+      <label for="login">Seu usuário (login)</label>
+      <input type="text" id="login" name="login" placeholder="Digite seu login" required autofocus>
+    </div>
+    <label style="margin-bottom:8px;display:block">Como deseja receber o link?</label>
+    <div class="canal-grid">
+      <label class="canal-btn" id="btn-wpp" onclick="selecionar('whatsapp',this)">
+        <input type="radio" name="canal" value="whatsapp" checked>
+        <span class="canal-icon">📱</span>
+        <span>WhatsApp</span>
+      </label>
+      <label class="canal-btn" id="btn-email" onclick="selecionar('email',this)">
+        <input type="radio" name="canal" value="email">
+        <span class="canal-icon">✉️</span>
+        <span>E-mail</span>
+      </label>
+    </div>
+    <button type="submit" class="btn">Gerar link de recuperação</button>
+  </form>
+  {% endif %}
+
+  <a href="{{ url_for('login') }}" class="voltar">← Voltar para o login</a>
+</div>
+<script>
+function selecionar(val, el) {
+  document.querySelectorAll('.canal-btn').forEach(b => b.classList.remove('selecionado'));
+  el.classList.add('selecionado');
+  el.querySelector('input').checked = true;
+}
+document.addEventListener('DOMContentLoaded', () => {
+  selecionar('whatsapp', document.getElementById('btn-wpp'));
+});
+</script>
+</body>
+</html>

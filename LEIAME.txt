@@ -1,0 +1,43 @@
+=======================================================
+  SISTEMA DE REGISTRO DE ATENDIMENTOS - CADÚNICO/PBF
+=======================================================
+
+COMO INSTALAR (apenas uma vez):
+  1. Instale o Python 3.x em: https://python.org
+  2. Abra o Prompt de Comando na pasta do sistema
+  3. Execute: pip install -r requirements.txt
+
+COMO INICIAR:
+  Windows: clique duas vezes em "iniciar.bat"
+  Linux/Mac: execute "./iniciar.sh"
+
+COMO ACESSAR:
+  No mesmo PC: http://localhost:5000
+  Em outros PCs da rede: http://[IP-DO-SERVIDOR]:5000
+  (Para ver o IP do servidor: no CMD, digite "ipconfig")
+
+-------------------------------------------------------
+USUÁRIOS PADRÃO (troque as senhas após o primeiro acesso)
+-------------------------------------------------------
+Administrador: admin / admin123
+Entrevistadores: login = nome (ex: jefferson, liamara)
+                 senha padrão = 123456
+
+QUEM TEM ACESSO AO SIBEC (configurar no painel admin):
+  - Jefferson (já configurado)
+  - Os outros usuários: ativar em Usuários > Editar > Acesso SIBEC
+
+-------------------------------------------------------
+FUNCIONALIDADES
+-------------------------------------------------------
+- Registro de atendimentos com CPF, nome, origem e tipos
+- Origem: Demanda Espontânea / Encaminhado / Visita Domiciliar
+- 18 tipos de atendimento conforme o quantitativo mensal
+- Consulta SIBEC e Folha de Pagamento: só para usuários autorizados
+- Relatório mensal com consulta de meses anteriores
+- Gráficos por tipo de atendimento e origem
+- Exportação em Excel, PDF e Word
+- Word/PDF no estilo do relatório oficial do Cadastro Único/PBF
+- Gestão de usuários pelo administrador
+
+=======================================================

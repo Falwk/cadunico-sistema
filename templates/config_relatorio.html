@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+  <div class="flex" style="justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <h1 class="page-title mb-0">Configurações do Relatório</h1>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm">← Voltar ao Dashboard</a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alerta alerta-{{ 'ok' if category == 'ok' else ('erro' if category == 'erro' else 'aviso') }}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form method="POST" enctype="multipart/form-data">
+    <!-- Card Imagem do Cabeçalho -->
+    <div class="card">
+      <div class="card-title">Imagem do Cabeçalho / Timbre Oficial</div>
+      <div style="margin-bottom:16px;">
+        <label>Cabeçalho Atual nos Relatórios Exportados (PDF e Word):</label>
+        <div style="background:#f8f9fa; border:1px dashed var(--cinza-b); padding:15px; border-radius:8px; text-align:center; margin-top:8px;">
+          <img src="{{ url_for('static', filename='report_assets/image3.png') }}" alt="Cabeçalho Atual" style="max-width:100%; max-height:120px; object-fit:contain; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,0.1);">
+        </div>
+      </div>
+      <div class="form-group mb-0">
+        <label for="imagem_cabecalho">Alterar Imagem do Cabeçalho (PNG, JPG, JPEG):</label>
+        <input type="file" id="imagem_cabecalho" name="imagem_cabecalho" accept=".png,.jpg,.jpeg">
+        <small class="text-muted" style="display:block; margin-top:4px;">Recomendado: Imagem retangular (banner) com os logotipos da prefeitura, secretaria e programas sociais.</small>
+      </div>
+    </div>
+
+    <!-- Card Textos de Identificação -->
+    <div class="card">
+      <div class="card-title">Textos de Identificação e Apresentação</div>
+      
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label for="setor_nome">Nome do Setor / Secretaria:</label>
+          <input type="text" id="setor_nome" name="setor_nome" value="{{ cfg.get('setor_nome', '') }}" required>
+        </div>
+        
+        <div class="form-group">
+          <label for="municipio">Município / Estado:</label>
+          <input type="text" id="municipio" name="municipio" value="{{ cfg.get('municipio', '') }}" required>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label for="coordenadora">Coordenadora / Responsável:</label>
+          <input type="text" id="coordenadora" name="coordenadora" value="{{ cfg.get('coordenadora', '') }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="email_setor">E-mail do Setor:</label>
+          <input type="text" id="email_setor" name="email_setor" value="{{ cfg.get('email_setor', '') }}">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="endereco">Endereço do Setor:</label>
+        <input type="text" id="endereco" name="endereco" value="{{ cfg.get('endereco', '') }}">
+      </div>
+
+      <div class="form-group">
+        <label for="territorio">Território de Abrangência:</label>
+        <input type="text" id="territorio" name="territorio" value="{{ cfg.get('territorio', '') }}">
+      </div>
+
+      <div class="form-group">
+        <label for="texto_identificacao">Texto de Identificação Adicional (Editor Estilo Word):</label>
+        <textarea id="texto_identificacao" name="texto_identificacao" rows="4">{{ cfg.get('texto_identificacao', '') }}</textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="texto_apresentacao">Texto de Apresentação (Editor Estilo Word):</label>
+        <textarea id="texto_apresentacao" name="texto_apresentacao" rows="6">{{ cfg.get('texto_apresentacao', '') }}</textarea>
+      </div>
+
+      <div class="form-group mb-0">
+        <label for="rodape">Texto do Rodapé (Endereço e Contato):</label>
+        <textarea id="rodape" name="rodape" rows="2">{{ cfg.get('rodape', '') }}</textarea>
+      </div>
+    </div>
+
+    <div style="margin-top:20px; text-align:right;">
+      <button type="submit" class="btn btn-primary" style="padding:12px 28px; font-size:1rem;">
+        💾 Salvar Configurações do Relatório
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- Editor de Texto Visual (Estilo Word) -->
+<script src="https://cdn.ckeditor.com/ckeditor5/39.0.1/classic/ckeditor.js"></script>
+<style>
+  .ck-editor__editable {
+    min-height: 180px;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: #1A2233;
+  }
+  .ck.ck-editor__main>.ck-editor__editable:focus {
+    border-color: #2E6FAD;
+    box-shadow: 0 0 0 3px rgba(46,111,173,0.15);
+  }
+</style>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    const editorConfig = {
+      toolbar: ['heading', '|', 'bold', 'italic', 'bulletedList', 'numberedList', 'blockQuote', '|', 'undo', 'redo']
+    };
+
+    if (document.querySelector('#texto_identificacao')) {
+      ClassicEditor.create(document.querySelector('#texto_identificacao'), editorConfig).catch(err => console.error(err));
+    }
+    if (document.querySelector('#texto_apresentacao')) {
+      ClassicEditor.create(document.querySelector('#texto_apresentacao'), editorConfig).catch(err => console.error(err));
+    }
+  });
+</script>
+{% endblock %}

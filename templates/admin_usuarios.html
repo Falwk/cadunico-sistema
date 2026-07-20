@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+  <div class="flex" style="margin-bottom:20px">
+    <h1 class="page-title mb-0">Gerenciar Usuários</h1>
+    <a href="{{ url_for('novo_usuario') }}" class="btn btn-primary" style="margin-left:auto">+ Novo Usuário</a>
+  </div>
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Acesso SIBEC</th><th>Ações</th></tr>
+        </thead>
+        <tbody>
+          {% for u in usuarios %}
+          <tr>
+            <td><strong>{{ u.nome }}</strong></td>
+            <td>{{ u.login }}</td>
+            <td><span class="tag">{{ u.perfil }}</span></td>
+            <td>{% if u.acesso_sibec %}<span class="tag" style="background:#EDE9F6;color:#6B3FA0">✓ Sim</span>{% else %}<span style="color:#ccc">–</span>{% endif %}</td>
+            <td style="display:flex;gap:6px">
+              <a href="{{ url_for('editar_usuario', uid=u.id) }}" class="btn btn-outline btn-sm">Editar</a>
+              {% if u.id != session.usuario_id %}
+              <form method="POST" action="{{ url_for('excluir_usuario', uid=u.id) }}"
+                    onsubmit="return confirm('Excluir usuário {{ u.nome }}?')">
+                <button class="btn btn-danger">Excluir</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

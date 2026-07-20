@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+
+  {# ── Cabeçalho ──────────────────────────────────────────────── #}
+  <div class="flex" style="margin-bottom:20px;flex-wrap:wrap;gap:12px">
+    <h1 class="page-title mb-0">Solicitações de Visita</h1>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <a href="{{ url_for('nova_visita') }}" class="btn btn-primary">+ Nova Solicitação</a>
+      {% if session.get('perfil') == 'admin' %}
+      <form method="POST" action="{{ url_for('zerar_numeracao_vd') }}"
+            onsubmit="return confirm('Zerar toda a numeração VD? Esta ação não pode ser desfeita.')">
+        <button type="submit" class="btn btn-danger btn-sm">🔄 Zerar Numeração VD</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Contadores de status ───────────────────────────────────── #}
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--amarelo)">{{ contadores.get('Pendente', 0) }}</div>
+      <div class="stat-label">Pendentes</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--azul-m)">{{ contadores.get('Em Andamento', 0) }}</div>
+      <div class="stat-label">Em Andamento</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--verde)">{{ contadores.get('Realizada', 0) }}</div>
+      <div class="stat-label">Realizadas</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--vermelho)">{{ contadores.get('Cancelada', 0) }}</div>
+      <div class="stat-label">Canceladas</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">{{ total_filtrado }}</div>
+      <div class="stat-label">Resultados encontrados</div>
+    </div>
+  </div>
+
+  {# ── Card principal com filtros + tabela ───────────────────── #}
+  <div class="card">
+    <div class="flex card-title mb-0" style="margin-bottom:14px">
+      <span>Solicitações de Visita</span>
+    </div>
+
+    {# Formulário de filtros #}
+    <form method="GET" action="{{ url_for('painel_visitas') }}"
+          style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+
+      <select name="status" style="max-width:180px">
+        <option value="">Todos os status</option>
+        {% for s in ['Pendente', 'Em Andamento', 'Realizada', 'Cancelada'] %}
+          <option value="{{ s }}" {% if filtros.get('status') == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+
+      <select name="zona" style="max-width:140px">
+        <option value="">Zona (todas)</option>
+        <option value="Urbana" {% if filtros.get('zona') == 'Urbana' %}selected{% endif %}>Urbana</option>
+        <option value="Rural"  {% if filtros.get('zona') == 'Rural'  %}selected{% endif %}>Rural</option>
+      </select>
+
+      <input type="text" name="bairro"
+             value="{{ filtros.get('bairro', '') }}"
+             placeholder="Bairro…"
+             style="max-width:160px">
+
+      <input type="date" name="data_ini"
+             value="{{ filtros.get('data_ini', '') }}"
+             title="Data inicial"
+             style="max-width:160px">
+
+      <input type="date" name="data_fim"
+             value="{{ filtros.get('data_fim', '') }}"
+             title="Data final"
+             style="max-width:160px">
+
+      <input type="search" name="busca"
+             value="{{ filtros.get('busca', '') }}"
+             placeholder="Buscar CPF ou nome…"
+             style="flex:1;min-width:180px">
+
+      <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
+
+      {% if filtros.get('status') or filtros.get('data_ini') or filtros.get('data_fim') or filtros.get('busca') or filtros.get('zona') or filtros.get('bairro') %}
+        <a href="{{ url_for('painel_visitas') }}" class="btn btn-outline btn-sm">Limpar</a>
+      {% endif %}
+    </form>
+
+    {# Tabela de visitas #}
+    {% if visitas %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Nº VD</th>
+            <th>CPF do RF</th>
+            <th>Nome do RF</th>
+            <th>Motivo</th>
+            <th>Status</th>
+            <th>Entrevistador Atribuído</th>
+            <th style="width:140px"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in visitas %}
+          <tr>
+            {# Data no formato DD/MM/AAAA #}
+            <td style="white-space:nowrap;font-size:.85rem">{{ v.criado_em[:10][8:] }}/{{ v.criado_em[:10][5:7] }}/{{ v.criado_em[:10][:4] }}</td>
+
+            <td style="font-weight:600;font-size:.85rem;white-space:nowrap">{{ v.numero_vd or '—' }}</td>
+            <td>{{ v.cpf_rf }}</td>
+            <td>{{ v.nome_rf }}</td>
+            <td>{{ v.motivo }}</td>
+
+            {# Badge de status com cor semântica #}
+            <td>
+              {% if v.status == 'Pendente' %}
+                <span class="tag" style="background:var(--amarelo-c);color:var(--amarelo)">{{ v.status }}</span>
+              {% elif v.status == 'Em Andamento' %}
+                <span class="tag" style="background:#DBEAFE;color:#1D4ED8">{{ v.status }}</span>
+              {% elif v.status == 'Realizada' %}
+                <span class="tag" style="background:var(--verde-c);color:var(--verde)">{{ v.status }}</span>
+              {% elif v.status == 'Cancelada' %}
+                <span class="tag" style="background:var(--vermelho-c);color:var(--vermelho)">{{ v.status }}</span>
+              {% else %}
+                <span class="tag">{{ v.status }}</span>
+              {% endif %}
+            </td>
+
+            <td>{{ v.responsavel_nome if v.responsavel_nome else '—' }}</td>
+
+            {# Ações: Detalhe sempre visível; Editar apenas para status não-terminal #}
+            <td style="display:flex;gap:4px;flex-wrap:wrap">
+              <a href="{{ url_for('detalhe_visita', visita_id=v.id) }}"
+                 class="btn btn-outline btn-sm">Detalhe</a>
+              {% if v.status not in ('Realizada', 'Cancelada') %}
+                <a href="{{ url_for('editar_visita', visita_id=v.id) }}"
+                   class="btn btn-warning">Editar</a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# Paginação — mesmo padrão de dashboard.html #}
+    {% if total_paginas > 1 %}
+    <nav class="pagination" aria-label="Paginação">
+      <a href="?status={{ filtros.get('status','') }}&data_ini={{ filtros.get('data_ini','') }}&data_fim={{ filtros.get('data_fim','') }}&busca={{ filtros.get('busca','') }}&zona={{ filtros.get('zona','') }}&bairro={{ filtros.get('bairro','') }}&pagina={{ pagina - 1 }}"
+         class="page-btn {% if pagina == 1 %}disabled{% endif %}" aria-label="Anterior">‹</a>
+
+      {% for p in range(1, total_paginas + 1) %}
+        {% if p == pagina or p == 1 or p == total_paginas or (p >= pagina - 2 and p <= pagina + 2) %}
+          <a href="?status={{ filtros.get('status','') }}&data_ini={{ filtros.get('data_ini','') }}&data_fim={{ filtros.get('data_fim','') }}&busca={{ filtros.get('busca','') }}&zona={{ filtros.get('zona','') }}&bairro={{ filtros.get('bairro','') }}&pagina={{ p }}"
+             class="page-btn {% if p == pagina %}ativo{% endif %}">{{ p }}</a>
+        {% elif p == pagina - 3 or p == pagina + 3 %}
+          <span class="page-btn disabled">…</span>
+        {% endif %}
+      {% endfor %}
+
+      <a href="?status={{ filtros.get('status','') }}&data_ini={{ filtros.get('data_ini','') }}&data_fim={{ filtros.get('data_fim','') }}&busca={{ filtros.get('busca','') }}&zona={{ filtros.get('zona','') }}&bairro={{ filtros.get('bairro','') }}&pagina={{ pagina + 1 }}"
+         class="page-btn {% if pagina == total_paginas %}disabled{% endif %}" aria-label="Próxima">›</a>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    {# Mensagem de lista vazia (Req. 2.8) #}
+    <p class="text-muted" style="text-align:center;padding:32px">
+      Nenhuma solicitação encontrada para os filtros selecionados.
+    </p>
+    {% endif %}
+
+  </div>{# /card #}
+</div>{# /container #}
+{% endblock %}
