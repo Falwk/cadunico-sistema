@@ -3,488 +3,148 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CadÚnico / PBF - Sistema de Gestão</title>
+<title>CadÚnico - Registro de Atendimentos</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-  
-  :root {
-    --bg-main: #F4F6FA;
-    --sidebar-bg: #163A5C;
-    --sidebar-hover: #1E4973;
-    --sidebar-active: #2563EB;
-    --sidebar-text: #E2E8F0;
-    --sidebar-active-bg: rgba(37, 99, 235, 0.2);
-    
-    --header-bg: #FFFFFF;
-    --header-border: #E2E8F0;
-    
-    --text-primary: #0F172A;
-    --text-secondary: #475569;
-    --text-muted: #64748B;
-    
-    --card-bg: #FFFFFF;
-    --card-border: #E2E8F0;
-    --card-shadow: 0 4px 18px rgba(22, 58, 92, 0.05);
-    
-    --primary: #163A5C;
-    --primary-light: #2563EB;
-    --success: #16A34A;
-    --warning: #D97706;
-    --danger: #DC2626;
-    --purple: #9333EA;
-    
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --radius-xl: 20px;
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --azul:#1F4E79;--azul-m:#2E6FAD;--azul-c:#BDD7EE;--azul-f:#EBF3FB;
+    --verde:#1A6B3C;--verde-c:#D4EDDA;
+    --vermelho:#8B1A1A;--vermelho-c:#FDECEA;
+    --amarelo:#856404;--amarelo-c:#FFF3CD;
+    --cinza:#F5F6F8;--cinza-b:#E0E4EA;--cinza-t:#6B7280;
+    --texto:#1A2233;--branco:#FFFFFF;
+    --radius:10px;--shadow:0 2px 12px rgba(31,78,121,.10);
   }
-  
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', sans-serif; background: var(--bg-main); color: var(--text-primary); min-height: 100vh; display: flex; }
-  
-  /* Layout Architecture */
-  .app-layout { display: flex; width: 100%; min-height: 100vh; }
-  
-  /* Sidebar */
-  aside.sidebar {
-    width: 240px;
-    background: var(--sidebar-bg);
-    color: #FFF;
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    z-index: 100;
-    box-shadow: 4px 0 15px rgba(0,0,0,0.08);
-    transition: all 0.2s ease;
-  }
-  
-  .sidebar-brand {
-    height: 64px;
-    padding: 0 20px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    border-bottom: 1px solid rgba(255,255,255,0.08);
-  }
-  
-  .sidebar-brand-icon {
-    width: 34px;
-    height: 34px;
-    background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #FFF;
-    box-shadow: 0 2px 8px rgba(37,99,235,0.4);
-  }
-  
-  .sidebar-brand-text {
-    font-weight: 800;
-    font-size: 1.05rem;
-    letter-spacing: -0.2px;
-    color: #FFFFFF;
-  }
-  
-  .sidebar-menu {
-    padding: 20px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    flex: 1;
-    overflow-y: auto;
-  }
-  
-  .sidebar-link {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 11px 14px;
-    color: var(--sidebar-text);
-    text-decoration: none;
-    font-size: 0.9rem;
-    font-weight: 500;
-    border-radius: var(--radius-md);
-    transition: all 0.16s ease;
-  }
-  
-  .sidebar-link:hover {
-    background: var(--sidebar-hover);
-    color: #FFF;
-  }
-  
-  .sidebar-link.ativo {
-    background: var(--sidebar-active-bg);
-    color: #60A5FA;
-    font-weight: 700;
-    border-left: 4px solid #3B82F6;
-  }
-
-  .sidebar-link svg { width: 20px; height: 20px; opacity: 0.85; stroke-width: 2; }
-  .sidebar-link.ativo svg { opacity: 1; stroke: #60A5FA; }
-
-  /* Main Wrapper */
-  .main-wrapper {
-    flex: 1;
-    margin-left: 240px;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  
-  /* Top Header */
-  header.top-header {
-    height: 64px;
-    background: var(--header-bg);
-    border-bottom: 1px solid var(--header-border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 28px;
-    position: sticky;
-    top: 0;
-    z-index: 90;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
-  }
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .header-title-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 700;
-    font-size: 0.92rem;
-    color: var(--primary);
-  }
-
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .header-action-btn {
-    background: var(--primary);
-    color: #FFF;
-    border: none;
-    padding: 9px 18px;
-    border-radius: var(--radius-md);
-    font-size: 0.86rem;
-    font-weight: 600;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: background 0.18s ease;
-  }
-
-  .header-action-btn:hover { background: #1B446B; }
-
-  .header-notif {
-    position: relative;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: #F1F5F9;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: background 0.16s ease;
-  }
-
-  .header-notif:hover { background: #E2E8F0; }
-
-  .notif-dot {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 8px;
-    height: 8px;
-    background: var(--danger);
-    border-radius: 50%;
-    border: 2px solid #FFF;
-  }
-
-  .user-profile-chip {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 4px 10px 4px 4px;
-    border-radius: 30px;
-    background: #F8FAFC;
-    border: 1px solid #E2E8F0;
-    text-decoration: none;
-    color: var(--text-primary);
-    transition: all 0.16s ease;
-  }
-
-  .user-profile-chip:hover { background: #F1F5F9; border-color: #CBD5E1; }
-
-  .avatar-circle {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #163A5C 0%, #2563EB 100%);
-    color: #FFF;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 0.85rem;
-  }
-
-  .user-info { display: flex; flex-direction: column; line-height: 1.2; }
-  .user-name { font-weight: 700; font-size: 0.83rem; color: var(--text-primary); }
-  .user-role { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
-
-  /* Main Content Area */
-  .page-content { padding: 28px; flex: 1; }
-
-  /* Standard UI Components */
-  .card {
-    background: var(--card-bg);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--card-shadow);
-    border: 1px solid var(--card-border);
-    padding: 24px;
-    margin-bottom: 24px;
-  }
-
-  .card-title {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--primary);
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  /* Metric KPI Cards (Inspired by Gemini mockups) */
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 20px;
-    margin-bottom: 24px;
-  }
-
-  .kpi-card {
-    border-radius: var(--radius-lg);
-    padding: 22px 24px;
-    color: #FFF;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-    position: relative;
-    overflow: hidden;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 10px 25px rgba(0,0,0,0.12); }
-
-  .kpi-card.green { background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%); }
-  .kpi-card.blue { background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%); }
-  .kpi-card.orange { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); }
-
-  .kpi-icon-badge {
-    width: 54px;
-    height: 54px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.22);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #FFF;
-  }
-
-  .kpi-icon-badge svg { width: 28px; height: 28px; stroke-width: 2.2; }
-
-  .kpi-details { display: flex; flex-direction: column; gap: 4px; }
-  .kpi-label { font-size: 0.85rem; font-weight: 600; opacity: 0.92; text-transform: uppercase; letter-spacing: 0.3px; }
-  .kpi-number { font-size: 2.3rem; font-weight: 800; line-height: 1.1; }
-
-  /* Alert Banners */
-  .alerta { padding: 14px 18px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 10px; }
-  .alerta-erro { background: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B; }
-  .alerta-ok { background: #F0FDF4; border: 1px solid #86EFAC; color: #166534; }
-  .alerta-aviso { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; }
-
-  /* Form Elements */
-  .form-group { margin-bottom: 18px; }
-  label { display: block; font-size: 0.86rem; font-weight: 600; color: var(--text-primary); margin-bottom: 6px; }
-  input[type=text], input[type=password], input[type=date], input[type=month], input[type=search], select, textarea {
-    width: 100%; padding: 11px 14px; border: 1.5px solid #CBD5E1; border-radius: var(--radius-md);
-    font-size: 0.92rem; font-family: inherit; transition: all 0.18s ease; background: #FFFFFF; color: var(--text-primary);
-  }
-  input:focus, select:focus, textarea:focus { outline: none; border-color: #2563EB; box-shadow: 0 0 0 3px rgba(37,99,235,0.14); }
-
-  /* Buttons */
-  .btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    padding: 10px 20px; border-radius: var(--radius-md); font-size: 0.88rem; font-weight: 600;
-    cursor: pointer; border: none; text-decoration: none; transition: all 0.18s ease;
-  }
-  .btn-primary { background: var(--primary); color: #FFF; } .btn-primary:hover { background: #1E4973; }
-  .btn-success { background: var(--success); color: #FFF; } .btn-success:hover { background: #15803D; }
-  .btn-danger { background: #FEE2E2; color: #DC2626; padding: 7px 12px; font-size: 0.82rem; } .btn-danger:hover { background: #FCA5A5; color: #7F1D1D; }
-  .btn-outline { background: #FFF; color: var(--text-primary); border: 1.5px solid #CBD5E1; } .btn-outline:hover { background: #F8FAFC; border-color: #94A3B8; }
-  .btn-sm { padding: 7px 14px; font-size: 0.82rem; }
-
-  /* Tables */
-  .table-wrap { overflow-x: auto; border-radius: var(--radius-md); border: 1px solid var(--card-border); }
-  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left; }
-  th { background: #163A5C; color: #FFFFFF; padding: 12px 16px; font-weight: 700; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.3px; }
-  td { padding: 12px 16px; border-bottom: 1px solid #E2E8F0; vertical-align: middle; color: var(--text-primary); }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #F8FAFC; }
-
-  /* Custom Badges (Inspired by Gemini mockups) */
-  .badge-sibec {
-    display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px;
-    font-size: 0.73rem; font-weight: 700; background: #F3E8FF; color: #7E22CE; border: 1px solid #E9D5FF;
-  }
-  .tag-origem-espontanea {
-    display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px;
-    font-size: 0.73rem; font-weight: 700; background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A;
-  }
-  .tag-origem-visita {
-    display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px;
-    font-size: 0.73rem; font-weight: 700; background: #FFEDD5; color: #C2410C; border: 1px solid #FED7AA;
-  }
-  .tag-origem-encaminhado {
-    display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px;
-    font-size: 0.73rem; font-weight: 700; background: #DBEAFE; color: #1D4ED8; border: 1px solid #BFDBFE;
-  }
-
-  @media(max-width: 900px) {
-    aside.sidebar { width: 70px; }
-    .sidebar-brand-text, .sidebar-link span { display: none; }
-    .main-wrapper { margin-left: 70px; }
+  body{font-family:'Inter',sans-serif;background:var(--cinza);color:var(--texto);min-height:100vh}
+  nav{background:var(--azul);padding:0 28px;display:flex;align-items:center;height:58px;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+  .nav-brand{color:#fff;font-weight:700;font-size:1.08rem;letter-spacing:.3px;margin-right:auto;display:flex;align-items:center;gap:10px}
+  .nav-brand svg{opacity:.85}
+  .nav-user{color:var(--azul-c);font-size:.85rem;margin-right:16px;white-space:nowrap}
+  .nav-link{color:rgba(255,255,255,.82);text-decoration:none;font-size:.88rem;padding:6px 13px;border-radius:6px;transition:background .18s;white-space:nowrap}
+  .nav-link:hover,.nav-link.ativo{background:rgba(255,255,255,.15);color:#fff}
+  .nav-link.destaque{background:rgba(255,255,255,.18);color:#fff;font-weight:600}
+  .container{max-width:1200px;margin:0 auto;padding:28px 20px}
+  .page-title{font-size:1.35rem;font-weight:700;color:var(--azul);margin-bottom:20px}
+  .card{background:var(--branco);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;margin-bottom:20px}
+  .card-title{font-size:1rem;font-weight:700;color:var(--azul);margin-bottom:16px;padding-bottom:10px;border-bottom:2px solid var(--azul-c)}
+  .alerta{padding:12px 16px;border-radius:8px;margin-bottom:16px;font-size:.9rem}
+  .alerta-erro{background:var(--vermelho-c);border-left:4px solid var(--vermelho);color:var(--vermelho)}
+  .alerta-ok{background:var(--verde-c);border-left:4px solid var(--verde);color:var(--verde)}
+  .alerta-aviso{background:var(--amarelo-c);border-left:4px solid var(--amarelo);color:var(--amarelo)}
+  .form-group{margin-bottom:18px}
+  label{display:block;font-size:.85rem;font-weight:600;color:var(--azul);margin-bottom:6px}
+  input[type=text],input[type=password],input[type=date],input[type=month],input[type=search],select,textarea{
+    width:100%;padding:10px 13px;border:1.5px solid var(--cinza-b);border-radius:8px;
+    font-size:.93rem;font-family:inherit;transition:border .18s;background:#fff;color:var(--texto)}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--azul-m)}
+  .checks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
+  .check-item{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;
+    border:1.5px solid var(--cinza-b);cursor:pointer;transition:all .16s;background:#fff}
+  .check-item:hover{border-color:var(--azul-m);background:var(--azul-f)}
+  .check-item.sibec{border-color:#D4BEEC;background:#F8F3FF}
+  .check-item.sibec:hover{border-color:#9B72CF}
+  .check-item input[type=checkbox]{width:17px;height:17px;accent-color:var(--azul-m);cursor:pointer}
+  .check-item span{font-size:.88rem;font-weight:500}
+  .badge-sibec{font-size:.65rem;background:#9B72CF;color:#fff;padding:1px 6px;border-radius:10px;margin-left:4px}
+  .radio-group{display:flex;gap:10px;flex-wrap:wrap}
+  .radio-item{display:flex;align-items:center;gap:8px;padding:9px 16px;border-radius:8px;
+    border:1.5px solid var(--cinza-b);cursor:pointer;transition:all .16s;background:#fff}
+  .radio-item:hover{border-color:var(--azul-m);background:var(--azul-f)}
+  .radio-item input{accent-color:var(--azul-m)}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:10px 20px;border-radius:8px;
+    font-size:.9rem;font-weight:600;cursor:pointer;border:none;text-decoration:none;transition:all .18s}
+  .btn-primary{background:var(--azul);color:#fff}.btn-primary:hover{background:var(--azul-m)}
+  .btn-success{background:var(--verde);color:#fff}.btn-success:hover{background:#1e7a45}
+  .btn-danger{background:var(--vermelho);color:#fff;font-size:.8rem;padding:6px 12px}
+  .btn-danger:hover{background:#a01f1f}
+  .btn-outline{background:transparent;color:var(--azul);border:1.5px solid var(--azul-c)}.btn-outline:hover{background:var(--azul-f)}
+  .btn-sm{padding:6px 14px;font-size:.82rem}
+  .btn-warning{background:var(--amarelo-c);color:var(--amarelo);border:1.5px solid #d4aa00;font-size:.8rem;padding:6px 12px}
+  .btn-warning:hover{background:#fde68a}
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  th{background:var(--azul);color:#fff;padding:10px 12px;text-align:left;font-weight:600;font-size:.82rem}
+  td{padding:9px 12px;border-bottom:1px solid var(--cinza-b)}
+  tr:hover td{background:var(--azul-f)}
+  .tag{display:inline-block;background:var(--azul-c);color:var(--azul);padding:2px 8px;border-radius:12px;font-size:.75rem;font-weight:600;margin:2px}
+  .tag-origem{background:var(--amarelo-c);color:var(--amarelo)}
+  .stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:24px}
+  .stat-card{background:var(--branco);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;text-align:center}
+  .stat-num{font-size:2rem;font-weight:700;color:var(--azul)}
+  .stat-label{font-size:.8rem;color:var(--cinza-t);margin-top:4px}
+  .flex{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .mb-0{margin-bottom:0}
+  .text-muted{color:var(--cinza-t);font-size:.85rem}
+  .divider{border:none;border-top:1px solid var(--cinza-b);margin:16px 0}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+  .pagination{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  .page-btn{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:34px;
+    padding:0 8px;border-radius:6px;font-size:.83rem;font-weight:600;text-decoration:none;
+    border:1.5px solid var(--cinza-b);background:#fff;color:var(--azul);transition:all .16s}
+  .page-btn:hover{background:var(--azul-f);border-color:var(--azul-c)}
+  .page-btn.ativo{background:var(--azul);color:#fff;border-color:var(--azul)}
+  .page-btn.disabled{opacity:.4;pointer-events:none}
+  a.cpf-link{color:var(--azul-m);text-decoration:none;font-weight:600}
+  a.cpf-link:hover{text-decoration:underline}
+  /* logos na navbar */
+  .nav-logo{height:36px;width:auto;object-fit:contain;border-radius:4px}
+  .nav-logos-prog{display:flex;align-items:center;gap:8px;margin-right:8px;padding:0 8px;border-right:1px solid rgba(255,255,255,.2)}
+  .nav-logo-prog{height:32px;width:auto;object-fit:contain;filter:brightness(0) invert(1);opacity:.88}
+  .nav-brand-text{font-weight:700;font-size:1rem;letter-spacing:.3px}
+  @media(max-width:768px){
+    nav{padding:0 12px;gap:4px}
+    .nav-user{display:none}
+    .nav-logos-prog{display:none}
+    .container{padding:16px 12px}
   }
 </style>
 </head>
 <body>
-
 {% if session.usuario_id %}
-<div class="app-layout">
-  <!-- Sidebar Navigation -->
-  <aside class="sidebar">
-    <div class="sidebar-brand">
-      <div class="sidebar-brand-icon">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
-      </div>
-      <span class="sidebar-brand-text">CadÚnico / PBF</span>
-    </div>
-
-    <nav class="sidebar-menu">
-      <a href="{{ url_for('dashboard') }}" class="sidebar-link {% if request.endpoint == 'dashboard' %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
-        <span>Painel Geral</span>
-      </a>
-
-      <a href="{{ url_for('registrar') }}" class="sidebar-link {% if request.endpoint == 'registrar' %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
-        <span>Registrar Atendimento</span>
-      </a>
-
-      <a href="{{ url_for('relatorio') }}" class="sidebar-link {% if request.endpoint == 'relatorio' %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        <span>Relatórios</span>
-      </a>
-
-      <a href="{{ url_for('painel_visitas') }}" class="sidebar-link {% if request.endpoint in ('painel_visitas', 'nova_visita', 'detalhe_visita', 'editar_visita') %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        <span>Visitas</span>
-      </a>
-
-      {% if session.perfil == 'admin' %}
-      <a href="{{ url_for('admin_usuarios') }}" class="sidebar-link {% if request.endpoint in ('admin_usuarios', 'novo_usuario', 'editar_usuario') %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span>Usuários</span>
-      </a>
-
-      <a href="{{ url_for('config_relatorio') }}" class="sidebar-link {% if request.endpoint == 'config_relatorio' %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span>Configurações</span>
-      </a>
-
-      <a href="{{ url_for('auditoria') }}" class="sidebar-link {% if request.endpoint == 'auditoria' %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        <span>Auditoria</span>
-      </a>
-      {% endif %}
-    </nav>
-  </aside>
-
-  <!-- Main Content Area -->
-  <div class="main-wrapper">
-    <!-- Top Header -->
-    <header class="top-header">
-      <div class="header-left">
-        <div class="header-title-badge">
-          <span>Prefeitura de Tomé-Açu / SETAS</span>
-        </div>
-      </div>
-
-      <div class="header-right">
-        <a href="{{ url_for('registrar') }}" class="header-action-btn">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          <span>+ Novo Atendimento</span>
-        </a>
-
-        <div class="header-notif" title="Notificações">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          <div class="notif-dot"></div>
-        </div>
-
-        <a href="{{ url_for('meu_perfil') }}" class="user-profile-chip" title="Meu Perfil">
-          <div class="avatar-circle">
-            {{ session.usuario_nome[0]|upper if session.usuario_nome else 'U' }}
-          </div>
-          <div class="user-info">
-            <span class="user-name">{{ session.usuario_nome }}</span>
-            <span class="user-role">{{ 'Administrador' if session.perfil == 'admin' else 'Entrevistador' }}</span>
-          </div>
-        </a>
-
-        <a href="{{ url_for('logout') }}" style="color:var(--text-muted); text-decoration:none; display:flex; align-items:center;" title="Sair do sistema">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        </a>
-      </div>
-    </header>
-
-    <main class="page-content">
-      {% with msgs = get_flashed_messages(with_categories=true) %}
-        {% if msgs %}
-          {% for cat, msg in msgs %}
-            <div class="alerta alerta-{{ 'ok' if cat in ('ok','success') else ('erro' if cat in ('erro','danger') else 'aviso') }}">
-              {{ msg }}
-            </div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
-
-      {% block content %}{% endblock %}
-    </main>
+<nav>
+  <div class="nav-brand">
+    {% if logo_prefeitura %}
+      <img src="{{ logo_prefeitura }}" alt="Prefeitura de Tomé-Açu" class="nav-logo">
+    {% else %}
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+    {% endif %}
+    {% if logo_setas %}
+      <img src="{{ logo_setas }}" alt="SETAS" class="nav-logo">
+    {% endif %}
+    <span class="nav-brand-text">CadÚnico / PBF</span>
   </div>
-</div>
-{% else %}
-  <div style="width:100%;">
-    {% block login_content %}{% endblock %}
+  {% if logo_cadunico or logo_bolsafamilia %}
+  <div class="nav-logos-prog">
+    {% if logo_cadunico %}
+      <img src="{{ logo_cadunico }}" alt="Cadastro Único" class="nav-logo-prog">
+    {% endif %}
+    {% if logo_bolsafamilia %}
+      <img src="{{ logo_bolsafamilia }}" alt="Bolsa Família" class="nav-logo-prog">
+    {% endif %}
   </div>
+  {% endif %}
+  <span class="nav-user">{{ session.usuario_nome }}</span>
+  <a href="{{ url_for('dashboard') }}" class="nav-link">Início</a>
+  <a href="{{ url_for('registrar') }}" class="nav-link destaque">+ Novo</a>
+  <a href="{{ url_for('relatorio') }}" class="nav-link">Relatório</a>
+  <a href="{{ url_for('painel_visitas') }}" class="nav-link {% if request.endpoint in ('painel_visitas', 'nova_visita', 'detalhe_visita', 'editar_visita') %}ativo{% endif %}">Visitas</a>
+  {% if session.perfil == 'admin' %}
+  <a href="{{ url_for('admin_usuarios') }}" class="nav-link">Usuários</a>
+  <a href="{{ url_for('config_relatorio') }}" class="nav-link">Config. Relatório</a>
+  <a href="{{ url_for('auditoria') }}" class="nav-link">Auditoria</a>
+  {% endif %}
+  <a href="{{ url_for('meu_perfil') }}" class="nav-link">Meu Perfil</a>
+  <a href="{{ url_for('logout') }}" class="nav-link">Sair</a>
+</nav>
 {% endif %}
-
+<div style="max-width:1200px;margin:0 auto;padding:0 20px">
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}
+      <div class="alerta alerta-{{ cat }}" style="margin-top:12px">{{ msg }}</div>
+    {% endfor %}
+  {% endwith %}
+</div>
+{% block content %}{% endblock %}
 </body>
 </html>

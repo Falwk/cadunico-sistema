@@ -1,94 +1,87 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="visitas-page">
+<div class="container">
 
-  <!-- Header -->
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
-    <div>
-      <h1 style="font-size:1.45rem; font-weight:800; color:var(--primary); letter-spacing:-0.3px; margin-bottom:4px;">
-        Solicitações de Visita Domiciliar
-      </h1>
-      <p style="font-size:0.86rem; color:var(--text-muted);">
-        Gestão e agendamento de visitas de verificação em campo
-      </p>
-    </div>
-    <div style="display:flex; gap:10px;">
-      <a href="{{ url_for('nova_visita') }}" class="btn btn-primary">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>+ Nova Solicitação</span>
-      </a>
+  {# ── Cabeçalho ──────────────────────────────────────────────── #}
+  <div class="flex" style="margin-bottom:20px;flex-wrap:wrap;gap:12px">
+    <h1 class="page-title mb-0">Solicitações de Visita</h1>
+    <div style="margin-left:auto;display:flex;gap:8px">
+      <a href="{{ url_for('nova_visita') }}" class="btn btn-primary">+ Nova Solicitação</a>
       {% if session.get('perfil') == 'admin' %}
       <form method="POST" action="{{ url_for('zerar_numeracao_vd') }}"
             onsubmit="return confirm('Zerar toda a numeração VD? Esta ação não pode ser desfeita.')">
-        <button type="submit" class="btn btn-danger btn-sm" style="height:100%;">🔄 Zerar Numeração VD</button>
+        <button type="submit" class="btn btn-danger btn-sm">🔄 Zerar Numeração VD</button>
       </form>
       {% endif %}
     </div>
   </div>
 
-  <!-- Status KPI Cards (Inspired by Gemini Mockup Image 3) -->
-  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
-    
-    <a href="{{ url_for('painel_visitas', status='Pendente') }}" style="text-decoration:none;">
-      <div style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:var(--radius-lg); padding:18px 20px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
-        <span style="font-size:0.8rem; font-weight:700; color:#D97706; text-transform:uppercase; letter-spacing:0.3px;">Pendentes</span>
-        <div style="font-size:2rem; font-weight:800; color:#B45309; margin-top:4px;">{{ contadores.get('Pendente', 0) }}</div>
-      </div>
-    </a>
-
-    <a href="{{ url_for('painel_visitas', status='Em Andamento') }}" style="text-decoration:none;">
-      <div style="background:#EFF6FF; border:1px solid #BFDBFE; border-radius:var(--radius-lg); padding:18px 20px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
-        <span style="font-size:0.8rem; font-weight:700; color:#2563EB; text-transform:uppercase; letter-spacing:0.3px;">Em Andamento</span>
-        <div style="font-size:2rem; font-weight:800; color:#1D4ED8; margin-top:4px;">{{ contadores.get('Em Andamento', 0) }}</div>
-      </div>
-    </a>
-
-    <a href="{{ url_for('painel_visitas', status='Realizada') }}" style="text-decoration:none;">
-      <div style="background:#F0FDF4; border:1px solid #86EFAC; border-radius:var(--radius-lg); padding:18px 20px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
-        <span style="font-size:0.8rem; font-weight:700; color:#16A34A; text-transform:uppercase; letter-spacing:0.3px;">Realizadas</span>
-        <div style="font-size:2rem; font-weight:800; color:#15803D; margin-top:4px;">{{ contadores.get('Realizada', 0) }}</div>
-      </div>
-    </a>
-
-    <a href="{{ url_for('painel_visitas', status='Cancelada') }}" style="text-decoration:none;">
-      <div style="background:#FEF2F2; border:1px solid #FCA5A5; border-radius:var(--radius-lg); padding:18px 20px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
-        <span style="font-size:0.8rem; font-weight:700; color:#DC2626; text-transform:uppercase; letter-spacing:0.3px;">Canceladas</span>
-        <div style="font-size:2rem; font-weight:800; color:#B91C1C; margin-top:4px;">{{ contadores.get('Cancelada', 0) }}</div>
-      </div>
-    </a>
-
-    <div style="background:#FFFFFF; border:1px solid var(--card-border); border-radius:var(--radius-lg); padding:18px 20px; box-shadow:var(--card-shadow);">
-      <span style="font-size:0.8rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.3px;">Total Encontrado</span>
-      <div style="font-size:2rem; font-weight:800; color:var(--primary); margin-top:4px;">{{ total_filtrado }}</div>
+  {# ── Contadores de status ───────────────────────────────────── #}
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--amarelo)">{{ contadores.get('Pendente', 0) }}</div>
+      <div class="stat-label">Pendentes</div>
     </div>
-
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--azul-m)">{{ contadores.get('Em Andamento', 0) }}</div>
+      <div class="stat-label">Em Andamento</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--verde)">{{ contadores.get('Realizada', 0) }}</div>
+      <div class="stat-label">Realizadas</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--vermelho)">{{ contadores.get('Cancelada', 0) }}</div>
+      <div class="stat-label">Canceladas</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num">{{ total_filtrado }}</div>
+      <div class="stat-label">Resultados encontrados</div>
+    </div>
   </div>
 
-  <!-- Main Card with Filters + Table -->
+  {# ── Card principal com filtros + tabela ───────────────────── #}
   <div class="card">
-    <div class="card-title">
-      <span>Solicitações Registradas</span>
+    <div class="flex card-title mb-0" style="margin-bottom:14px">
+      <span>Solicitações de Visita</span>
     </div>
 
-    <!-- Filters Form -->
-    <form method="GET" action="{{ url_for('painel_visitas') }}" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
-      <select name="status" style="max-width:170px;">
+    {# Formulário de filtros #}
+    <form method="GET" action="{{ url_for('painel_visitas') }}"
+          style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+
+      <select name="status" style="max-width:180px">
         <option value="">Todos os status</option>
         {% for s in ['Pendente', 'Em Andamento', 'Realizada', 'Cancelada'] %}
           <option value="{{ s }}" {% if filtros.get('status') == s %}selected{% endif %}>{{ s }}</option>
         {% endfor %}
       </select>
 
-      <select name="zona" style="max-width:140px;">
+      <select name="zona" style="max-width:140px">
         <option value="">Zona (todas)</option>
         <option value="Urbana" {% if filtros.get('zona') == 'Urbana' %}selected{% endif %}>Urbana</option>
         <option value="Rural"  {% if filtros.get('zona') == 'Rural'  %}selected{% endif %}>Rural</option>
       </select>
 
-      <input type="text" name="bairro" value="{{ filtros.get('bairro', '') }}" placeholder="Bairro..." style="max-width:150px;">
-      <input type="date" name="data_ini" value="{{ filtros.get('data_ini', '') }}" title="Data inicial" style="max-width:150px;">
-      <input type="date" name="data_fim" value="{{ filtros.get('data_fim', '') }}" title="Data final" style="max-width:150px;">
-      <input type="search" name="busca" value="{{ filtros.get('busca', '') }}" placeholder="Buscar CPF ou nome..." style="flex:1; min-width:180px;">
+      <input type="text" name="bairro"
+             value="{{ filtros.get('bairro', '') }}"
+             placeholder="Bairro…"
+             style="max-width:160px">
+
+      <input type="date" name="data_ini"
+             value="{{ filtros.get('data_ini', '') }}"
+             title="Data inicial"
+             style="max-width:160px">
+
+      <input type="date" name="data_fim"
+             value="{{ filtros.get('data_fim', '') }}"
+             title="Data final"
+             style="max-width:160px">
+
+      <input type="search" name="busca"
+             value="{{ filtros.get('busca', '') }}"
+             placeholder="Buscar CPF ou nome…"
+             style="flex:1;min-width:180px">
 
       <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
 
@@ -97,7 +90,7 @@
       {% endif %}
     </form>
 
-    <!-- Table -->
+    {# Tabela de visitas #}
     {% if visitas %}
     <div class="table-wrap">
       <table>
@@ -110,38 +103,45 @@
             <th>Motivo</th>
             <th>Status</th>
             <th>Entrevistador Atribuído</th>
-            <th style="width:130px; text-align:center;">Ações</th>
+            <th style="width:140px"></th>
           </tr>
         </thead>
         <tbody>
           {% for v in visitas %}
           <tr>
-            <td style="white-space:nowrap; font-size:0.83rem;">{{ v.criado_em[:10][8:] }}/{{ v.criado_em[:10][5:7] }}/{{ v.criado_em[:10][:4] }}</td>
-            <td style="font-weight:700; white-space:nowrap;">{{ v.numero_vd or '—' }}</td>
+            {# Data no formato DD/MM/AAAA #}
+            <td style="white-space:nowrap;font-size:.85rem">{{ v.criado_em[:10][8:] }}/{{ v.criado_em[:10][5:7] }}/{{ v.criado_em[:10][:4] }}</td>
+
+            <td style="font-weight:600;font-size:.85rem;white-space:nowrap">{{ v.numero_vd or '—' }}</td>
             <td>{{ v.cpf_rf }}</td>
-            <td style="font-weight:600;">{{ v.nome_rf }}</td>
+            <td>{{ v.nome_rf }}</td>
             <td>{{ v.motivo }}</td>
+
+            {# Badge de status com cor semântica #}
             <td>
               {% if v.status == 'Pendente' %}
-                <span class="tag-origem-espontanea">{{ v.status }}</span>
+                <span class="tag" style="background:var(--amarelo-c);color:var(--amarelo)">{{ v.status }}</span>
               {% elif v.status == 'Em Andamento' %}
-                <span class="tag-origem-encaminhado">{{ v.status }}</span>
+                <span class="tag" style="background:#DBEAFE;color:#1D4ED8">{{ v.status }}</span>
               {% elif v.status == 'Realizada' %}
-                <span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:20px; font-size:0.73rem; font-weight:700; background:#DCFCE7; color:#15803D; border:1px solid #86EFAC;">{{ v.status }}</span>
+                <span class="tag" style="background:var(--verde-c);color:var(--verde)">{{ v.status }}</span>
               {% elif v.status == 'Cancelada' %}
-                <span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:20px; font-size:0.73rem; font-weight:700; background:#FEE2E2; color:#B91C1C; border:1px solid #FCA5A5;">{{ v.status }}</span>
+                <span class="tag" style="background:var(--vermelho-c);color:var(--vermelho)">{{ v.status }}</span>
               {% else %}
                 <span class="tag">{{ v.status }}</span>
               {% endif %}
             </td>
+
             <td>{{ v.responsavel_nome if v.responsavel_nome else '—' }}</td>
-            <td style="text-align:center;">
-              <div style="display:flex; justify-content:center; gap:6px;">
-                <a href="{{ url_for('detalhe_visita', visita_id=v.id) }}" class="btn btn-outline btn-sm">Detalhe</a>
-                {% if v.status not in ('Realizada', 'Cancelada') %}
-                  <a href="{{ url_for('editar_visita', visita_id=v.id) }}" class="btn btn-outline btn-sm" style="color:#D97706; border-color:#FDE68A; background:#FFFBEB;">Editar</a>
-                {% endif %}
-              </div>
+
+            {# Ações: Detalhe sempre visível; Editar apenas para status não-terminal #}
+            <td style="display:flex;gap:4px;flex-wrap:wrap">
+              <a href="{{ url_for('detalhe_visita', visita_id=v.id) }}"
+                 class="btn btn-outline btn-sm">Detalhe</a>
+              {% if v.status not in ('Realizada', 'Cancelada') %}
+                <a href="{{ url_for('editar_visita', visita_id=v.id) }}"
+                   class="btn btn-warning">Editar</a>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -149,27 +149,33 @@
       </table>
     </div>
 
-    <!-- Pagination -->
+    {# Paginação — mesmo padrão de dashboard.html #}
     {% if total_paginas > 1 %}
-    <nav class="pagination" style="display:flex; gap:6px; justify-content:center; margin-top:20px;">
-      <a href="?status={{ filtros.get('status','') }}&data_ini={{ filtros.get('data_ini','') }}&data_fim={{ filtros.get('data_fim','') }}&busca={{ filtros.get('busca','') }}&zona={{ filtros.get('zona','') }}&bairro={{ filtros.get('bairro','') }}&pagina={{ pagina - 1 }}" class="page-btn {% if pagina == 1 %}disabled{% endif %}">‹</a>
+    <nav class="pagination" aria-label="Paginação">
+      <a href="?status={{ filtros.get('status','') }}&data_ini={{ filtros.get('data_ini','') }}&data_fim={{ filtros.get('data_fim','') }}&busca={{ filtros.get('busca','') }}&zona={{ filtros.get('zona','') }}&bairro={{ filtros.get('bairro','') }}&pagina={{ pagina - 1 }}"
+         class="page-btn {% if pagina == 1 %}disabled{% endif %}" aria-label="Anterior">‹</a>
+
       {% for p in range(1, total_paginas + 1) %}
         {% if p == pagina or p == 1 or p == total_paginas or (p >= pagina - 2 and p <= pagina + 2) %}
-          <a href="?status={{ filtros.get('status','') }}&data_ini={{ filtros.get('data_ini','') }}&data_fim={{ filtros.get('data_fim','') }}&busca={{ filtros.get('busca','') }}&zona={{ filtros.get('zona','') }}&bairro={{ filtros.get('bairro','') }}&pagina={{ p }}" class="page-btn {% if p == pagina %}ativo{% endif %}">{{ p }}</a>
+          <a href="?status={{ filtros.get('status','') }}&data_ini={{ filtros.get('data_ini','') }}&data_fim={{ filtros.get('data_fim','') }}&busca={{ filtros.get('busca','') }}&zona={{ filtros.get('zona','') }}&bairro={{ filtros.get('bairro','') }}&pagina={{ p }}"
+             class="page-btn {% if p == pagina %}ativo{% endif %}">{{ p }}</a>
         {% elif p == pagina - 3 or p == pagina + 3 %}
           <span class="page-btn disabled">…</span>
         {% endif %}
       {% endfor %}
-      <a href="?status={{ filtros.get('status','') }}&data_ini={{ filtros.get('data_ini','') }}&data_fim={{ filtros.get('data_fim','') }}&busca={{ filtros.get('busca','') }}&zona={{ filtros.get('zona','') }}&bairro={{ filtros.get('bairro','') }}&pagina={{ pagina + 1 }}" class="page-btn {% if pagina == total_paginas %}disabled{% endif %}">›</a>
+
+      <a href="?status={{ filtros.get('status','') }}&data_ini={{ filtros.get('data_ini','') }}&data_fim={{ filtros.get('data_fim','') }}&busca={{ filtros.get('busca','') }}&zona={{ filtros.get('zona','') }}&bairro={{ filtros.get('bairro','') }}&pagina={{ pagina + 1 }}"
+         class="page-btn {% if pagina == total_paginas %}disabled{% endif %}" aria-label="Próxima">›</a>
     </nav>
     {% endif %}
 
     {% else %}
-    <p class="text-muted" style="text-align:center; padding:32px;">
+    {# Mensagem de lista vazia (Req. 2.8) #}
+    <p class="text-muted" style="text-align:center;padding:32px">
       Nenhuma solicitação encontrada para os filtros selecionados.
     </p>
     {% endif %}
 
-  </div>
-</div>
+  </div>{# /card #}
+</div>{# /container #}
 {% endblock %}
