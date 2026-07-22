@@ -1270,6 +1270,15 @@ def dashboard():
             (session['usuario_id'], session['usuario_id'])
         )['n']
 
+    # Total de atendimentos no dia de hoje
+    data_hoje = date.today().strftime('%Y-%m-%d')
+    params_hoje = [data_hoje] + ([session['usuario_id']] if session['perfil'] != 'admin' else [])
+    filtro_u_hoje = f"AND a.usuario_id={PH}" if session['perfil'] != 'admin' else ""
+    total_hoje = _fetchone(conn,
+        f"SELECT COUNT(*) as n FROM atendimentos a WHERE a.data = {PH} {filtro_u_hoje}",
+        params_hoje
+    )['n']
+
     conn.close()
 
     total_paginas = max(1, (total_filtrado + por_pagina - 1) // por_pagina)
@@ -1277,6 +1286,7 @@ def dashboard():
         'dashboard.html',
         atendimentos=ats,
         total_mes=total_mes,
+        total_hoje=total_hoje,
         mes_atual=mes_atual,
         mes=mes,
         busca=busca,
