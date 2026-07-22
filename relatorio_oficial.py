@@ -184,22 +184,42 @@ def _add_heading(doc, text):
     run = p.add_run(text)
     run.bold = True
     run.font.size = Pt(10)
-    run.font.color.rgb = RGBColor(31, 78, 121)
+    run.font.color.rgb = RGBColor(0, 84, 42)
 
 
 def _style_header_cell_docx(cell):
     from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
 
     tc_pr = cell._tc.get_or_add_tcPr()
     shd = OxmlElement("w:shd")
-    shd.set(qn("w:fill"), "1F4E79")
+    shd.set(qn("w:fill"), "00542A")
     tc_pr.append(shd)
     for paragraph in cell.paragraphs:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
         for run in paragraph.runs:
             run.bold = True
-            run.font.size = Pt(8)
+            run.font.size = Pt(8.5)
+            run.font.color.rgb = RGBColor(255, 255, 255)
+
+
+def _style_sibec_header_cell_docx(cell):
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    tc_pr = cell._tc.get_or_add_tcPr()
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:fill"), "783DB2")
+    tc_pr.append(shd)
+    for paragraph in cell.paragraphs:
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for run in paragraph.runs:
+            run.bold = True
+            run.font.size = Pt(8.5)
             run.font.color.rgb = RGBColor(255, 255, 255)
 
 
@@ -242,14 +262,30 @@ def _table_style():
     from reportlab.platypus import TableStyle
 
     return TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#00542A")),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
         ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
         ("FONTSIZE", (0, 0), (-1, -1), 7),
         ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#CBD5E1")),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN", (1, 1), (-1, -1), "CENTER"),
-        ("BACKGROUND", (-1, 1), (-1, -1), colors.HexColor("#EBF3FB")),
+        ("BACKGROUND", (-1, 1), (-1, -1), colors.HexColor("#F0FDF4")),
+    ])
+
+
+def _sibec_table_style():
+    from reportlab.lib import colors
+    from reportlab.platypus import TableStyle
+
+    return TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#783DB2")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#E9D5FF")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (1, 1), (-1, -1), "CENTER"),
+        ("BACKGROUND", (-1, 1), (-1, -1), colors.HexColor("#F3E8FF")),
     ])
 
 
@@ -276,13 +312,29 @@ def _assinaturas_pdf(assinatura_nome, style, coordenadora=None):
 # PDF helpers (quantitative table, SIBEC table, details table)
 # ---------------------------------------------------------------------------
 
+def _header_style_pdf(style):
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.styles import ParagraphStyle
+
+    return ParagraphStyle(
+        "HeaderStylePDF",
+        parent=style,
+        fontName="Helvetica-Bold",
+        fontSize=8,
+        textColor=colors.white,
+        alignment=TA_CENTER,
+    )
+
+
 def _rma_table_pdf(quant, style):
     """Tabela horizontal no formato RMA — abreviações no cabeçalho, totais na linha abaixo."""
     from reportlab.lib import colors
     from reportlab.lib.units import cm
     from reportlab.platypus import Table, TableStyle
 
-    headers = [_p(col, style) for col, _ in COLUNAS_RMA]
+    hstyle = _header_style_pdf(style)
+    headers = [_p(col, hstyle) for col, _ in COLUNAS_RMA]
     valores = []
     for col, tipos in COLUNAS_RMA:
         total = sum(sum(quant.get(t, {}).values()) for t in tipos)
@@ -298,24 +350,29 @@ def _rma_table_pdf(quant, style):
 def _quant_table_pdf(quant, style):
     """Tabela de 2 colunas para PDF: Tipo de Atendimento | Quantidade."""
     from reportlab.lib import colors
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import cm
     from reportlab.platypus import Table, TableStyle
 
-    data = [[_p("Tipo de Atendimento", style), _p("Quantidade", style)]]
+    hstyle = _header_style_pdf(style)
+    total_style = ParagraphStyle("TotalPDF", parent=style, fontName="Helvetica-Bold", fontSize=8.5, textColor=colors.white, alignment=TA_CENTER)
+
+    data = [[_p("Tipo de Atendimento", hstyle), _p("Quantidade", hstyle)]]
     total_geral = 0
     for tipo in TIPOS_CADUNICO:
         qtd = sum(quant.get(tipo, {}).values())
         total_geral += qtd
         data.append([_p(tipo, style), _p(str(qtd) if qtd > 0 else "-", style)])
 
-    data.append([_p("TOTAL", style), _p(str(total_geral), style)])
+    data.append([_p("TOTAL", total_style), _p(str(total_geral), total_style)])
 
     first_width = 21.0 * cm
     second_width = 6.8 * cm
     table = Table(data, repeatRows=1, colWidths=[first_width, second_width])
     style_cmds = _table_style().getCommands()
     style_cmds.extend([
-        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#1F4E79")),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#00542A")),
         ("TEXTCOLOR", (0, -1), (-1, -1), colors.white),
         ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
     ])
@@ -328,7 +385,7 @@ def _sibec_table_pdf(sibec, style):
     from reportlab.lib.units import cm
     from reportlab.platypus import Table
 
-    # Only show first 5 categories in header/values; others are "00"
+    hstyle = _header_style_pdf(style)
     visible = [
         "Consulta de Benefício",
         "Bloqueio de Benefício",
@@ -337,12 +394,12 @@ def _sibec_table_pdf(sibec, style):
         "Cancelamento de Benefício",
     ]
     extra = ["Revisão Cadastral", "Averiguação Cadastral"]
-    headers = [_p(c, style) for c in visible] + [_p(c, style) for c in extra]
+    headers = [_p(c, hstyle) for c in visible] + [_p(c, hstyle) for c in extra]
     values = [f"{sibec.get(c, 0):02d}" for c in visible] + ["00", "00"]
     data = [headers, values]
     col_w = 27.8 * cm / len(headers)
     table = Table(data, repeatRows=1, colWidths=[col_w] * len(headers))
-    table.setStyle(_table_style())
+    table.setStyle(_sibec_table_style())
     return table
 
 
@@ -351,7 +408,8 @@ def _detalhes_table_pdf(atendimentos, style):
     from reportlab.lib.units import cm
     from reportlab.platypus import Table
 
-    data = [[_p(h, style) for h in ["Data", "Entrevistador", "CPF", "Nome do RF", "Origem", "Tipos de Atendimento"]]]
+    hstyle = _header_style_pdf(style)
+    data = [[_p(h, hstyle) for h in ["Data", "Entrevistador", "CPF", "Nome do RF", "Origem", "Tipos de Atendimento"]]]
     if not atendimentos:
         data.append([_p("Nenhum atendimento no período selecionado.", style), "", "", "", "", ""])
     else:
@@ -526,6 +584,8 @@ def criar_pdf_registro_detalhado(
     atendimentos,
     assinatura_nome,
     assets_dir,
+    quant=None,
+    total_geral=0,
 ):
     try:
         from reportlab.lib import colors
@@ -537,6 +597,9 @@ def criar_pdf_registro_detalhado(
         from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
     except ImportError:
         _dependency_error("reportlab")
+
+    # Ordenar cronologicamente do início do mês até o final do mês (dia 1 ao 31)
+    atendimentos_ord = sorted(atendimentos, key=lambda x: (x["data"], dict(x).get("id", 0)))
 
     output = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -556,7 +619,7 @@ def criar_pdf_registro_detalhado(
         alignment=TA_CENTER,
         fontName="Helvetica-Bold",
         fontSize=13,
-        textColor=colors.HexColor("#1F4E79"),
+        textColor=colors.HexColor("#00542A"),
         leading=15,
     )
 
@@ -574,14 +637,21 @@ def criar_pdf_registro_detalhado(
     story.append(Paragraph(f"REGISTRO DETALHADO DE ATENDIMENTOS — {mes_nome.upper()}", title))
     story.append(Spacer(1, 8))
 
-    # 3. Detailed attendance table
-    story.append(_detalhes_table_pdf(atendimentos, normal))
-    story.append(Spacer(1, 24))
+    # 3. Detailed attendance table (chronological order)
+    story.append(_detalhes_table_pdf(atendimentos_ord, normal))
+    story.append(Spacer(1, 16))
 
-    # 4. Signature block
+    # 4. Resumo Quantitativo no fim do documento
+    if quant:
+        story.append(Paragraph(f"RESUMO QUANTITATIVO DE ATENDIMENTOS — {mes_nome.upper()}", title))
+        story.append(Spacer(1, 8))
+        story.append(_quant_table_pdf(quant, normal))
+        story.append(Spacer(1, 16))
+
+    # 5. Signature block
     story.append(_assinaturas_pdf(assinatura_nome, normal))
 
-    # 5. Footer image
+    # 6. Footer image
     footer = _asset(assets_dir, "image4.png")
     if footer:
         story.append(Spacer(1, 12))
@@ -655,7 +725,7 @@ def _add_sibec_table_docx(doc, sibec):
     table.style = "Table Grid"
     for idx, categoria in enumerate(visible):
         table.rows[0].cells[idx].text = categoria
-        _style_header_cell_docx(table.rows[0].cells[idx])
+        _style_sibec_header_cell_docx(table.rows[0].cells[idx])
         if categoria in ("Revisão Cadastral", "Averiguação Cadastral"):
             table.rows[1].cells[idx].text = "00"
         else:
@@ -839,6 +909,8 @@ def criar_docx_registro_detalhado(
     atendimentos,
     assinatura_nome,
     assets_dir,
+    quant=None,
+    total_geral=0,
 ):
     try:
         from docx import Document
@@ -846,6 +918,9 @@ def criar_docx_registro_detalhado(
         from docx.shared import Inches, Pt, RGBColor
     except ImportError:
         _dependency_error("python-docx")
+
+    # Ordenar cronologicamente do início do mês até o final do mês (dia 1 ao 31)
+    atendimentos_ord = sorted(atendimentos, key=lambda x: (x["data"], dict(x).get("id", 0)))
 
     doc = Document()
     section = doc.sections[0]
@@ -873,19 +948,32 @@ def criar_docx_registro_detalhado(
     run = titulo.add_run(f"REGISTRO DETALHADO DE ATENDIMENTOS — {mes_nome.upper()}")
     run.bold = True
     run.font.size = Pt(13)
-    run.font.color.rgb = RGBColor(31, 78, 121)
+    run.font.color.rgb = RGBColor(0, 84, 42)
 
     doc.add_paragraph("")
 
-    # 3. Detailed attendance table
-    _add_detalhes_table_docx(doc, atendimentos)
+    # 3. Detailed attendance table (chronological order)
+    _add_detalhes_table_docx(doc, atendimentos_ord)
 
     doc.add_paragraph("")
 
-    # 4. Signature block
+    # 4. Resumo Quantitativo no fim do documento
+    if quant:
+        subtitulo = doc.add_paragraph()
+        subtitulo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        srun = subtitulo.add_run(f"RESUMO QUANTITATIVO DE ATENDIMENTOS — {mes_nome.upper()}")
+        srun.bold = True
+        srun.font.size = Pt(12)
+        srun.font.color.rgb = RGBColor(0, 84, 42)
+
+        doc.add_paragraph("")
+        _add_quant_table_docx(doc, quant)
+        doc.add_paragraph("")
+
+    # 5. Signature block
     _add_assinaturas_docx(doc, assinatura_nome)
 
-    # 5. Footer image
+    # 6. Footer image
     if footer:
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER

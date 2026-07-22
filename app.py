@@ -1723,23 +1723,27 @@ def criar_pdf_relatorio(mes, atendimentos, quant, entrevistadores, grafico_tipos
     )
 
 
-def criar_pdf_registro(mes, atendimentos):
+def criar_pdf_registro(mes, atendimentos, quant=None, total_geral=0):
     from relatorio_oficial import criar_pdf_registro_detalhado
     return criar_pdf_registro_detalhado(
         mes=mes,
         mes_nome=nome_mes(mes),
         atendimentos=atendimentos,
+        quant=quant,
+        total_geral=total_geral,
         assinatura_nome=session.get('usuario_nome', 'ENTREVISTADOR'),
         assets_dir=os.path.join(BASE_DIR, 'static', 'report_assets'),
     )
 
 
-def criar_word_registro(mes, atendimentos):
+def criar_word_registro(mes, atendimentos, quant=None, total_geral=0):
     from relatorio_oficial import criar_docx_registro_detalhado
     return criar_docx_registro_detalhado(
         mes=mes,
         mes_nome=nome_mes(mes),
         atendimentos=atendimentos,
+        quant=quant,
+        total_geral=total_geral,
         assinatura_nome=session.get('usuario_nome', 'ENTREVISTADOR'),
         assets_dir=os.path.join(BASE_DIR, 'static', 'report_assets'),
     )
@@ -1798,7 +1802,7 @@ def exportar_registro():
 
     if formato == 'word':
         try:
-            output = criar_word_registro(mes, atendimentos)
+            output = criar_word_registro(mes, atendimentos, quant=quant, total_geral=total_geral)
         except RuntimeError as erro:
             return str(erro), 500
         return send_file(output, as_attachment=True,
@@ -1806,7 +1810,7 @@ def exportar_registro():
                          mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
     # default: pdf
     try:
-        output = criar_pdf_registro(mes, atendimentos)
+        output = criar_pdf_registro(mes, atendimentos, quant=quant, total_geral=total_geral)
     except RuntimeError as erro:
         return str(erro), 500
     return send_file(output, as_attachment=True,
