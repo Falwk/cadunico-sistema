@@ -2,69 +2,269 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Recuperar Senha - CadÚnico</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recuperar Senha - CadÚnico 25 Anos</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#1F4E79 0%,#2E6FAD 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-  .box{background:#fff;border-radius:16px;padding:40px 36px;width:100%;max-width:400px;box-shadow:0 8px 40px rgba(0,0,0,.22)}
-  h1{font-size:1.2rem;font-weight:700;color:#1F4E79;margin-bottom:6px}
-  .sub{font-size:.83rem;color:#6B7280;margin-bottom:24px}
-  label{display:block;font-size:.83rem;font-weight:600;color:#1F4E79;margin-bottom:6px}
-  input[type=text]{width:100%;padding:11px 14px;border:1.5px solid #E0E4EA;border-radius:8px;font-size:.95rem;font-family:inherit;transition:border .18s;margin-bottom:16px}
-  input:focus{outline:none;border-color:#2E6FAD}
-  .canal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px}
-  .canal-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
-    padding:14px 10px;border:2px solid #E0E4EA;border-radius:10px;cursor:pointer;transition:all .18s;background:#fff}
-  .canal-btn:hover{border-color:#2E6FAD;background:#EBF3FB}
-  .canal-btn input{display:none}
-  .canal-btn.selecionado{border-color:#1A6B3C;background:#D4EDDA}
-  .canal-btn span{font-size:.82rem;font-weight:600;color:#1A2233}
-  .canal-icon{font-size:1.8rem}
-  .btn{width:100%;padding:12px;background:#1F4E79;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;transition:background .18s}
-  .btn:hover{background:#2E6FAD}
-  .btn-wpp{background:#1A6B3C}.btn-wpp:hover{background:#1e7a45}
-  .erro{background:#FDECEA;color:#8B1A1A;border-left:4px solid #8B1A1A;padding:10px 14px;border-radius:6px;font-size:.87rem;margin-bottom:16px}
-  .ok{background:#D4EDDA;color:#1A6B3C;border-left:4px solid #1A6B3C;padding:12px 14px;border-radius:6px;font-size:.87rem;margin-bottom:16px}
-  .aviso{background:#FFF3CD;color:#856404;border-left:4px solid #856404;padding:12px 14px;border-radius:6px;font-size:.87rem;margin-bottom:16px}
-  .voltar{display:block;text-align:center;margin-top:18px;color:#6B7280;font-size:.83rem;text-decoration:none}
-  .voltar:hover{color:#1F4E79}
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --cad-verde-escuro: #00542A;
+    --cad-verde: #00883A;
+    --cad-roxo: #783DB2;
+    --cad-lilas: #AD89CF;
+    --cad-amarelo: #FAB614;
+    --cad-bg: #F4F6F9;
+    --text-primary: #0F172A;
+    --text-muted: #64748B;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(135deg, #00542A 0%, #007030 55%, #5E2D91 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: var(--text-primary);
+  }
+
+  .box {
+    background: #FFFFFF;
+    border-radius: var(--radius-lg);
+    padding: 40px 36px 32px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 12px 40px rgba(0, 50, 20, 0.28);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: linear-gradient(90deg, #00883A 0%, #FAB614 50%, #783DB2 100%);
+  }
+
+  .logo-icon {
+    width: 64px;
+    height: 64px;
+    background: linear-gradient(135deg, #00883A 0%, #00542A 100%);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 18px;
+    color: #FFFFFF;
+    box-shadow: 0 4px 14px rgba(0, 136, 58, 0.35);
+  }
+
+  h1 {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--cad-verde-escuro);
+    text-align: center;
+    letter-spacing: -0.3px;
+    margin-bottom: 6px;
+  }
+
+  .sub {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 24px;
+    line-height: 1.4;
+  }
+
+  label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--cad-verde-escuro);
+    margin-bottom: 6px;
+  }
+
+  input[type=text] {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid #CBD5E1;
+    border-radius: var(--radius-md);
+    font-size: 0.92rem;
+    font-family: inherit;
+    transition: all 0.18s ease;
+    background: #FFFFFF;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+  }
+
+  input:focus {
+    outline: none;
+    border-color: var(--cad-verde);
+    box-shadow: 0 0 0 3px rgba(0, 136, 58, 0.15);
+  }
+
+  .canal-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .canal-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 14px 10px;
+    border: 1.5px solid #CBD5E1;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: all 0.18s ease;
+    background: #FFFFFF;
+    user-select: none;
+  }
+
+  .canal-btn:hover {
+    border-color: var(--cad-verde);
+    background: #F8FAFC;
+  }
+
+  .canal-btn input { display: none; }
+
+  .canal-btn.selecionado {
+    border-color: var(--cad-verde);
+    background: #F0FDF4;
+    box-shadow: 0 3px 12px rgba(0, 136, 58, 0.12);
+  }
+
+  .canal-btn span {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--cad-verde-escuro);
+  }
+
+  .canal-icon { font-size: 1.8rem; }
+
+  .btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--cad-verde);
+    color: #FFFFFF;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    box-shadow: 0 4px 12px rgba(0, 136, 58, 0.25);
+  }
+
+  .btn:hover {
+    background: #007030;
+    box-shadow: 0 6px 16px rgba(0, 136, 58, 0.35);
+  }
+
+  .btn-wpp {
+    background: #00883A;
+  }
+  .btn-wpp:hover { background: #007030; }
+
+  .erro {
+    background: #FEF2F2;
+    color: #991B1B;
+    border: 1px solid #FCA5A5;
+    border-left: 4px solid #DC2626;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    font-size: 0.86rem;
+    margin-bottom: 18px;
+    font-weight: 500;
+  }
+
+  .ok {
+    background: #F0FDF4;
+    color: #00542A;
+    border: 1px solid #86EFAC;
+    border-left: 4px solid #00883A;
+    padding: 14px;
+    border-radius: var(--radius-md);
+    font-size: 0.87rem;
+    margin-bottom: 18px;
+    line-height: 1.4;
+  }
+
+  .aviso {
+    background: #FFFBEB;
+    color: #B45309;
+    border: 1px solid #FDE68A;
+    border-left: 4px solid #FAB614;
+    padding: 14px;
+    border-radius: var(--radius-md);
+    font-size: 0.87rem;
+    margin-bottom: 18px;
+    line-height: 1.4;
+  }
+
+  .voltar {
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.16s ease;
+  }
+
+  .voltar:hover { color: var(--cad-verde-escuro); }
 </style>
 </head>
 <body>
 <div class="box">
-  <h1>🔑 Recuperar Senha</h1>
+  <div style="text-align:center; margin-bottom:16px;">
+    <div class="logo-icon" style="display:inline-flex;">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 2l-2 2m-2-2l2 2M3 11v-1a6 6 0 0 1 12 0v1m-6-1v6m0 0l-3-3m3 3l3-3"/></svg>
+    </div>
+  </div>
+
+  <h1>Recuperar Senha</h1>
   <p class="sub">Informe seu login e escolha como receber o link de redefinição.</p>
 
   {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
 
   {% if msg == 'whatsapp' %}
   <div class="ok">
-    <strong>Link gerado!</strong> Clique no botão abaixo para enviar via WhatsApp
-    para o número cadastrado ({{ telefone_mascarado }}).
-    O link expira em <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>.
+    <strong>Link gerado com sucesso!</strong> Clique no botão abaixo para abrir o WhatsApp e enviar o link de redefinição para o número cadastrado ({{ telefone_mascarado }}).<br>
+    O link é válido por <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>.
   </div>
-  <a href="{{ canal }}" target="_blank" class="btn btn-wpp" style="display:block;text-align:center;text-decoration:none;padding:12px">
-    📱 Abrir WhatsApp e enviar link
+  <a href="{{ canal }}" target="_blank" class="btn btn-wpp" style="display:block; text-align:center; text-decoration:none; padding:12px;">
+    📱 Abrir WhatsApp e Enviar Link
   </a>
-  <hr style="margin:18px 0;border:none;border-top:1px solid #E0E4EA">
-  <p style="font-size:.78rem;color:#6B7280;text-align:center">
-    Se o WhatsApp não abrir automaticamente, copie e cole este link no seu navegador:<br>
-    <a href="{{ canal }}" target="_blank" style="color:#1F4E79;word-break:break-all">{{ canal }}</a>
+  <hr style="margin:20px 0; border:none; border-top:1px solid #E2E8F0;">
+  <p style="font-size:0.78rem; color:var(--text-muted); text-align:center; line-height:1.4;">
+    Se o WhatsApp não abrir automaticamente, você pode copiar este link:<br>
+    <a href="{{ canal }}" target="_blank" style="color:var(--cad-verde-escuro); font-weight:700; word-break:break-all;">{{ canal }}</a>
   </p>
 
   {% elif msg == 'email' %}
   <div class="aviso">
-    <strong>Atenção:</strong> O envio automático de e-mail não está configurado neste servidor.
-    Copie o link abaixo e envie manualmente para <strong>{{ email_mascarado }}</strong>.
-    O link expira em <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>.
+    <strong>Atenção:</strong> O envio automático de e-mail não está ativado no momento.
+    Copie o link abaixo para enviar ao usuário ({{ email_mascarado }}).<br>
+    Válido por <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>.
   </div>
-  <div style="background:#F5F6F8;border-radius:8px;padding:12px;font-size:.82rem;word-break:break-all;color:#1F4E79;margin-bottom:16px">
+  <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:var(--radius-md); padding:12px; font-size:0.82rem; word-break:break-all; color:var(--cad-verde-escuro); margin-bottom:16px; font-weight:600;">
     {{ link }}
   </div>
-  <button onclick="navigator.clipboard.writeText('{{ link }}');this.textContent='✓ Copiado!'"
-    class="btn" style="background:#2E6FAD">📋 Copiar Link</button>
+  <button onclick="navigator.clipboard.writeText('{{ link }}');this.textContent='✓ Link Copiado!'"
+    class="btn">📋 Copiar Link</button>
 
   {% else %}
   <form method="POST" id="form-recuperar">
@@ -72,7 +272,7 @@
       <label for="login">Seu usuário (login)</label>
       <input type="text" id="login" name="login" placeholder="Digite seu login" required autofocus>
     </div>
-    <label style="margin-bottom:8px;display:block">Como deseja receber o link?</label>
+    <label style="margin-bottom:8px; display:block;">Como deseja receber o link?</label>
     <div class="canal-grid">
       <label class="canal-btn" id="btn-wpp" onclick="selecionar('whatsapp',this)">
         <input type="radio" name="canal" value="whatsapp" checked>
@@ -85,7 +285,7 @@
         <span>E-mail</span>
       </label>
     </div>
-    <button type="submit" class="btn">Gerar link de recuperação</button>
+    <button type="submit" class="btn">Gerar Link de Recuperação</button>
   </form>
   {% endif %}
 
@@ -98,7 +298,8 @@ function selecionar(val, el) {
   el.querySelector('input').checked = true;
 }
 document.addEventListener('DOMContentLoaded', () => {
-  selecionar('whatsapp', document.getElementById('btn-wpp'));
+  const wppBtn = document.getElementById('btn-wpp');
+  if (wppBtn) selecionar('whatsapp', wppBtn);
 });
 </script>
 </body>

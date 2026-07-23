@@ -2,30 +2,171 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Redefinir Senha - CadÚnico</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redefinir Senha - CadÚnico 25 Anos</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#1F4E79 0%,#2E6FAD 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
-  .box{background:#fff;border-radius:16px;padding:40px 36px;width:100%;max-width:380px;box-shadow:0 8px 40px rgba(0,0,0,.22)}
-  h1{font-size:1.2rem;font-weight:700;color:#1F4E79;margin-bottom:6px}
-  .sub{font-size:.83rem;color:#6B7280;margin-bottom:24px}
-  .erro{background:#FDECEA;color:#8B1A1A;border-left:4px solid #8B1A1A;padding:10px 14px;border-radius:6px;font-size:.87rem;margin-bottom:16px}
-  .form-group{margin-bottom:16px}
-  label{display:block;font-size:.83rem;font-weight:600;color:#1F4E79;margin-bottom:6px}
-  input{width:100%;padding:11px 14px;border:1.5px solid #E0E4EA;border-radius:8px;font-size:.95rem;font-family:inherit;transition:border .18s}
-  input:focus{outline:none;border-color:#2E6FAD}
-  .btn{width:100%;padding:12px;background:#1F4E79;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;margin-top:8px;transition:background .18s}
-  .btn:hover{background:#2E6FAD}
-  .voltar{display:block;text-align:center;margin-top:18px;color:#6B7280;font-size:.83rem;text-decoration:none}
-  .voltar:hover{color:#1F4E79}
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    --cad-verde-escuro: #00542A;
+    --cad-verde: #00883A;
+    --cad-roxo: #783DB2;
+    --cad-lilas: #AD89CF;
+    --cad-amarelo: #FAB614;
+    --cad-bg: #F4F6F9;
+    --text-primary: #0F172A;
+    --text-muted: #64748B;
+    --radius-md: 12px;
+    --radius-lg: 20px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: linear-gradient(135deg, #00542A 0%, #007030 55%, #5E2D91 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: var(--text-primary);
+  }
+
+  .box {
+    background: #FFFFFF;
+    border-radius: var(--radius-lg);
+    padding: 40px 36px 32px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 12px 40px rgba(0, 50, 20, 0.28);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: linear-gradient(90deg, #00883A 0%, #FAB614 50%, #783DB2 100%);
+  }
+
+  .logo-icon {
+    width: 64px;
+    height: 64px;
+    background: linear-gradient(135deg, #00883A 0%, #00542A 100%);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 18px;
+    color: #FFFFFF;
+    box-shadow: 0 4px 14px rgba(0, 136, 58, 0.35);
+  }
+
+  h1 {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--cad-verde-escuro);
+    text-align: center;
+    letter-spacing: -0.3px;
+    margin-bottom: 6px;
+  }
+
+  .sub {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    text-align: center;
+    margin-bottom: 24px;
+    line-height: 1.4;
+  }
+
+  .form-group { margin-bottom: 18px; }
+
+  label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--cad-verde-escuro);
+    margin-bottom: 6px;
+  }
+
+  input[type=password] {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid #CBD5E1;
+    border-radius: var(--radius-md);
+    font-size: 0.92rem;
+    font-family: inherit;
+    transition: all 0.18s ease;
+    background: #FFFFFF;
+    color: var(--text-primary);
+  }
+
+  input:focus {
+    outline: none;
+    border-color: var(--cad-verde);
+    box-shadow: 0 0 0 3px rgba(0, 136, 58, 0.15);
+  }
+
+  .btn {
+    width: 100%;
+    padding: 12px;
+    background: var(--cad-verde);
+    color: #FFFFFF;
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.18s ease;
+    box-shadow: 0 4px 12px rgba(0, 136, 58, 0.25);
+  }
+
+  .btn:hover {
+    background: #007030;
+    box-shadow: 0 6px 16px rgba(0, 136, 58, 0.35);
+  }
+
+  .erro {
+    background: #FEF2F2;
+    color: #991B1B;
+    border: 1px solid #FCA5A5;
+    border-left: 4px solid #DC2626;
+    padding: 12px 14px;
+    border-radius: var(--radius-md);
+    font-size: 0.86rem;
+    margin-bottom: 18px;
+    font-weight: 500;
+  }
+
+  .voltar {
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: color 0.16s ease;
+  }
+
+  .voltar:hover { color: var(--cad-verde-escuro); }
 </style>
 </head>
 <body>
 <div class="box">
-  <h1>🔒 Nova Senha</h1>
-  <p class="sub">Digite e confirme sua nova senha abaixo.</p>
+  <div style="text-align:center; margin-bottom:16px;">
+    <div class="logo-icon" style="display:inline-flex;">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    </div>
+  </div>
+
+  <h1>Nova Senha</h1>
+  <p class="sub">Digite e confirme sua nova senha de acesso abaixo.</p>
 
   {% for e in erros %}<div class="erro">{{ e }}</div>{% endfor %}
 
@@ -40,6 +181,7 @@
     </div>
     <button type="submit" class="btn">Salvar Nova Senha</button>
   </form>
+
   <a href="{{ url_for('login') }}" class="voltar">← Voltar para o login</a>
 </div>
 </body>
