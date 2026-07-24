@@ -279,6 +279,13 @@ def _config_defaults() -> dict:
         ),
         'rodape': 'End: R. Pres. Costa e Silva - 68682-000 – Quatro Bocas - Tomé-Açu/PA\nFone: (91) 99254-0128 / Email: setascadastrounico@gmail.com',
         'municipio': 'Tomé-Açu',
+        'prazo_visita_padrao': '15',
+        'prazo_visita_Averiguacao Cadastral': '15',
+        'prazo_visita_Revisao Cadastral': '20',
+        'prazo_visita_BPC': '30',
+        'prazo_visita_Denuncia': '7',
+        'prazo_visita_Atualizacao Cadastral': '15',
+        'prazo_visita_Inclusao Cadastral': '15',
     }
 
 
@@ -308,6 +315,50 @@ def set_config(chave: str, valor: str):
         )
     conn.commit()
     conn.close()
+
+
+def _processar_sla_visitas(visitas, cfg=None):
+    """
+    Calcula dias decorridos, prazo limite (SLA) e sinaliza se a solicitação está em atraso.
+    """
+    if cfg is None:
+        cfg = get_config()
+    hoje = date.today()
+    atrasadas_count = 0
+    visitas_processadas = []
+
+    for v in visitas:
+        v_dict = dict(v) if not isinstance(v, dict) else dict(v)
+        motivo = v_dict.get('motivo') or 'Padrão'
+        
+        # Buscar prazo específico do motivo ou prazo padrão
+        prazo_key = f"prazo_visita_{motivo}"
+        prazo_str = cfg.get(prazo_key, cfg.get('prazo_visita_padrao', '15'))
+        try:
+            prazo_dias = int(prazo_str)
+        except (ValueError, TypeError):
+            prazo_dias = 15
+
+        criado_str = str(v_dict.get('criado_em', ''))[:10]
+        try:
+            dt_criado = datetime.strptime(criado_str, '%Y-%m-%d').date()
+            dias_decorridos = (hoje - dt_criado).days
+        except Exception:
+            dias_decorridos = 0
+
+        atrasada = (v_dict.get('status') == 'Pendente') and (dias_decorridos > prazo_dias)
+        dias_atraso = (dias_decorridos - prazo_dias) if atrasada else 0
+
+        if atrasada:
+            atrasadas_count += 1
+
+        v_dict['dias_decorridos'] = dias_decorridos
+        v_dict['prazo_dias'] = prazo_dias
+        v_dict['atrasada'] = atrasada
+        v_dict['dias_atraso'] = dias_atraso
+        visitas_processadas.append(v_dict)
+
+    return visitas_processadas, atrasadas_count
 
 
 # ---------------------------------------------------------------------------
@@ -1261,16 +1312,33 @@ def dashboard():
         params_base + [por_pagina, offset]
     )
 
-    # Total de visitas pendentes (visíveis para o usuário)
+    # Total de visitas pendentes e cálculo de atrasadas (SLA)
+    cfg = get_config()
     if session['perfil'] == 'admin':
-        total_visitas_pendentes = _fetchone(conn,
-            "SELECT COUNT(*) as n FROM solicitacoes_visita WHERE status='Pendente'"
-        )['n']
+        visitas_pendentes_list = _fetchall(conn, "SELECT * FROM solicitacoes_visita WHERE status='Pendente'")
     else:
-        total_visitas_pendentes = _fetchone(conn,
-            f"SELECT COUNT(*) as n FROM solicitacoes_visita WHERE status='Pendente' AND (solicitante_id={PH} OR responsavel_id={PH})",
+        visitas_pendentes_list = _fetchall(conn,
+            f"SELECT * FROM solicitacoes_visita WHERE status='Pendente' AND (solicitante_id={PH} OR responsavel_id={PH})",
             (session['usuario_id'], session['usuario_id'])
-        )['n']
+        )
+    total_visitas_pendentes = len(visitas_pendentes_list)
+    _, total_visitas_atrasadas = _processar_sla_visitas(visitas_pendentes_list, cfg)
+
+    # Gráfico por Bairro / Comunidade para o Dashboard
+    bairros_quant = {}
+    rows_v = _fetchall(conn, "SELECT bairro FROM solicitacoes_visita WHERE criado_em LIKE ? AND bairro IS NOT NULL AND TRIM(bairro) != ''", (mes + '%',))
+    for r in rows_v:
+        b = r['bairro'].strip().title()
+        bairros_quant[b] = bairros_quant.get(b, 0) + 1
+
+    rows_a = _fetchall(conn, f"SELECT origem, COUNT(*) as total FROM atendimentos WHERE data LIKE {PH} GROUP BY origem", (mes + '%',))
+    for r in rows_a:
+        bairros_quant[r['origem']] = bairros_quant.get(r['origem'], 0) + r['total']
+
+    grafico_bairros = sorted(
+        [{'nome': b, 'total': t} for b, t in bairros_quant.items()],
+        key=lambda x: x['total'], reverse=True
+    )[:6]
 
     conn.close()
 
@@ -1286,6 +1354,8 @@ def dashboard():
         total_paginas=total_paginas,
         total_filtrado=total_filtrado,
         total_visitas_pendentes=total_visitas_pendentes,
+        total_visitas_atrasadas=total_visitas_atrasadas,
+        grafico_bairros=grafico_bairros,
     )
 
 # ---------------------------------------------------------------------------
@@ -1493,8 +1563,25 @@ def dados_relatorio(mes):
         [{'nome': e, 'total': sum(quant[t].get(e, 0) for t in TIPOS_ATENDIMENTO)} for e in entrevistadores],
         key=lambda x: x['total'], reverse=True
     )
+
+    # Gráfico por Bairro / Comunidade (Demanda de Atendimentos e Visitas)
+    bairros_quant = {}
+    rows_v = _fetchall(conn, "SELECT bairro FROM solicitacoes_visita WHERE criado_em LIKE ? AND bairro IS NOT NULL AND TRIM(bairro) != ''", (mes + '%',))
+    for r in rows_v:
+        b = r['bairro'].strip().title()
+        bairros_quant[b] = bairros_quant.get(b, 0) + 1
+
+    for o, t in origens_quant.items():
+        if t > 0:
+            bairros_quant[o] = bairros_quant.get(o, 0) + t
+
+    grafico_bairros = sorted(
+        [{'nome': b, 'total': t} for b, t in bairros_quant.items()],
+        key=lambda x: x['total'], reverse=True
+    )[:8]
+
     conn.close()
-    return atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_entrevistadores
+    return atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_entrevistadores, grafico_bairros
 
 
 @app.route('/relatorio')
@@ -1502,12 +1589,13 @@ def relatorio():
     if _requer_login():
         return redirect(url_for('login'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
-    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents = dados_relatorio(mes)
+    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros = dados_relatorio(mes)
     return render_template('relatorio.html', quant=quant, entrevistadores=entrevistadores,
                            tipos=TIPOS_ATENDIMENTO, mes=mes, atendimentos=atendimentos,
                            mes_nome=nome_mes(mes), grafico_tipos=grafico_tipos,
                            grafico_origens=grafico_origens, total_geral=total_geral,
-                           grafico_entrevistadores=grafico_ents)
+                           grafico_entrevistadores=grafico_ents,
+                           grafico_bairros=grafico_bairros)
 
 # ---------------------------------------------------------------------------
 # Exportação Excel
@@ -2198,6 +2286,48 @@ def auditoria():
     return render_template('auditoria.html', registros=registros)
 
 
+@app.route('/admin/backup')
+def admin_backup():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    import zipfile
+    import json
+
+    buf = io.BytesIO()
+    hoje_str = datetime.now().strftime('%Y-%m-%d_%H%M')
+    zip_filename = f"Backup_CadUnico_{hoje_str}.zip"
+
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        conn = get_db()
+        if not _USE_PG:
+            db_path = os.path.join(app.root_path, 'cadunico.db')
+            if not os.path.exists(db_path):
+                db_path = os.path.join(BASE_DIR, 'cadunico.db')
+            if os.path.exists(db_path):
+                zf.write(db_path, arcname='cadunico.db')
+
+        # Dumps em JSON das tabelas do banco
+        tabelas = ['usuarios', 'atendimentos', 'solicitacoes_visita', 'config_relatorio', 'audit_log', 'visita_contadores']
+        for tab in tabelas:
+            try:
+                rows = [dict(r) for r in _fetchall(conn, f"SELECT * FROM {tab}")]
+                zf.writestr(f"dados_{tab}.json", json.dumps(rows, indent=2, ensure_ascii=False))
+            except Exception:
+                pass
+        conn.close()
+
+    buf.seek(0)
+    audit('BACKUP_DATABASE', f"arquivo={zip_filename}")
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=zip_filename,
+        mimetype='application/zip'
+    )
+
+
 @app.route('/admin/config-relatorio', methods=['GET', 'POST'])
 def config_relatorio():
     if session.get('perfil') != 'admin':
@@ -2208,10 +2338,11 @@ def config_relatorio():
             'territorio', 'texto_identificacao', 'texto_apresentacao',
             'rodape', 'municipio',
         ]
-        for campo in campos:
-            valor = request.form.get(campo, '').strip()
-            if valor:
-                set_config(campo, valor)
+        for key, val in request.form.items():
+            if key in campos or key.startswith('prazo_visita_'):
+                val_strip = val.strip()
+                if val_strip:
+                    set_config(key, val_strip)
         
         file = request.files.get('imagem_cabecalho')
         if file and file.filename:
@@ -2316,23 +2447,48 @@ def painel_visitas():
     offset        = (pagina - 1) * por_pagina
     total_paginas = max(1, (total_filtrado + por_pagina - 1) // por_pagina)
 
-    # ── Query principal ─────────────────────────────────────────────────────
-    visitas = _fetchall(conn,
-        f"""SELECT sv.*,
-                   sol.nome  AS solicitante_nome,
-                   res.nome  AS responsavel_nome
-            FROM solicitacoes_visita sv
-            JOIN usuarios sol ON sv.solicitante_id = sol.id
-            LEFT JOIN usuarios res ON sv.responsavel_id = res.id
-            {where}
-            ORDER BY sv.criado_em DESC
-            LIMIT {PH} OFFSET {PH}""",
-        params_where + [por_pagina, offset]
+    cfg = get_config()
+
+    # ── Buscar todas as pendentes para calcular total de atrasadas em todo o acervo
+    where_acesso = f"WHERE 1=1 {filtro_acesso}"
+    visitas_pendentes_all = _fetchall(conn,
+        f"""SELECT sv.* FROM solicitacoes_visita sv {where_acesso} AND sv.status='Pendente'""",
+        params_acesso
     )
+    _, total_visitas_atrasadas = _processar_sla_visitas(visitas_pendentes_all, cfg)
+
+    # ── Se o filtro de status for "Atrasada", busca todas as pendentes e filtra por SLA
+    if status_filtro == 'Atrasada':
+        visitas_raw = _fetchall(conn,
+            f"""SELECT sv.*, sol.nome AS solicitante_nome, res.nome AS responsavel_nome
+                FROM solicitacoes_visita sv
+                JOIN usuarios sol ON sv.solicitante_id = sol.id
+                LEFT JOIN usuarios res ON sv.responsavel_id = res.id
+                {where_acesso} AND sv.status='Pendente'
+                ORDER BY sv.criado_em DESC""",
+            params_acesso
+        )
+        visitas_proc, _ = _processar_sla_visitas(visitas_raw, cfg)
+        visitas = [v for v in visitas_proc if v['atrasada']]
+        total_filtrado = len(visitas)
+        total_paginas = max(1, (total_filtrado + por_pagina - 1) // por_pagina)
+        visitas = visitas[(pagina - 1) * por_pagina : pagina * por_pagina]
+    else:
+        visitas_raw = _fetchall(conn,
+            f"""SELECT sv.*,
+                       sol.nome  AS solicitante_nome,
+                       res.nome  AS responsavel_nome
+                FROM solicitacoes_visita sv
+                JOIN usuarios sol ON sv.solicitante_id = sol.id
+                LEFT JOIN usuarios res ON sv.responsavel_id = res.id
+                {where}
+                ORDER BY sv.criado_em DESC
+                LIMIT {PH} OFFSET {PH}""",
+            params_where + [por_pagina, offset]
+        )
+        visitas, _ = _processar_sla_visitas(visitas_raw, cfg)
 
     # ── Contadores por status ───────────────────────────────────────────────
-    # Usa o mesmo filtro de acesso (sem filtros de status/data/busca)
-    where_acesso = f"WHERE 1=1 {filtro_acesso}"
     contadores_rows = _fetchall(conn,
         f"""SELECT sv.status, COUNT(*) as total
             FROM solicitacoes_visita sv
@@ -2369,6 +2525,7 @@ def painel_visitas():
         total_filtrado=total_filtrado,
         filtros=filtros,
         contadores=contadores,
+        total_visitas_atrasadas=total_visitas_atrasadas,
         usuarios=usuarios,
     )
 

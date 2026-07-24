@@ -27,12 +27,19 @@
   </div>
 
   <!-- Status KPI Cards (Manual de Marca 25 Anos) -->
-  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:16px; margin-bottom:24px;">
     
     <a href="{{ url_for('painel_visitas', status='Pendente') }}" style="text-decoration:none;">
       <div style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:var(--radius-lg); padding:18px 20px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
         <span style="font-size:0.8rem; font-weight:700; color:#D97706; text-transform:uppercase; letter-spacing:0.3px;">Pendentes</span>
         <div style="font-size:2rem; font-weight:800; color:#B45309; margin-top:4px;">{{ contadores.get('Pendente', 0) }}</div>
+      </div>
+    </a>
+
+    <a href="{{ url_for('painel_visitas', status='Atrasada') }}" style="text-decoration:none;">
+      <div style="background:#FEF2F2; border:2px solid #F87171; border-radius:var(--radius-lg); padding:18px 20px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
+        <span style="font-size:0.8rem; font-weight:800; color:#DC2626; text-transform:uppercase; letter-spacing:0.3px;">⚠️ Em Atraso</span>
+        <div style="font-size:2rem; font-weight:800; color:#991B1B; margin-top:4px;">{{ total_visitas_atrasadas }}</div>
       </div>
     </a>
 
@@ -123,7 +130,13 @@
             <td>{{ v.motivo }}</td>
             <td>
               {% if v.status == 'Pendente' %}
-                <span class="tag-origem-espontanea">{{ v.status }}</span>
+                {% if v.atrasada %}
+                  <span class="tag" style="background:#FEF2F2; color:#991B1B; border:1px solid #FCA5A5; font-weight:800; display:inline-flex; align-items:center; gap:4px;">
+                    ⚠️ Atrasada ({{ v.dias_atraso }}d)
+                  </span>
+                {% else %}
+                  <span class="tag-origem-espontanea">{{ v.status }}</span>
+                {% endif %}
               {% elif v.status == 'Em Andamento' %}
                 <span class="tag-origem-visita">{{ v.status }}</span>
               {% elif v.status == 'Realizada' %}

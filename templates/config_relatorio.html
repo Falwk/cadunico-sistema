@@ -87,6 +87,48 @@
       </div>
     </div>
 
+    <!-- Card Prazos Limites para Visitas Domiciliares -->
+    <div class="card">
+      <div class="card-title" style="display:flex; align-items:center; gap:8px; color:var(--verde-escuro);">
+        <span>⚠️</span> Prazos Limites para Conclusão de Visitas Domiciliares
+      </div>
+      <p style="font-size:0.88rem; color:#4B5563; margin-bottom:16px;">
+        Estipule a quantidade máxima de dias corridos permitidos para a realização das solicitações de visitas pendentes. Solicitações que ultrapassarem este prazo serão sinalizadas automaticamente com alerta de atraso no painel.
+      </p>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px;">
+        <div class="form-group mb-0">
+          <label for="prazo_visita_padrao" style="font-weight:600;">Prazo Geral / Padrão (Dias):</label>
+          <input type="number" id="prazo_visita_padrao" name="prazo_visita_padrao" value="{{ cfg.get('prazo_visita_padrao', '15') }}" min="1" max="180" required>
+        </div>
+
+        <div class="form-group mb-0">
+          <label for="prazo_visita_Averiguacao Cadastral" style="font-weight:600;">Averiguação Cadastral (Dias):</label>
+          <input type="number" id="prazo_visita_Averiguacao Cadastral" name="prazo_visita_Averiguacao Cadastral" value="{{ cfg.get('prazo_visita_Averiguacao Cadastral', '15') }}" min="1" max="180" required>
+        </div>
+
+        <div class="form-group mb-0">
+          <label for="prazo_visita_Revisao Cadastral" style="font-weight:600;">Revisão Cadastral (Dias):</label>
+          <input type="number" id="prazo_visita_Revisao Cadastral" name="prazo_visita_Revisao Cadastral" value="{{ cfg.get('prazo_visita_Revisao Cadastral', '20') }}" min="1" max="180" required>
+        </div>
+
+        <div class="form-group mb-0">
+          <label for="prazo_visita_BPC" style="font-weight:600;">BPC / Benefício (Dias):</label>
+          <input type="number" id="prazo_visita_BPC" name="prazo_visita_BPC" value="{{ cfg.get('prazo_visita_BPC', '30') }}" min="1" max="180" required>
+        </div>
+
+        <div class="form-group mb-0">
+          <label for="prazo_visita_Denuncia" style="font-weight:600;">Denúncia / Irregularidade (Dias):</label>
+          <input type="number" id="prazo_visita_Denuncia" name="prazo_visita_Denuncia" value="{{ cfg.get('prazo_visita_Denuncia', '7') }}" min="1" max="180" required>
+        </div>
+
+        <div class="form-group mb-0">
+          <label for="prazo_visita_Atualizacao Cadastral" style="font-weight:600;">Atualização Cadastral (Dias):</label>
+          <input type="number" id="prazo_visita_Atualizacao Cadastral" name="prazo_visita_Atualizacao Cadastral" value="{{ cfg.get('prazo_visita_Atualizacao Cadastral', '15') }}" min="1" max="180" required>
+        </div>
+      </div>
+    </div>
+
     <div style="margin-top:20px; text-align:right;">
       <button type="submit" class="btn btn-primary" style="padding:12px 28px; font-size:1rem;">
         💾 Salvar Configurações do Relatório

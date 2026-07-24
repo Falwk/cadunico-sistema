@@ -95,20 +95,25 @@
     </div>
 
     <div class="card chart-card">
-      <div class="card-title">Origem dos Atendimentos</div>
-      {% if grafico_origens %}
-        {% set max_origem = grafico_origens|map(attribute='total')|max %}
-        <div class="bar-list compact">
-        {% for item in grafico_origens %}
+      <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>Atendimentos Frequentes</span>
+        <span style="font-size:0.75rem; color:var(--cad-verde-escuro); font-weight:700;">Destaques do Mês</span>
+      </div>
+      {% if grafico_tipos %}
+        {% set max_top5 = grafico_tipos[0].total %}
+        <div class="bar-list compact" style="margin-top:8px;">
+        {% for item in grafico_tipos[:5] %}
           <div class="bar-row">
-            <div class="bar-label">{{ item.nome }}</div>
-            <div class="bar-track origem"><div class="bar-fill origem" style="width:{{ (item.total/max_origem*100)|round(0,'floor') }}%"></div></div>
-            <div class="bar-value">{{ item.total }}</div>
+            <div class="bar-label" title="{{ item.nome }}" style="font-weight:700;">{{ loop.index }}. {{ item.nome }}</div>
+            <div class="bar-track" style="background:#E6F4EA;">
+              <div class="bar-fill" style="background:linear-gradient(90deg, #00883A, #00542A); width:{{ (item.total/max_top5*100)|round(0,'floor') }}%"></div>
+            </div>
+            <div class="bar-value" style="color:#00542A; font-weight:800;">{{ item.total }}</div>
           </div>
         {% endfor %}
         </div>
       {% else %}
-        <p class="text-muted empty-state">Nenhuma origem registrada no período.</p>
+        <p class="text-muted empty-state">Nenhum atendimento no período selecionado.</p>
       {% endif %}
     </div>
   </div>
@@ -123,6 +128,29 @@
         <div class="bar-label">{{ item.nome }}</div>
         <div class="bar-track ent"><div class="bar-fill ent" style="width:{{ (item.total/max_ent*100)|round(0,'floor') }}%"></div></div>
         <div class="bar-value">{{ item.total }}</div>
+      </div>
+    {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if grafico_bairros %}
+  <div class="card chart-card" style="margin-bottom:24px;">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+      <span style="display:flex; align-items:center; gap:8px;">
+        📍 Atendimentos por Bairro / Localidade
+      </span>
+      <span style="font-size:0.8rem; color:var(--text-muted);">Número de Atendimentos por Localidade</span>
+    </div>
+    {% set max_b = grafico_bairros[0].total %}
+    <div class="bar-list compact" style="margin-top:12px;">
+    {% for item in grafico_bairros %}
+      <div class="bar-row">
+        <div class="bar-label" title="{{ item.nome }}">{{ item.nome }}</div>
+        <div class="bar-track" style="background:#F3E8FF;"><div class="bar-fill" style="background:linear-gradient(90deg, #783DB2, #00883A); width:{{ (item.total/max_b*100)|round(0,'floor') }}%"></div></div>
+        <div class="bar-value" style="color:#783DB2; font-weight:800; font-size:0.85rem;">
+          {{ item.total }} {% if item.total == 1 %}atendimento{% else %}atendimentos{% endif %}
+        </div>
       </div>
     {% endfor %}
     </div>
