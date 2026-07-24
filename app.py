@@ -683,6 +683,7 @@ def init_db():
         )''')
         # Migrações seguras para PostgreSQL — cada uma em savepoint individual
         migracoes = [
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT",
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefone TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS atendimento_id INTEGER",
@@ -797,6 +798,7 @@ def init_db():
             criado_em       TEXT NOT NULL
         )''')
         for col_sql in [
+            "ALTER TABLE usuarios ADD COLUMN unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
             "ALTER TABLE usuarios ADD COLUMN trocar_senha INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE usuarios ADD COLUMN email TEXT",
             "ALTER TABLE usuarios ADD COLUMN telefone TEXT",
@@ -1527,93 +1529,328 @@ def criar_excel_relatorio(mes):
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
 
-    azul = "1F4E79"
+    verde_escuro = "00542A"
+    verde = "00883A"
+    roxo = "783DB2"
+    verde_claro = "E6F4EA"
+    roxo_claro = "F3E8FF"
     azul_claro = "BDD7EE"
-    cinza = "F2F2F2"
+    cinza = "F8FAFC"
     branco = "FFFFFF"
-    thin = Side(style='thin', color='000000')
+    thin = Side(style='thin', color='CBD5E1')
     borda = Border(left=thin, right=thin, top=thin, bottom=thin)
 
     if session['perfil'] == 'admin':
-        ws_q = wb.create_sheet("Quantitativo Geral")
+        # Separar entrevistadores por unidade
+        u_tome = [u for u in usuarios if (dict(u).get('unidade') or 'Tomé-Açu (Sede)') != 'Quatro Bocas']
+        u_qb = [u for u in usuarios if dict(u).get('unidade') == 'Quatro Bocas']
+
         mes_titulo = nome_mes(mes).upper()
-        ws_q.merge_cells('A1:Z1')
-        ws_q['A1'] = f"QUANTITATIVO DE ATENDIMENTOS - {mes_titulo}"
-        ws_q['A1'].font = Font(bold=True, color=branco, size=13)
-        ws_q['A1'].fill = PatternFill("solid", fgColor=azul)
-        ws_q['A1'].alignment = Alignment(horizontal='center')
-        ws_q.row_dimensions[1].height = 24
 
-        nomes_ents = [u['nome'] for u in usuarios]
-        for ci, texto in enumerate(["TIPO DE ATENDIMENTO"] + nomes_ents + ["TOTAL"], 1):
-            c = ws_q.cell(2, ci, texto)
-            c.font = Font(bold=True, color=branco)
-            c.fill = PatternFill("solid", fgColor=azul)
-            c.border = borda
-            c.alignment = Alignment(horizontal='center')
-
+        # Buscar todos os atendimentos do mês
         ats_all = _fetchall(conn,
-            "SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.data LIKE ?",
+            "SELECT a.*, u.nome as entrevistador, COALESCE(u.unidade, 'Tomé-Açu (Sede)') as unidade "
+            "FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.data LIKE ?",
             (mes + '%',)
         )
-        quant = {t: {n: 0 for n in nomes_ents} for t in TIPOS_ATENDIMENTO}
+
+        nomes_all = [u['nome'] for u in usuarios]
+        quant = {t: {n: 0 for n in nomes_all} for t in TIPOS_ATENDIMENTO}
         for at in ats_all:
             for tipo in at['tipos'].split('|'):
                 if tipo in quant and at['entrevistador'] in quant[tipo]:
                     quant[tipo][at['entrevistador']] += 1
 
-        for ri, tipo in enumerate(TIPOS_ATENDIMENTO, 3):
+        # -------------------------------------------------------------
+        # 1. ABA "Quantitativo Geral" (Consolidado Comparativo)
+        # -------------------------------------------------------------
+        ws_q = wb.create_sheet("Quantitativo Geral")
+        ws_q.merge_cells('A1:Z1')
+        ws_q['A1'] = f"QUANTITATIVO DE ATENDIMENTOS (CONSOLIDADO GERAL) - {mes_titulo}"
+        ws_q['A1'].font = Font(bold=True, color=branco, size=13)
+        ws_q['A1'].fill = PatternFill("solid", fgColor=verde_escuro)
+        ws_q['A1'].alignment = Alignment(horizontal='center', vertical='center')
+        ws_q.row_dimensions[1].height = 26
+
+        # Linha 2: Cabeçalho das Unidades
+        ws_q.cell(2, 1, "UNIDADE").fill = PatternFill("solid", fgColor=verde_escuro)
+        ws_q.cell(2, 1).font = Font(bold=True, color=branco)
+        ws_q.cell(2, 1).border = borda
+        ws_q.cell(2, 1).alignment = Alignment(horizontal='center')
+
+        col_idx = 2
+        col_tome_subtotal = None
+        if u_tome:
+            start_tome = col_idx
+            end_tome = start_tome + len(u_tome) - 1
+            for ci in range(start_tome, end_tome + 1):
+                c = ws_q.cell(2, ci)
+                c.fill = PatternFill("solid", fgColor=verde)
+                c.border = borda
+            if start_tome < end_tome:
+                ws_q.merge_cells(start_row=2, start_column=start_tome, end_row=2, end_column=end_tome)
+            ws_q.cell(2, start_tome, "TOMÉ-AÇU (SEDE)").font = Font(bold=True, color=branco, size=10)
+            ws_q.cell(2, start_tome).alignment = Alignment(horizontal='center')
+            col_idx = end_tome + 1
+
+            c = ws_q.cell(2, col_idx, "SUBTOTAL TOMÉ")
+            c.font = Font(bold=True, color=branco)
+            c.fill = PatternFill("solid", fgColor=verde_escuro)
+            c.border = borda
+            c.alignment = Alignment(horizontal='center')
+            col_tome_subtotal = col_idx
+            col_idx += 1
+
+        col_qb_subtotal = None
+        if u_qb:
+            start_qb = col_idx
+            end_qb = start_qb + len(u_qb) - 1
+            for ci in range(start_qb, end_qb + 1):
+                c = ws_q.cell(2, ci)
+                c.fill = PatternFill("solid", fgColor=roxo)
+                c.border = borda
+            if start_qb < end_qb:
+                ws_q.merge_cells(start_row=2, start_column=start_qb, end_row=2, end_column=end_qb)
+            ws_q.cell(2, start_qb, "QUATRO BOCAS").font = Font(bold=True, color=branco, size=10)
+            ws_q.cell(2, start_qb).alignment = Alignment(horizontal='center')
+            col_idx = end_qb + 1
+
+            c = ws_q.cell(2, col_idx, "SUBTOTAL Q. BOCAS")
+            c.font = Font(bold=True, color=branco)
+            c.fill = PatternFill("solid", fgColor=roxo)
+            c.border = borda
+            c.alignment = Alignment(horizontal='center')
+            col_qb_subtotal = col_idx
+            col_idx += 1
+
+        c_gt = ws_q.cell(2, col_idx, "TOTAL GERAL")
+        c_gt.font = Font(bold=True, color=branco)
+        c_gt.fill = PatternFill("solid", fgColor=verde_escuro)
+        c_gt.border = borda
+        c_gt.alignment = Alignment(horizontal='center')
+        col_grand_total = col_idx
+        ws_q.row_dimensions[2].height = 20
+
+        # Linha 3: Cabeçalho com Nome dos Entrevistadores
+        ws_q.cell(3, 1, "TIPO DE ATENDIMENTO").fill = PatternFill("solid", fgColor=verde_escuro)
+        ws_q.cell(3, 1).font = Font(bold=True, color=branco)
+        ws_q.cell(3, 1).border = borda
+        ws_q.cell(3, 1).alignment = Alignment(horizontal='center')
+
+        tome_col_map = {}
+        col_curr = 2
+        if u_tome:
+            for u in u_tome:
+                c = ws_q.cell(3, col_curr, u['nome'])
+                c.font = Font(bold=True, color=branco)
+                c.fill = PatternFill("solid", fgColor=verde)
+                c.border = borda
+                c.alignment = Alignment(horizontal='center')
+                tome_col_map[u['nome']] = col_curr
+                col_curr += 1
+            c = ws_q.cell(3, col_curr, "SUBTOTAL TOMÉ")
+            c.font = Font(bold=True, color=branco)
+            c.fill = PatternFill("solid", fgColor=verde_escuro)
+            c.border = borda
+            c.alignment = Alignment(horizontal='center')
+            col_curr += 1
+
+        qb_col_map = {}
+        if u_qb:
+            for u in u_qb:
+                c = ws_q.cell(3, col_curr, u['nome'])
+                c.font = Font(bold=True, color=branco)
+                c.fill = PatternFill("solid", fgColor=roxo)
+                c.border = borda
+                c.alignment = Alignment(horizontal='center')
+                qb_col_map[u['nome']] = col_curr
+                col_curr += 1
+            c = ws_q.cell(3, col_curr, "SUBTOTAL Q. BOCAS")
+            c.font = Font(bold=True, color=branco)
+            c.fill = PatternFill("solid", fgColor=roxo)
+            c.border = borda
+            c.alignment = Alignment(horizontal='center')
+            col_curr += 1
+
+        c = ws_q.cell(3, col_curr, "TOTAL GERAL")
+        c.font = Font(bold=True, color=branco)
+        c.fill = PatternFill("solid", fgColor=verde_escuro)
+        c.border = borda
+        c.alignment = Alignment(horizontal='center')
+        ws_q.row_dimensions[3].height = 20
+
+        # Linhas por tipo de atendimento
+        for ri, tipo in enumerate(TIPOS_ATENDIMENTO, 4):
             fill = PatternFill("solid", fgColor=cinza if ri % 2 == 0 else branco)
             c = ws_q.cell(ri, 1, tipo)
             c.fill = fill
             c.border = borda
-            total_linha = 0
-            for ci, nome in enumerate(nomes_ents, 2):
-                v = quant[tipo].get(nome, 0)
-                total_linha += v
-                cc = ws_q.cell(ri, ci, v)
-                cc.fill = fill
-                cc.border = borda
-                cc.alignment = Alignment(horizontal='center')
-            ct = ws_q.cell(ri, len(nomes_ents) + 2, total_linha)
+
+            subtotal_tome = 0
+            if u_tome:
+                for u in u_tome:
+                    v = quant[tipo].get(u['nome'], 0)
+                    subtotal_tome += v
+                    cc = ws_q.cell(ri, tome_col_map[u['nome']], v)
+                    cc.fill = fill
+                    cc.border = borda
+                    cc.alignment = Alignment(horizontal='center')
+                c_st = ws_q.cell(ri, col_tome_subtotal, subtotal_tome)
+                c_st.font = Font(bold=True)
+                c_st.fill = PatternFill("solid", fgColor=verde_claro)
+                c_st.border = borda
+                c_st.alignment = Alignment(horizontal='center')
+
+            subtotal_qb = 0
+            if u_qb:
+                for u in u_qb:
+                    v = quant[tipo].get(u['nome'], 0)
+                    subtotal_qb += v
+                    cc = ws_q.cell(ri, qb_col_map[u['nome']], v)
+                    cc.fill = fill
+                    cc.border = borda
+                    cc.alignment = Alignment(horizontal='center')
+                c_sqb = ws_q.cell(ri, col_qb_subtotal, subtotal_qb)
+                c_sqb.font = Font(bold=True)
+                c_sqb.fill = PatternFill("solid", fgColor=roxo_claro)
+                c_sqb.border = borda
+                c_sqb.alignment = Alignment(horizontal='center')
+
+            tot_linha = subtotal_tome + subtotal_qb
+            ct = ws_q.cell(ri, col_grand_total, tot_linha)
             ct.font = Font(bold=True)
             ct.fill = PatternFill("solid", fgColor=azul_claro)
             ct.border = borda
             ct.alignment = Alignment(horizontal='center')
 
-        ri_total = len(TIPOS_ATENDIMENTO) + 3
-        grand_total = 0
+        # Linha Total Rodapé
+        ri_total = len(TIPOS_ATENDIMENTO) + 4
         ws_q.cell(ri_total, 1, "TOTAL").font = Font(bold=True, color=branco)
-        ws_q.cell(ri_total, 1).fill = PatternFill("solid", fgColor=azul)
+        ws_q.cell(ri_total, 1).fill = PatternFill("solid", fgColor=verde_escuro)
         ws_q.cell(ri_total, 1).border = borda
-        for ci, nome in enumerate(nomes_ents, 2):
-            col_total = sum(quant[t].get(nome, 0) for t in TIPOS_ATENDIMENTO)
-            grand_total += col_total
-            cc = ws_q.cell(ri_total, ci, col_total)
-            cc.font = Font(bold=True, color=branco)
-            cc.fill = PatternFill("solid", fgColor=azul)
-            cc.border = borda
-            cc.alignment = Alignment(horizontal='center')
-        ct = ws_q.cell(ri_total, len(nomes_ents) + 2, grand_total)
+
+        grand_tome = 0
+        if u_tome:
+            for u in u_tome:
+                col_tot = sum(quant[t].get(u['nome'], 0) for t in TIPOS_ATENDIMENTO)
+                grand_tome += col_tot
+                cc = ws_q.cell(ri_total, tome_col_map[u['nome']], col_tot)
+                cc.font = Font(bold=True, color=branco)
+                cc.fill = PatternFill("solid", fgColor=verde)
+                cc.border = borda
+                cc.alignment = Alignment(horizontal='center')
+            c_st = ws_q.cell(ri_total, col_tome_subtotal, grand_tome)
+            c_st.font = Font(bold=True, color=branco)
+            c_st.fill = PatternFill("solid", fgColor=verde_escuro)
+            c_st.border = borda
+            c_st.alignment = Alignment(horizontal='center')
+
+        grand_qb = 0
+        if u_qb:
+            for u in u_qb:
+                col_tot = sum(quant[t].get(u['nome'], 0) for t in TIPOS_ATENDIMENTO)
+                grand_qb += col_tot
+                cc = ws_q.cell(ri_total, qb_col_map[u['nome']], col_tot)
+                cc.font = Font(bold=True, color=branco)
+                cc.fill = PatternFill("solid", fgColor=roxo)
+                cc.border = borda
+                cc.alignment = Alignment(horizontal='center')
+            c_sqb = ws_q.cell(ri_total, col_qb_subtotal, grand_qb)
+            c_sqb.font = Font(bold=True, color=branco)
+            c_sqb.fill = PatternFill("solid", fgColor=roxo)
+            c_sqb.border = borda
+            c_sqb.alignment = Alignment(horizontal='center')
+
+        ct = ws_q.cell(ri_total, col_grand_total, grand_tome + grand_qb)
         ct.font = Font(bold=True, color=branco)
-        ct.fill = PatternFill("solid", fgColor=azul)
+        ct.fill = PatternFill("solid", fgColor=verde_escuro)
         ct.border = borda
         ct.alignment = Alignment(horizontal='center')
-        ws_q.column_dimensions['A'].width = 35
-        for ci in range(2, len(nomes_ents) + 3):
-            ws_q.column_dimensions[get_column_letter(ci)].width = 14
 
-        # Aba origens
+        ws_q.column_dimensions['A'].width = 35
+        for ci in range(2, col_grand_total + 1):
+            ws_q.column_dimensions[get_column_letter(ci)].width = 16
+
+        # -------------------------------------------------------------
+        # Helper para criar abas exclusivas por Unidade
+        # -------------------------------------------------------------
+        def _criar_aba_unidade(sheet_title, titulo_banner, users_list, main_color):
+            ws_u = wb.create_sheet(sheet_title)
+            ws_u.merge_cells('A1:Z1')
+            ws_u['A1'] = f"{titulo_banner} - {mes_titulo}"
+            ws_u['A1'].font = Font(bold=True, color=branco, size=13)
+            ws_u['A1'].fill = PatternFill("solid", fgColor=main_color)
+            ws_u['A1'].alignment = Alignment(horizontal='center', vertical='center')
+            ws_u.row_dimensions[1].height = 24
+
+            headers = ["TIPO DE ATENDIMENTO"] + [u['nome'] for u in users_list] + ["TOTAL"]
+            for ci, texto in enumerate(headers, 1):
+                c = ws_u.cell(2, ci, texto)
+                c.font = Font(bold=True, color=branco)
+                c.fill = PatternFill("solid", fgColor=main_color)
+                c.border = borda
+                c.alignment = Alignment(horizontal='center')
+
+            for ri, tipo in enumerate(TIPOS_ATENDIMENTO, 3):
+                fill = PatternFill("solid", fgColor=cinza if ri % 2 == 0 else branco)
+                c = ws_u.cell(ri, 1, tipo)
+                c.fill = fill
+                c.border = borda
+                tot_l = 0
+                for ci, u in enumerate(users_list, 2):
+                    v = quant[tipo].get(u['nome'], 0)
+                    tot_l += v
+                    cc = ws_u.cell(ri, ci, v)
+                    cc.fill = fill
+                    cc.border = borda
+                    cc.alignment = Alignment(horizontal='center')
+                ct = ws_u.cell(ri, len(users_list) + 2, tot_l)
+                ct.font = Font(bold=True)
+                ct.fill = PatternFill("solid", fgColor=azul_claro)
+                ct.border = borda
+                ct.alignment = Alignment(horizontal='center')
+
+            ri_tot = len(TIPOS_ATENDIMENTO) + 3
+            ws_u.cell(ri_tot, 1, "TOTAL").font = Font(bold=True, color=branco)
+            ws_u.cell(ri_tot, 1).fill = PatternFill("solid", fgColor=main_color)
+            ws_u.cell(ri_tot, 1).border = borda
+            tot_g = 0
+            for ci, u in enumerate(users_list, 2):
+                col_t = sum(quant[t].get(u['nome'], 0) for t in TIPOS_ATENDIMENTO)
+                tot_g += col_t
+                cc = ws_u.cell(ri_tot, ci, col_t)
+                cc.font = Font(bold=True, color=branco)
+                cc.fill = PatternFill("solid", fgColor=main_color)
+                cc.border = borda
+                cc.alignment = Alignment(horizontal='center')
+            ct = ws_u.cell(ri_tot, len(users_list) + 2, tot_g)
+            ct.font = Font(bold=True, color=branco)
+            ct.fill = PatternFill("solid", fgColor=main_color)
+            ct.border = borda
+            ct.alignment = Alignment(horizontal='center')
+
+            ws_u.column_dimensions['A'].width = 35
+            for ci in range(2, len(users_list) + 3):
+                ws_u.column_dimensions[get_column_letter(ci)].width = 16
+
+        if u_tome:
+            _criar_aba_unidade("Tomé-Açu (Sede)", "QUANTITATIVO - TOMÉ-AÇU (SEDE)", u_tome, verde_escuro)
+        if u_qb:
+            _criar_aba_unidade("Quatro Bocas", "QUANTITATIVO - POLO QUATRO BOCAS", u_qb, roxo)
+
+        # -------------------------------------------------------------
+        # Aba Origens
+        # -------------------------------------------------------------
         ws_o = wb.create_sheet("Origens")
         ws_o.merge_cells('A1:C1')
         ws_o['A1'] = f"ATENDIMENTOS POR ORIGEM - {mes_titulo}"
         ws_o['A1'].font = Font(bold=True, color=branco, size=12)
-        ws_o['A1'].fill = PatternFill("solid", fgColor=azul)
+        ws_o['A1'].fill = PatternFill("solid", fgColor=verde_escuro)
         ws_o['A1'].alignment = Alignment(horizontal='center')
         for ci, cab in enumerate(["ORIGEM", "TOTAL", "% DO TOTAL"], 1):
             c = ws_o.cell(2, ci, cab)
             c.font = Font(bold=True, color=branco)
-            c.fill = PatternFill("solid", fgColor=azul)
+            c.fill = PatternFill("solid", fgColor=verde_escuro)
             c.border = borda
             c.alignment = Alignment(horizontal='center')
         origens_totais = {o: 0 for o in ORIGENS}
@@ -1634,29 +1871,35 @@ def criar_excel_relatorio(mes):
         ws_o.column_dimensions['B'].width = 10
         ws_o.column_dimensions['C'].width = 12
 
+    # -------------------------------------------------------------
+    # Abas Individuais dos Entrevistadores
+    # -------------------------------------------------------------
     for u in usuarios:
+        unidade_u = dict(u).get('unidade') or 'Tomé-Açu (Sede)'
         ats_u = _fetchall(conn,
             "SELECT * FROM atendimentos WHERE usuario_id=? AND data LIKE ? ORDER BY data",
             (u['id'], mes + '%')
         )
-        ws = wb.create_sheet(u['nome'][:31])
+        s_title = u['nome'][:24] + (" (QB)" if unidade_u == 'Quatro Bocas' else " (Sede)")
+        ws = wb.create_sheet(s_title[:31])
         mes_titulo = nome_mes(mes).upper()
         ws.merge_cells('A1:F1')
         ws['A1'] = f"REGISTRO MENSAL DE ATENDIMENTOS - {mes_titulo}"
         ws['A1'].font = Font(bold=True, color=branco, size=12)
-        ws['A1'].fill = PatternFill("solid", fgColor=azul)
+        header_color = roxo if unidade_u == 'Quatro Bocas' else verde_escuro
+        ws['A1'].fill = PatternFill("solid", fgColor=header_color)
         ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
         ws.row_dimensions[1].height = 22
         ws.merge_cells('A2:F2')
-        ws['A2'] = f"Entrevistador(a): {u['nome']}"
+        ws['A2'] = f"Entrevistador(a): {u['nome']}  |  Unidade: {unidade_u}"
         ws['A2'].font = Font(bold=True, size=11)
-        ws['A2'].fill = PatternFill("solid", fgColor=azul_claro)
+        ws['A2'].fill = PatternFill("solid", fgColor=roxo_claro if unidade_u == 'Quatro Bocas' else verde_claro)
         ws['A2'].alignment = Alignment(horizontal='left', vertical='center')
         ws.row_dimensions[2].height = 18
         for ci, cab in enumerate(['DATA', 'CPF DO RF', 'NOME DO RF', 'ORIGEM', 'TIPOS DE ATENDIMENTO', 'TOTAL'], 1):
             c = ws.cell(3, ci, cab)
             c.font = Font(bold=True, color=branco)
-            c.fill = PatternFill("solid", fgColor=azul)
+            c.fill = PatternFill("solid", fgColor=header_color)
             c.border = borda
             c.alignment = Alignment(horizontal='center')
         ws.row_dimensions[3].height = 18
@@ -1841,6 +2084,7 @@ def novo_usuario():
         login_ = request.form.get('login', '').strip()
         senha = request.form.get('senha', '').strip()
         perfil = request.form.get('perfil', 'entrevistador')
+        unidade = request.form.get('unidade', 'Tomé-Açu (Sede)').strip()
         acesso_sibec = 1 if request.form.get('acesso_sibec') else 0
         email = request.form.get('email', '').strip() or None
         telefone = request.form.get('telefone', '').strip() or None
@@ -1856,8 +2100,8 @@ def novo_usuario():
             try:
                 conn = get_db()
                 _exec(conn,
-                    "INSERT INTO usuarios (nome,login,senha,perfil,acesso_sibec,trocar_senha,email,telefone) VALUES (?,?,?,?,?,?,?,?)",
-                    (nome, login_, generate_password_hash(senha), perfil, acesso_sibec, 1, email, telefone)
+                    "INSERT INTO usuarios (nome,login,senha,perfil,acesso_sibec,trocar_senha,email,telefone,unidade) VALUES (?,?,?,?,?,?,?,?,?)",
+                    (nome, login_, generate_password_hash(senha), perfil, acesso_sibec, 1, email, telefone, unidade)
                 )
                 conn.commit()
                 conn.close()
@@ -1881,6 +2125,7 @@ def editar_usuario(uid):
         login_ = request.form.get('login', '').strip()
         nova_senha = request.form.get('senha', '').strip()
         perfil = request.form.get('perfil', 'entrevistador')
+        unidade = request.form.get('unidade', 'Tomé-Açu (Sede)').strip()
         acesso_sibec = 1 if request.form.get('acesso_sibec') else 0
         email = request.form.get('email', '').strip() or None
         telefone = request.form.get('telefone', '').strip() or None
@@ -1891,13 +2136,13 @@ def editar_usuario(uid):
         if not erros:
             if nova_senha:
                 _exec(conn,
-                    "UPDATE usuarios SET nome=?,login=?,senha=?,perfil=?,acesso_sibec=?,trocar_senha=0,email=?,telefone=? WHERE id=?",
-                    (nome, login_, generate_password_hash(nova_senha), perfil, acesso_sibec, email, telefone, uid)
+                    "UPDATE usuarios SET nome=?,login=?,senha=?,perfil=?,acesso_sibec=?,trocar_senha=0,email=?,telefone=?,unidade=? WHERE id=?",
+                    (nome, login_, generate_password_hash(nova_senha), perfil, acesso_sibec, email, telefone, unidade, uid)
                 )
             else:
                 _exec(conn,
-                    "UPDATE usuarios SET nome=?,login=?,perfil=?,acesso_sibec=?,email=?,telefone=? WHERE id=?",
-                    (nome, login_, perfil, acesso_sibec, email, telefone, uid)
+                    "UPDATE usuarios SET nome=?,login=?,perfil=?,acesso_sibec=?,email=?,telefone=?,unidade=? WHERE id=?",
+                    (nome, login_, perfil, acesso_sibec, email, telefone, unidade, uid)
                 )
             conn.commit()
             conn.close()

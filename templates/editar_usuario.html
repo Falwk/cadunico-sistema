@@ -17,12 +17,21 @@
         <label>Nova senha <span class="text-muted">(deixe em branco para manter)</span></label>
         <input type="password" name="senha">
       </div>
-      <div class="form-group">
-        <label>Perfil</label>
-        <select name="perfil">
-          <option value="entrevistador" {% if u.perfil=='entrevistador' %}selected{% endif %}>Entrevistador</option>
-          <option value="admin" {% if u.perfil=='admin' %}selected{% endif %}>Administrador</option>
-        </select>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        <div class="form-group">
+          <label>Perfil</label>
+          <select name="perfil">
+            <option value="entrevistador" {% if u.perfil=='entrevistador' %}selected{% endif %}>Entrevistador</option>
+            <option value="admin" {% if u.perfil=='admin' %}selected{% endif %}>Administrador</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Unidade / Polo *</label>
+          <select name="unidade">
+            <option value="Tomé-Açu (Sede)" {% if u.unidade=='Tomé-Açu (Sede)' or not u.unidade %}selected{% endif %}>Tomé-Açu (Sede)</option>
+            <option value="Quatro Bocas" {% if u.unidade=='Quatro Bocas' %}selected{% endif %}>Quatro Bocas</option>
+          </select>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
         <div class="form-group">
