@@ -947,7 +947,7 @@ def audit(acao: str, detalhe: str = ''):
             session.get('usuario_nome', '?'),
             acao, detalhe,
             request.remote_addr,
-            datetime.now().isoformat(),
+            datetime.now(_TZ_BELEM).isoformat(),
         ),
     )
     conn.commit()
@@ -1444,7 +1444,7 @@ def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_
     else:
         _exec(conn,
             "INSERT INTO atendimentos (data,cpf,nome_rf,origem,tipos,usuario_id,criado_em) VALUES (?,?,?,?,?,?,?)",
-            (data, cpf, nome_rf, origem, tipos_str, usuario_id, datetime.now().isoformat())
+            (data, cpf, nome_rf, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat())
         )
     conn.commit()
     return []
@@ -2795,7 +2795,7 @@ def editar_visita(visita_id):
                                    visita=visita, erros=erros,
                                    form=form, usuarios=usuarios)
 
-        agora = datetime.now().isoformat()
+        agora = datetime.now(_TZ_BELEM).isoformat()
         _exec(conn,
             """UPDATE solicitacoes_visita
                SET nome_rf=?, logradouro=?, numero=?, complemento=?, bairro=?,
@@ -2923,7 +2923,7 @@ def nova_visita():
         ano_belem = datetime.now(_TZ_BELEM).year
 
         if not erros:
-            agora = datetime.now().isoformat()
+            agora = datetime.now(_TZ_BELEM).isoformat()
             try:
                 numero_vd = _gerar_numero_vd(conn, ano_belem)
                 if _USE_PG:
@@ -3050,7 +3050,7 @@ def atualizar_status_visita(visita_id):
         flash('Informe o motivo do cancelamento.', 'erro')
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
-    agora = datetime.now().isoformat()
+    agora = datetime.now(_TZ_BELEM).isoformat()
     atendimento_id = None
 
     # Para 'Realizada': inserir atendimento dentro de uma transação
@@ -3213,7 +3213,7 @@ def resultado_visita(visita_id):
             erros.append('A data de realização não pode ser uma data futura.')
 
         if not erros:
-            agora = datetime.now().isoformat()
+            agora = datetime.now(_TZ_BELEM).isoformat()
             parecer_url  = visita['parecer_as_url']
             parecer_nome = visita['parecer_as_nome']
             aviso_parecer = None
