@@ -18,6 +18,9 @@
         <span>+ Nova Solicitação</span>
       </a>
       {% if session.get('perfil') == 'admin' %}
+      <a href="{{ url_for('config_visita') }}" class="btn btn-outline" style="border-color:#783DB2; color:#783DB2; font-weight:700; background:#F5F3FF;">
+        ⚙️ Modelo Impresso
+      </a>
       <form method="POST" action="{{ url_for('zerar_numeracao_vd') }}"
             onsubmit="return confirm('Zerar toda a numeração VD? Esta ação não pode ser desfeita.')">
         <button type="submit" class="btn btn-danger btn-sm" style="height:100%;">🔄 Zerar Numeração VD</button>

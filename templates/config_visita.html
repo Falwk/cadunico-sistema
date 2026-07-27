@@ -1,0 +1,87 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container">
+  <div class="flex" style="justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <div>
+      <h1 class="page-title mb-0" style="color:var(--cad-verde-escuro);">Modelo Impresso de Solicitação de Visita</h1>
+      <p style="font-size:0.88rem; color:var(--text-muted); margin-top:4px;">
+        Personalize os títulos, orientações oficiais e assinaturas exibidos na folha de visita enviada para impressão ou PDF.
+      </p>
+    </div>
+    <a href="{{ url_for('painel_visitas') }}" class="btn btn-outline btn-sm">← Voltar às Visitas</a>
+  </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alerta alerta-{{ 'ok' if category == 'ok' else ('erro' if category == 'erro' else 'aviso') }}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <form method="POST">
+    <!-- Card Identificação do Documento -->
+    <div class="card">
+      <div class="card-title" style="display:flex; align-items:center; gap:8px; color:var(--cad-verde-escuro);">
+        <span>📄</span> Títulos e Identificação do Documento Impresso
+      </div>
+      
+      <div class="form-group">
+        <label for="visita_titulo_doc" style="font-weight:700;">Título Principal do Documento:</label>
+        <input type="text" id="visita_titulo_doc" name="visita_titulo_doc" value="{{ cfg.get('visita_titulo_doc', 'SOLICITAÇÃO DE VISITA DOMICILIAR') }}" required>
+        <small class="text-muted" style="display:block; margin-top:4px;">Exibido em destaque no topo da folha impressa.</small>
+      </div>
+
+      <div class="form-group mb-0">
+        <label for="visita_subtitulo_doc" style="font-weight:700;">Subtítulo Institucional / Secretaria:</label>
+        <input type="text" id="visita_subtitulo_doc" name="visita_subtitulo_doc" value="{{ cfg.get('visita_subtitulo_doc', 'Secretaria Municipal de Assistência Social - Setor do Cadastro Único / PBF') }}" required>
+      </div>
+    </div>
+
+    <!-- Card Orientações e Instruções Oficiais -->
+    <div class="card">
+      <div class="card-title" style="display:flex; align-items:center; gap:8px; color:var(--cad-verde-escuro);">
+        <span>📝</span> Orientações e Texto de Instrução da Visita
+      </div>
+
+      <div class="form-group mb-0">
+        <label for="visita_orientacao_texto" style="font-weight:700;">Texto de Orientação Institucional (Impresso na folha):</label>
+        <textarea id="visita_orientacao_texto" name="visita_orientacao_texto" rows="4">{{ cfg.get('visita_orientacao_texto', '') }}</textarea>
+        <small class="text-muted" style="display:block; margin-top:4px;">Instrução institucional para o entrevistador/assistente social e a família sobre o objetivo do procedimento.</small>
+      </div>
+    </div>
+
+    <!-- Card Assinaturas e Rodapé -->
+    <div class="card">
+      <div class="card-title" style="display:flex; align-items:center; gap:8px; color:var(--cad-verde-escuro);">
+        <span>✍️</span> Rótulos das Assinaturas e Rodapé
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label for="visita_assinatura_1" style="font-weight:700;">Rótulo da Assinatura 1 (Esquerda):</label>
+          <input type="text" id="visita_assinatura_1" name="visita_assinatura_1" value="{{ cfg.get('visita_assinatura_1', 'Assinatura do Entrevistador / Assistente Social') }}" required>
+        </div>
+
+        <div class="form-group">
+          <label for="visita_assinatura_2" style="font-weight:700;">Rótulo da Assinatura 2 (Direita):</label>
+          <input type="text" id="visita_assinatura_2" name="visita_assinatura_2" value="{{ cfg.get('visita_assinatura_2', 'Assinatura do Responsável Familiar (RF)') }}" required>
+        </div>
+      </div>
+
+      <div class="form-group mb-0">
+        <label for="visita_rodape_txt" style="font-weight:700;">Texto do Rodapé da Visita Impressa:</label>
+        <input type="text" id="visita_rodape_txt" name="visita_rodape_txt" value="{{ cfg.get('visita_rodape_txt', 'Setor do Cadastro Único e Programa Bolsa Família') }}">
+      </div>
+    </div>
+
+    <div style="margin-top:20px; text-align:right;">
+      <button type="submit" class="btn btn-primary" style="padding:12px 28px; font-size:1rem; font-weight:700;">
+        💾 Salvar Modelo da Visita Impressa
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}

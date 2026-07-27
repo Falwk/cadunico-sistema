@@ -286,6 +286,16 @@ def _config_defaults() -> dict:
         'prazo_visita_Denuncia': '7',
         'prazo_visita_Atualizacao Cadastral': '15',
         'prazo_visita_Inclusao Cadastral': '15',
+        'visita_titulo_doc': 'SOLICITAÇÃO DE VISITA DOMICILIAR',
+        'visita_subtitulo_doc': 'Secretaria Municipal de Assistência Social - Setor do Cadastro Único / PBF',
+        'visita_orientacao_texto': (
+            'A visita domiciliar é uma ação de acompanhamento cadastral e socioassistencial. '
+            'O entrevistador/assistente social deve averiguar as informações declaradas, registrando o parecer '
+            'técnico e garantindo a qualidade dos dados do Cadastro Único.'
+        ),
+        'visita_assinatura_1': 'Assinatura do Entrevistador / Assistente Social',
+        'visita_assinatura_2': 'Assinatura do Responsável Familiar (RF)',
+        'visita_rodape_txt': 'Setor do Cadastro Único e Programa Bolsa Família',
     }
 
 
@@ -409,59 +419,64 @@ def _logo_path(filename: str):
 
 
 def _build_pdf_story(visita, solicitante, responsavel, cfg: dict) -> list:
+    if isinstance(visita, (sqlite3.Row, dict)):
+        visita = dict(visita)
+    if isinstance(solicitante, (sqlite3.Row, dict)):
+        solicitante = dict(solicitante)
+    if isinstance(responsavel, (sqlite3.Row, dict)):
+        responsavel = dict(responsavel)
+
     styles = getSampleStyleSheet()
-    azul   = rl_colors.HexColor('#1F4E79')
-    cinza  = rl_colors.HexColor('#F5F6F8')
+    verde_escuro = rl_colors.HexColor('#00542A')
+    verde_vibrante = rl_colors.HexColor('#00883A')
+    roxo = rl_colors.HexColor('#783DB2')
+    cinza_fundo = rl_colors.HexColor('#F8F9FA')
+    verde_claro = rl_colors.HexColor('#F0FDF4')
     cinza_t = rl_colors.HexColor('#4B5563')
     branco = rl_colors.white
 
     def par(text, size=10, bold=False, color=rl_colors.black, align='LEFT'):
-        from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
-        al = {'LEFT': TA_LEFT, 'CENTER': TA_CENTER, 'RIGHT': TA_RIGHT}.get(align, TA_LEFT)
+        from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
+        al = {'LEFT': TA_LEFT, 'CENTER': TA_CENTER, 'RIGHT': TA_RIGHT, 'JUSTIFY': TA_JUSTIFY}.get(align, TA_LEFT)
         st = ParagraphStyle('x', fontSize=size, fontName='Helvetica-Bold' if bold else 'Helvetica',
                             textColor=color, alignment=al, leading=size * 1.3)
         return Paragraph(str(text or ''), st)
 
     story = []
 
-    # ── Cabeçalho logos ─────────────────────────────────────────────────────
-    def make_logo(fname, w, h):
-        p = _logo_path(fname)
-        if p:
-            return RLImage(p, width=w, height=h)
-        return par('')
+    # ── Timbrado / Cabeçalho de Imagem Oficial ────────────────────────────────
+    img_hdr_path = os.path.join(app.root_path, 'static', 'report_assets', 'image3.png')
+    if not os.path.exists(img_hdr_path):
+        img_hdr_path = os.path.join(BASE_DIR, 'static', 'report_assets', 'image3.png')
+    
+    if os.path.exists(img_hdr_path):
+        try:
+            story.append(RLImage(img_hdr_path, width=17*cm, height=2.8*cm))
+            story.append(Spacer(1, 0.3*cm))
+        except Exception:
+            pass
 
-    logo_cad    = make_logo('cadunico.png',    3*cm, 3*cm)
-    logo_brasao = make_logo('prefeitura.png',  3*cm, 3*cm)
-    logo_bf     = make_logo('bolsafamilia.png', 3*cm, 3*cm)
+    # ── Título do Documento (Configurável pelo Admin) ─────────────────────────
+    titulo_doc = cfg.get('visita_titulo_doc', 'SOLICITAÇÃO DE VISITA DOMICILIAR').upper()
+    subtitulo_doc = cfg.get('visita_subtitulo_doc', 'Secretaria Municipal de Assistência Social - Setor do Cadastro Único / PBF')
 
-    hdr_table = Table([[logo_cad, logo_brasao, logo_bf]],
-                      colWidths=[5*cm, 7*cm, 5*cm])
-    hdr_table.setStyle(TableStyle([
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('ALIGN',  (0, 0), (0, 0),   'LEFT'),
-        ('ALIGN',  (1, 0), (1, 0),   'CENTER'),
-        ('ALIGN',  (2, 0), (2, 0),   'RIGHT'),
-    ]))
-    story.append(hdr_table)
-
-    # Título abaixo do cabeçalho
     titulo_tbl = Table([
-        [par('SOLICITAÇÃO DE VISITA DOMICILIAR', size=12, bold=True, align='CENTER')],
-        [par('Secretaria de Assistência Social', size=9, color=cinza_t, align='CENTER')],
+        [par(titulo_doc, size=12, bold=True, color=verde_escuro, align='CENTER')],
+        [par(subtitulo_doc, size=9, bold=True, color=cinza_t, align='CENTER')],
     ], colWidths=[17*cm])
-    story.append(Spacer(1, 0.3*cm))
     story.append(titulo_tbl)
-    story.append(Spacer(1, 0.5*cm))
+    story.append(Spacer(1, 0.4*cm))
 
-    # ── Barra número / status ────────────────────────────────────────────────
+    # ── Barra Número VD e Status Oficial ─────────────────────────────────────
     numero_vd = visita.get('numero_vd') or f"#{visita['id']}"
-    status    = visita.get('status', '')
-    barra = Table([[par(f'Nº {numero_vd}', size=12, bold=True, color=branco),
-                    par(f'Status: {status}', size=11, bold=True, color=branco, align='RIGHT')]],
-                  colWidths=[9*cm, 8*cm])
+    status    = visita.get('status', 'Pendente')
+
+    barra = Table([[
+        par(f'Nº DA SOLICITAÇÃO: {numero_vd}', size=11, bold=True, color=branco),
+        par(f'STATUS: {status.upper()}', size=11, bold=True, color=branco, align='RIGHT')
+    ]], colWidths=[10*cm, 7*cm])
     barra.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), azul),
+        ('BACKGROUND', (0, 0), (-1, -1), verde_escuro),
         ('TOPPADDING',  (0, 0), (-1, -1), 6),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
         ('LEFTPADDING',  (0, 0), (-1, -1), 8),
@@ -470,40 +485,43 @@ def _build_pdf_story(visita, solicitante, responsavel, cfg: dict) -> list:
     story.append(barra)
     story.append(Spacer(1, 0.4*cm))
 
-    # ── Dados do beneficiário ────────────────────────────────────────────────
-    def campo(label, valor):
-        return [par(label, size=8, bold=True, color=cinza_t), par(valor or '—', size=10)]
+    # ── Banner Secção 1: Dados do Beneficiário ──────────────────────────────
+    hdr_sec1 = Table([[par('1. DADOS DA FAMÍLIA E LOCALIZAÇÃO', size=10, bold=True, color=branco, align='CENTER')]], colWidths=[17*cm])
+    hdr_sec1.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), verde_escuro),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    story.append(hdr_sec1)
 
     end_parts = []
     for p in [visita.get('logradouro'), visita.get('numero'), visita.get('complemento')]:
         if p: end_parts.append(p)
     endereco = ', '.join(end_parts) if end_parts else '—'
 
+    tels = ' / '.join(filter(None, [visita.get('telefone1'), visita.get('telefone2')])) or '—'
+
     dados = [
-        [par('CPF do RF', size=8, bold=True, color=cinza_t),
-         par('Nome do Responsável Familiar', size=8, bold=True, color=cinza_t)],
-        [par(visita.get('cpf_rf', ''), size=10),
-         par(visita.get('nome_rf', ''), size=10)],
-        [par('Endereço', size=8, bold=True, color=cinza_t),
-         par('Bairro / Zona', size=8, bold=True, color=cinza_t)],
-        [par(endereco, size=10),
-         par(f"{visita.get('bairro', '')} / {visita.get('zona', '')}", size=10)],
-        [par('Ponto de Referência', size=8, bold=True, color=cinza_t),
-         par('Telefones de Contato', size=8, bold=True, color=cinza_t)],
-        [par(visita.get('referencia') or '—', size=10),
-         par(' / '.join(filter(None, [visita.get('telefone1'), visita.get('telefone2')])) or '—', size=10)],
-        [par('Motivo da Visita', size=8, bold=True, color=cinza_t),
-         par('', size=8)],
-        [par(visita.get('motivo', ''), size=10),
-         par('', size=10)],
+        [par('CPF DO RESPONSÁVEL FAMILIAR (RF)', size=8, bold=True, color=cinza_t),
+         par('NOME COMPLETO DO RESPONSÁVEL FAMILIAR', size=8, bold=True, color=cinza_t)],
+        [par(visita.get('cpf_rf', '—'), size=10, bold=True),
+         par(visita.get('nome_rf', '—'), size=10, bold=True)],
+        [par('LOGRADOURO / ENDEREÇO', size=8, bold=True, color=cinza_t),
+         par('BAIRRO / ZONA', size=8, bold=True, color=cinza_t)],
+        [par(endereco, size=9),
+         par(f"{visita.get('bairro', '—')} ({visita.get('zona', 'Urbana')})", size=9)],
+        [par('PONTO DE REFERÊNCIA', size=8, bold=True, color=cinza_t),
+         par('TELEFONES DE CONTATO', size=8, bold=True, color=cinza_t)],
+        [par(visita.get('referencia') or '—', size=9),
+         par(tels, size=9)],
     ]
     dt = Table(dados, colWidths=[8.5*cm, 8.5*cm])
     dt.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), cinza),
-        ('BACKGROUND', (0, 2), (-1, 2), cinza),
-        ('BACKGROUND', (0, 4), (-1, 4), cinza),
-        ('BOX',    (0, 0), (-1, -1), 0.5, rl_colors.lightgrey),
-        ('GRID',   (0, 0), (-1, -1), 0.3, rl_colors.lightgrey),
+        ('BACKGROUND', (0, 0), (-1, 0), verde_claro),
+        ('BACKGROUND', (0, 2), (-1, 2), verde_claro),
+        ('BACKGROUND', (0, 4), (-1, 4), verde_claro),
+        ('BOX',    (0, 0), (-1, -1), 0.5, verde_escuro),
+        ('GRID',   (0, 0), (-1, -1), 0.3, rl_colors.HexColor('#D1D5DB')),
         ('TOPPADDING',    (0, 0), (-1, -1), 4),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ('LEFTPADDING',   (0, 0), (-1, -1), 6),
@@ -511,31 +529,42 @@ def _build_pdf_story(visita, solicitante, responsavel, cfg: dict) -> list:
     story.append(dt)
     story.append(Spacer(1, 0.4*cm))
 
-    # ── Dados administrativos ────────────────────────────────────────────────
+    # ── Banner Secção 2: Motivo e Dados Administrativos ─────────────────────
+    hdr_sec2 = Table([[par('2. DETALHES DA SOLICITAÇÃO E MOTIVO', size=10, bold=True, color=branco, align='CENTER')]], colWidths=[17*cm])
+    hdr_sec2.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), verde_escuro),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    story.append(hdr_sec2)
+
     criado_raw = visita.get('criado_em', '')
     criado_fmt = ''
     if criado_raw:
         try:
-            criado_fmt = datetime.fromisoformat(criado_raw[:19]).strftime('%d/%m/%Y')
+            criado_fmt = datetime.fromisoformat(criado_raw[:19]).strftime('%d/%m/%Y %H:%M')
         except Exception:
             criado_fmt = criado_raw[:10]
 
-    sol_nome  = solicitante['nome'] if solicitante else '—'
-    resp_nome = responsavel['nome'] if responsavel else 'Não atribuído'
+    sol_nome  = (dict(solicitante).get('nome')) if solicitante else '—'
+    resp_nome = (dict(responsavel).get('nome')) if responsavel else 'Não atribuído'
 
-    adm = [
-        [par('Data de Criação', size=8, bold=True, color=cinza_t),
-         par('Solicitante', size=8, bold=True, color=cinza_t),
-         par('Entrevistador Responsável', size=8, bold=True, color=cinza_t)],
-        [par(criado_fmt, size=10),
-         par(sol_nome, size=10),
-         par(resp_nome, size=10)],
+    adm_dados = [
+        [par('MOTIVO PRINCIPAL DA VISITA', size=8, bold=True, color=cinza_t),
+         par('DATA DA SOLICITAÇÃO', size=8, bold=True, color=cinza_t)],
+        [par(visita.get('motivo', '—'), size=10, bold=True, color=verde_escuro),
+         par(criado_fmt, size=9)],
+        [par('SOLICITANTE DO REGISTRO', size=8, bold=True, color=cinza_t),
+         par('ENTREVISTADOR / AS RESPONSÁVEL', size=8, bold=True, color=cinza_t)],
+        [par(sol_nome, size=9),
+         par(resp_nome, size=9, bold=True)],
     ]
-    at = Table(adm, colWidths=[5*cm, 6*cm, 6*cm])
+    at = Table(adm_dados, colWidths=[9.5*cm, 7.5*cm])
     at.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), cinza),
-        ('BOX',   (0, 0), (-1, -1), 0.5, rl_colors.lightgrey),
-        ('GRID',  (0, 0), (-1, -1), 0.3, rl_colors.lightgrey),
+        ('BACKGROUND', (0, 0), (-1, 0), verde_claro),
+        ('BACKGROUND', (0, 2), (-1, 2), verde_claro),
+        ('BOX',   (0, 0), (-1, -1), 0.5, verde_escuro),
+        ('GRID',  (0, 0), (-1, -1), 0.3, rl_colors.HexColor('#D1D5DB')),
         ('TOPPADDING',    (0, 0), (-1, -1), 4),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ('LEFTPADDING',   (0, 0), (-1, -1), 6),
@@ -543,46 +572,73 @@ def _build_pdf_story(visita, solicitante, responsavel, cfg: dict) -> list:
     story.append(at)
     story.append(Spacer(1, 0.4*cm))
 
-    # ── Observações ──────────────────────────────────────────────────────────
+    # ── Observações da Visita ────────────────────────────────────────────────
     obs = visita.get('observacoes')
     if obs:
-        story.append(par('Observações:', size=9, bold=True))
+        story.append(par('OBSERVAÇÕES ADICIONAIS:', size=9, bold=True, color=verde_escuro))
         story.append(par(obs, size=9))
+        story.append(Spacer(1, 0.3*cm))
+
+    # ── Texto de Orientação Institucional (Configurável no Admin) ────────────
+    orientacao_txt = cfg.get('visita_orientacao_texto')
+    if orientacao_txt:
+        hdr_orient = Table([[par('ORIENTAÇÕES INSTITUCIONAIS PARA A VISITA', size=9, bold=True, color=branco, align='CENTER')]], colWidths=[17*cm])
+        hdr_orient.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), roxo),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        story.append(hdr_orient)
+
+        box_orient = Table([[par(orientacao_txt, size=8.5, color=cinza_t, align='JUSTIFY')]], colWidths=[17*cm])
+        box_orient.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), cinza_fundo),
+            ('BOX', (0, 0), (-1, -1), 0.5, roxo),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(box_orient)
         story.append(Spacer(1, 0.4*cm))
 
-    # ── Campos de assinatura ─────────────────────────────────────────────────
-    story.append(Spacer(1, 1*cm))
-    # Linha horizontal simulada com espaço em branco + borda inferior via TableStyle
+    # ── Assinaturas Oficiais (Configuráveis no Admin) ────────────────────────
+    story.append(Spacer(1, 0.8*cm))
+    lbl_ass1 = cfg.get('visita_assinatura_1', 'Assinatura do Entrevistador / Assistente Social')
+    lbl_ass2 = cfg.get('visita_assinatura_2', 'Assinatura do Responsável Familiar (RF)')
+
     sig = Table([
-        [par('', size=14), par('', size=14)],
-        [par('Assinatura do Entrevistador', size=9, align='CENTER'),
-         par('Assinatura do RF', size=9, align='CENTER')],
+        [par('', size=14), par('', size=14), par('', size=14)],
+        [par(lbl_ass1, size=8.5, bold=True, align='CENTER'),
+         par('', size=8.5),
+         par(lbl_ass2, size=8.5, bold=True, align='CENTER')],
         [par(resp_nome, size=8, color=cinza_t, align='CENTER'),
+         par('', size=8),
          par(visita.get('nome_rf', ''), size=8, color=cinza_t, align='CENTER')],
-    ], colWidths=[8.5*cm, 8.5*cm])
+    ], colWidths=[7.5*cm, 2*cm, 7.5*cm])
     sig.setStyle(TableStyle([
         ('ALIGN',         (0, 0), (-1, -1), 'CENTER'),
         ('VALIGN',        (0, 0), (-1, -1), 'BOTTOM'),
-        ('LINEBELOW',     (0, 0), (0, 0),   0.5, rl_colors.black),
-        ('LINEBELOW',     (1, 0), (1, 0),   0.5, rl_colors.black),
-        ('TOPPADDING',    (0, 0), (-1, 0),  18),
+        ('LINEBELOW',     (0, 0), (0, 0),   1.0, verde_escuro),
+        ('LINEBELOW',     (2, 0), (2, 0),   1.0, verde_escuro),
+        ('TOPPADDING',    (0, 0), (-1, 0),  16),
         ('BOTTOMPADDING', (0, 0), (-1, 0),  2),
     ]))
     story.append(sig)
-    story.append(Spacer(1, 0.8*cm))
+    story.append(Spacer(1, 0.6*cm))
 
-    # ── Rodapé ───────────────────────────────────────────────────────────────
-    municipio = cfg.get('municipio', '')
-    rodape_txt = cfg.get('rodape', '')
-    rodape_conteudo = f"{cfg.get('setor_nome', '')}  |  {rodape_txt}  |  {municipio}"
-    rodape = Table([[par(rodape_conteudo, size=8, color=cinza_t, align='CENTER')]],
-                   colWidths=[17*cm])
-    rodape.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), cinza),
-        ('TOPPADDING',    (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    # ── Rodapé Oficial ───────────────────────────────────────────────────────
+    rodape_txt = cfg.get('visita_rodape_txt', cfg.get('rodape', ''))
+    municipio  = cfg.get('municipio', 'Tomé-Açu/PA')
+    conteudo_rodape = f"{cfg.get('setor_nome', 'Setor do Cadastro Único / PBF')}  |  {rodape_txt}  |  {municipio}"
+    
+    rodape_tbl = Table([[par(conteudo_rodape, size=7.5, color=branco, align='CENTER')]], colWidths=[17*cm])
+    rodape_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), verde_escuro),
+        ('TOPPADDING',    (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
     ]))
-    story.append(rodape)
+    story.append(rodape_tbl)
 
     return story
 
@@ -609,7 +665,7 @@ def gerar_pdf_visita(visita_id: int):
                             topMargin=2*cm, bottomMargin=2*cm)
     story = _build_pdf_story(visita, solicitante, responsavel, cfg)
     doc.build(story)
-    numero_vd = visita.get('numero_vd') or f"visita-{visita_id}"
+    numero_vd = (dict(visita).get('numero_vd')) or f"visita-{visita_id}"
     return buf.getvalue(), numero_vd
 
 
@@ -2097,7 +2153,7 @@ def exportar_relatorio():
         return redirect(url_for('login'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
     formato = request.args.get('formato', 'excel').lower()
-    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents = dados_relatorio(mes)
+    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros = dados_relatorio(mes)
 
     if formato == 'word':
         try:
@@ -2129,7 +2185,7 @@ def exportar_registro():
         return redirect(url_for('login'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
     formato = request.args.get('formato', 'pdf').lower()
-    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents = dados_relatorio(mes)
+    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros = dados_relatorio(mes)
 
     if formato == 'word':
         try:
@@ -2361,6 +2417,27 @@ def config_relatorio():
         return redirect(url_for('config_relatorio'))
     cfg = get_config()
     return render_template('config_relatorio.html', cfg=cfg)
+
+
+@app.route('/admin/config-visita', methods=['GET', 'POST'])
+def config_visita():
+    if session.get('perfil') != 'admin':
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        campos = [
+            'visita_titulo_doc', 'visita_subtitulo_doc',
+            'visita_orientacao_texto', 'visita_assinatura_1',
+            'visita_assinatura_2', 'visita_rodape_txt',
+        ]
+        for c in campos:
+            val = request.form.get(c, '').strip()
+            if val:
+                set_config(c, val)
+        audit('CONFIG_VISITA', 'modelo impresso da solicitação de visita atualizado')
+        flash('Modelo impresso da solicitação de visita atualizado com sucesso!', 'ok')
+        return redirect(url_for('config_visita'))
+    cfg = get_config()
+    return render_template('config_visita.html', cfg=cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -3076,13 +3153,6 @@ def pdf_visita(visita_id):
     if not visita:
         conn.close()
         abort(404)
-    uid    = session['usuario_id']
-    perfil = session.get('perfil')
-    if perfil != 'admin':
-        if visita['solicitante_id'] != uid and visita['responsavel_id'] != uid:
-            conn.close()
-            flash('Acesso negado.', 'erro')
-            return redirect(url_for('painel_visitas'))
     conn.close()
 
     pdf_bytes, numero_vd = gerar_pdf_visita(visita_id)
