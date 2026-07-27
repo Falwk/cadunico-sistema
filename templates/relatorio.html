@@ -114,6 +114,35 @@
     </div>
   </div>
 
+  <!-- Row 1.5 Charts: Encaminhamentos por Órgão Demandante (CRAS, SEMSA, MP, etc.) -->
+  {% if grafico_orgaos %}
+  <div class="chart-grid">
+    <div class="card chart-card">
+      <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="display:flex; align-items:center; gap:8px; color:var(--cad-roxo);">
+          🏛️ Encaminhamentos por Órgão Demandante
+        </span>
+        <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">Ofícios por Instituição</span>
+      </div>
+      <div style="position:relative; width:100%; height:220px; margin-top:8px;">
+        <canvas id="chart-orgaos" aria-label="Gráfico por Órgãos Encaminhadores" role="img"></canvas>
+      </div>
+    </div>
+
+    <div class="card chart-card">
+      <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="display:flex; align-items:center; gap:8px; color:var(--cad-verde-escuro);">
+          📋 Situação dos Encaminhamentos
+        </span>
+        <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">Fluxo dos Ofícios</span>
+      </div>
+      <div style="position:relative; width:100%; height:220px; margin-top:8px;">
+        <canvas id="chart-situacoes-enc" aria-label="Gráfico de Situação dos Encaminhamentos" role="img"></canvas>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Row 2 Charts: Tipos de Atendimento + Atendimentos Frequentes -->
   <div class="chart-grid">
     <div class="card chart-card">
@@ -362,6 +391,65 @@
           x: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { stepSize: 1 } },
           y: { grid: { display: false }, ticks: { font: { weight: '600' } } }
         }
+      }
+    });
+  }
+
+  // 2.5 Gráfico de Encaminhamentos por Órgão Demandante (CRAS, SEMSA, MP, etc.)
+  const orgaosData = [
+    {% for item in grafico_orgaos %}
+    { nome: {{ item.nome | tojson }}, total: {{ item.total }} },
+    {% endfor %}
+  ];
+  if (orgaosData.length && document.getElementById('chart-orgaos')) {
+    new Chart(document.getElementById('chart-orgaos'), {
+      type: 'bar',
+      data: {
+        labels: orgaosData.map(d => d.nome),
+        datasets: [{
+          label: 'Encaminhamentos / Ofícios',
+          data: orgaosData.map(d => d.total),
+          backgroundColor: '#783DB2',
+          borderRadius: 6,
+          maxBarThickness: 24
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { stepSize: 1 } },
+          y: { grid: { display: false }, ticks: { font: { weight: '600' } } }
+        }
+      }
+    });
+  }
+
+  // 2.6 Gráfico de Situação dos Encaminhamentos (Atendido, Pendente, etc.)
+  const sitEncData = [
+    {% for item in grafico_situacoes_enc %}
+    { nome: {{ item.nome | tojson }}, total: {{ item.total }} },
+    {% endfor %}
+  ];
+  if (sitEncData.length && document.getElementById('chart-situacoes-enc')) {
+    new Chart(document.getElementById('chart-situacoes-enc'), {
+      type: 'doughnut',
+      data: {
+        labels: sitEncData.map(d => d.nome),
+        datasets: [{
+          data: sitEncData.map(d => d.total),
+          backgroundColor: ['#00883A', '#FAB614', '#E11D48', '#64748B'],
+          borderColor: '#ffffff',
+          borderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: { legend: { position: 'right' } }
       }
     });
   }

@@ -1,9 +1,11 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="container" style="max-width:800px">
-  <h1 class="page-title">Editar Atendimento</h1>
+  <h1 class="page-title" style="color:var(--cad-verde-escuro);">Editar Atendimento</h1>
   {% for e in erros %}<div class="alerta alerta-erro">{{ e }}</div>{% endfor %}
-  <form method="POST" novalidate>
+  
+  <form method="POST" id="form-atendimento" novalidate>
+    <!-- Card Dados da Família -->
     <div class="card">
       <div class="card-title">Dados da Família</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
@@ -26,6 +28,7 @@
       </div>
     </div>
 
+    <!-- Card Origem do Atendimento -->
     <div class="card">
       <div class="card-title">Origem do Atendimento *</div>
       <div class="radio-group">
@@ -38,8 +41,41 @@
         </label>
         {% endfor %}
       </div>
+
+      <!-- Resumo do Encaminhamento (Badge) -->
+      {% set val_orgao = form.get('orgao_encaminhador', at.get('orgao_encaminhador')) if form.get else at.get('orgao_encaminhador') %}
+      {% set val_outro = form.get('orgao_outro', at.get('orgao_outro')) if form.get else at.get('orgao_outro') %}
+      {% set val_oficio = form.get('numero_oficio', at.get('numero_oficio')) if form.get else at.get('numero_oficio') %}
+      {% set val_serv = form.get('servidor_encaminhador', at.get('servidor_encaminhador')) if form.get else at.get('servidor_encaminhador') %}
+      {% set val_motivo = form.get('motivo_encaminhamento', at.get('motivo_encaminhamento')) if form.get else at.get('motivo_encaminhamento') %}
+      {% set val_sit = form.get('situacao_encaminhamento', at.get('situacao_encaminhamento', 'Atendido')) if form.get else at.get('situacao_encaminhamento', 'Atendido') %}
+
+      <div id="resumo-encaminhamento" style="display:{% if origem_atual == 'Encaminhado' %}flex{% else %}none{% endif %}; margin-top:16px; padding:12px 16px; background:#F5F3FF; border:1px solid #DDD6FE; border-radius:10px; align-items:center; justify-content:space-between;">
+        <div>
+          <span style="font-weight:700; color:var(--cad-roxo); font-size:0.9rem;" id="resumo-txt-orgao">
+            📩 Encaminhamento Recebido: {{ val_outro if val_orgao == 'Outro' else (val_orgao or 'Não especificado') }}
+          </span>
+          <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;" id="resumo-txt-detalhes">
+            {% if val_oficio %}Ofício: {{ val_oficio }} &nbsp;|&nbsp; {% endif %}
+            {% if val_serv %}Servidor: {{ val_serv }} &nbsp;|&nbsp; {% endif %}
+            Status: {{ val_sit }}
+          </div>
+        </div>
+        <button type="button" class="btn btn-outline btn-sm" onclick="abrirModalEncaminhamento()" style="color:var(--cad-roxo); border-color:#8B5CF6;">✏️ Editar Ofício / Origem</button>
+      </div>
     </div>
 
+    <!-- Inputs ocultos -->
+    <input type="hidden" id="orgao_encaminhador" name="orgao_encaminhador" value="{{ val_orgao or '' }}">
+    <input type="hidden" id="orgao_outro" name="orgao_outro" value="{{ val_outro or '' }}">
+    <input type="hidden" id="numero_oficio" name="numero_oficio" value="{{ val_oficio or '' }}">
+    <input type="hidden" id="data_encaminhamento" name="data_encaminhamento" value="{{ form.get('data_encaminhamento', at.get('data_encaminhamento', '')) if form.get else at.get('data_encaminhamento', '') }}">
+    <input type="hidden" id="servidor_encaminhador" name="servidor_encaminhador" value="{{ val_serv or '' }}">
+    <input type="hidden" id="motivo_encaminhamento" name="motivo_encaminhamento" value="{{ val_motivo or '' }}">
+    <input type="hidden" id="obs_encaminhamento" name="obs_encaminhamento" value="{{ form.get('obs_encaminhamento', at.get('obs_encaminhamento', '')) if form.get else at.get('obs_encaminhamento', '') }}">
+    <input type="hidden" id="situacao_encaminhamento" name="situacao_encaminhamento" value="{{ val_sit or 'Atendido' }}">
+
+    <!-- Card Tipos de Atendimento -->
     <div class="card">
       <div class="card-title">Tipos de Atendimento *
         <span class="text-muted" style="font-weight:400;font-size:.82rem">(marque todos os realizados)</span>
@@ -61,12 +97,194 @@
 
     <div class="flex">
       <a href="{{ url_for('dashboard') }}" class="btn btn-outline">Cancelar</a>
-      <button type="submit" class="btn btn-primary" style="margin-left:auto">Salvar Alterações</button>
+      <button type="submit" class="btn btn-primary" style="margin-left:auto; padding:12px 28px; font-size:1rem; font-weight:700;">Salvar Alterações</button>
     </div>
   </form>
 </div>
+
+<!-- ========================================================================= -->
+<!-- MODAL / POP-UP: ENCAMINHAMENTO RECEBIDO -->
+<!-- ========================================================================= -->
+<div id="modal-encaminhamento" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.65); backdrop-filter:blur(4px); z-index:9999; justify-content:center; align-items:center; padding:16px;">
+  <div style="background:#FFFFFF; border-radius:16px; max-width:620px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 25px -5px rgba(0,0,0,0.3); border:1px solid #E2E8F0;">
+    
+    <!-- Modal Header -->
+    <div style="background:linear-gradient(135deg, #783DB2, #00542A); color:#FFF; padding:18px 24px; border-top-left-radius:16px; border-top-right-radius:16px; display:flex; justify-content:space-between; align-items:center;">
+      <div>
+        <h3 style="margin:0; font-size:1.15rem; font-weight:800; color:#FFFFFF; display:flex; align-items:center; gap:8px;">
+          <span>📩</span> Detalhes do Encaminhamento Recebido / Ofício
+        </h3>
+        <p style="margin:2px 0 0 0; font-size:0.8rem; color:#E9D5FF;">Informe a origem do ofício e o órgão demandante</p>
+      </div>
+      <button type="button" onclick="fecharModalEncaminhamento()" style="background:transparent; border:none; color:#FFF; font-size:1.4rem; cursor:pointer; font-weight:700;">&times;</button>
+    </div>
+
+    <!-- Modal Body -->
+    <div style="padding:24px;">
+      
+      <!-- Órgão Encaminhador (Dropdown) -->
+      <div class="form-group">
+        <label for="modal_orgao_select" style="font-weight:700; color:var(--cad-verde-escuro);">Órgão / Instituição Encaminhadora *</label>
+        <select id="modal_orgao_select" class="form-control" style="width:100%; padding:10px;" onchange="toggleOrgaoOutro(this.value)">
+          <option value="">-- Selecione o Órgão --</option>
+          {% for org in orgaos_enc %}
+          <option value="{{ org }}">{{ org }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Se "Outro" for selecionado -->
+      <div class="form-group" id="group-orgao-outro" style="display:none; background:#F8FAFC; padding:12px; border-radius:8px; border:1px solid #CBD5E1;">
+        <label for="modal_orgao_outro_txt" style="font-weight:700; color:#334155;">Especifique o Órgão / Instituição *</label>
+        <input type="text" id="modal_orgao_outro_txt" placeholder="Digite o nome completo do órgão demandante">
+      </div>
+
+      <!-- Número do Ofício & Data -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label for="modal_numero_oficio_txt" style="font-weight:700;">Número do Ofício / Encaminhamento:</label>
+          <input type="text" id="modal_numero_oficio_txt" placeholder="Ex: Ofício Nº 123/2026">
+        </div>
+        <div class="form-group">
+          <label for="modal_data_enc_txt" style="font-weight:700;">Data do Encaminhamento:</label>
+          <input type="date" id="modal_data_enc_txt">
+        </div>
+      </div>
+
+      <!-- Servidor / Profissional -->
+      <div class="form-group">
+        <label for="modal_servidor_txt" style="font-weight:700;">Servidor / Profissional que Encaminhou:</label>
+        <input type="text" id="modal_servidor_txt" placeholder="Nome do assistente social, técnico ou servidor">
+      </div>
+
+      <!-- Motivo do Encaminhamento (Dropdown) -->
+      <div class="form-group">
+        <label for="modal_motivo_select" style="font-weight:700; color:var(--cad-verde-escuro);">Motivo do Encaminhamento *</label>
+        <select id="modal_motivo_select" class="form-control" style="width:100%; padding:10px;">
+          <option value="">-- Selecione o Motivo --</option>
+          {% for mot in motivos_enc %}
+          <option value="{{ mot }}">{{ mot }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Situação do Encaminhamento -->
+      <div class="form-group">
+        <label for="modal_situacao_select" style="font-weight:700;">Situação do Encaminhamento:</label>
+        <select id="modal_situacao_select" class="form-control" style="width:100%; padding:10px;">
+          {% for sit in situacoes_enc %}
+          <option value="{{ sit }}" {% if sit == 'Atendido' %}selected{% endif %}>{{ sit }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Observações do Encaminhamento -->
+      <div class="form-group mb-0">
+        <label for="modal_obs_txt" style="font-weight:700;">Observações do Encaminhamento:</label>
+        <textarea id="modal_obs_txt" rows="3" placeholder="Informações adicionais do ofício ou determinação legal..."></textarea>
+      </div>
+
+    </div>
+
+    <!-- Modal Footer -->
+    <div style="background:#F8FAFC; padding:16px 24px; border-bottom-left-radius:16px; border-bottom-right-radius:16px; display:flex; justify-content:flex-end; gap:12px; border-top:1px solid #E2E8F0;">
+      <button type="button" class="btn btn-outline" onclick="fecharModalEncaminhamento()">Cancelar</button>
+      <button type="button" class="btn btn-primary" onclick="confirmarEncaminhamentoModal()" style="background:var(--cad-roxo); border-color:var(--cad-roxo); font-weight:700; padding:10px 22px;">
+        ✓ Confirmar Encaminhamento
+      </button>
+    </div>
+
+  </div>
+</div>
+
 <script>
-document.getElementById('cpf').addEventListener('input', function(e) {
+const cpfInput = document.getElementById('cpf');
+const modalEnc = document.getElementById('modal-encaminhamento');
+
+// Controle do Radio de Origem (Pop-up abre quando clica em 'Encaminhado')
+document.querySelectorAll('input[name="origem"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    if (this.value === 'Encaminhado') {
+      abrirModalEncaminhamento();
+    } else {
+      document.getElementById('resumo-encaminhamento').style.display = 'none';
+    }
+  });
+});
+
+function abrirModalEncaminhamento() {
+  modalEnc.style.display = 'flex';
+  const org = document.getElementById('orgao_encaminhador').value;
+  if (org) {
+    document.getElementById('modal_orgao_select').value = org;
+    toggleOrgaoOutro(org);
+  }
+  document.getElementById('modal_orgao_outro_txt').value = document.getElementById('orgao_outro').value;
+  document.getElementById('modal_numero_oficio_txt').value = document.getElementById('numero_oficio').value;
+  document.getElementById('modal_data_enc_txt').value = document.getElementById('data_encaminhamento').value;
+  document.getElementById('modal_servidor_txt').value = document.getElementById('servidor_encaminhador').value;
+  
+  const mot = document.getElementById('motivo_encaminhamento').value;
+  if (mot) document.getElementById('modal_motivo_select').value = mot;
+
+  const sit = document.getElementById('situacao_encaminhamento').value;
+  if (sit) document.getElementById('modal_situacao_select').value = sit;
+
+  document.getElementById('modal_obs_txt').value = document.getElementById('obs_encaminhamento').value;
+}
+
+function fecharModalEncaminhamento() {
+  modalEnc.style.display = 'none';
+}
+
+function toggleOrgaoOutro(val) {
+  const grp = document.getElementById('group-orgao-outro');
+  grp.style.display = (val === 'Outro') ? 'block' : 'none';
+}
+
+function confirmarEncaminhamentoModal() {
+  const orgSelect = document.getElementById('modal_orgao_select').value;
+  const orgOutro = document.getElementById('modal_orgao_outro_txt').value;
+  const numOficio = document.getElementById('modal_numero_oficio_txt').value;
+  const dataEnc = document.getElementById('modal_data_enc_txt').value;
+  const servidor = document.getElementById('modal_servidor_txt').value;
+  const motivo = document.getElementById('modal_motivo_select').value;
+  const situacao = document.getElementById('modal_situacao_select').value;
+  const obs = document.getElementById('modal_obs_txt').value;
+
+  if (!orgSelect) {
+    alert('Por favor, selecione o Órgão/Instituição Encaminhadora.');
+    return;
+  }
+  if (orgSelect === 'Outro' && !orgOutro.trim()) {
+    alert('Por favor, especifique o nome do Órgão/Instituição.');
+    return;
+  }
+
+  document.getElementById('orgao_encaminhador').value = orgSelect;
+  document.getElementById('orgao_outro').value = orgOutro;
+  document.getElementById('numero_oficio').value = numOficio;
+  document.getElementById('data_encaminhamento').value = dataEnc;
+  document.getElementById('servidor_encaminhador').value = servidor;
+  document.getElementById('motivo_encaminhamento').value = motivo;
+  document.getElementById('situacao_encaminhamento').value = situacao;
+  document.getElementById('obs_encaminhamento').value = obs;
+
+  const nomeOrgaoExibicao = (orgSelect === 'Outro') ? orgOutro : orgSelect;
+  let txtDetalhes = [];
+  if (numOficio) txtDetalhes.push(`Ofício: ${numOficio}`);
+  if (servidor) txtDetalhes.push(`Servidor: ${servidor}`);
+  if (motivo) txtDetalhes.push(`Motivo: ${motivo}`);
+  txtDetalhes.push(`Status: ${situacao}`);
+
+  document.getElementById('resumo-txt-orgao').innerText = `📩 Encaminhamento Recebido: ${nomeOrgaoExibicao}`;
+  document.getElementById('resumo-txt-detalhes').innerText = txtDetalhes.join('  |  ');
+  document.getElementById('resumo-encaminhamento').style.display = 'flex';
+
+  fecharModalEncaminhamento();
+}
+
+cpfInput.addEventListener('input', function(e) {
   let v = e.target.value.replace(/\D/g,'').slice(0,11);
   if(v.length>9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/,'$1.$2.$3-$4');
   else if(v.length>6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/,'$1.$2.$3');

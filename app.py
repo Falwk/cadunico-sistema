@@ -226,6 +226,39 @@ MOTIVOS_VISITA = [
     "Outro",
 ]
 
+ORGAOS_ENCAMINHADORES = [
+    "Demanda Espontânea (sem encaminhamento)",
+    "CRAS",
+    "CREAS",
+    "SETAS",
+    "SEMED",
+    "SEMSA",
+    "Conselho Tutelar – Sede",
+    "Conselho Tutelar – 4 Bocas",
+    "Ministério Público",
+    "Defensoria Pública",
+    "Poder Judiciário",
+    "Equatorial Pará",
+    "Outro",
+]
+
+MOTIVOS_ENCAMINHAMENTO = [
+    "Inclusão no Cadastro Único",
+    "Atualização Cadastral",
+    "Averiguação Cadastral",
+    "Revisão Cadastral",
+    "Emissão de NIS",
+    "Cadastro para BPC",
+    "Programa Bolsa Família",
+    "Tarifa Social de Energia",
+    "Visita Domiciliar",
+    "Busca Ativa",
+    "Orientação",
+    "Outro",
+]
+
+SITUACES_ENCAMINHAMENTO = ["Atendido", "Pendente", "Cancelado", "Não localizado"]
+
 
 # ---------------------------------------------------------------------------
 # Validação de CPF
@@ -811,6 +844,14 @@ def init_db():
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_as_nome TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS telefone1 TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS telefone2 TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS orgao_encaminhador TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS orgao_outro TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS numero_oficio TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS data_encaminhamento TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS servidor_encaminhador TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS motivo_encaminhamento TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS obs_encaminhamento TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS situacao_encaminhamento TEXT DEFAULT 'Atendido'",
         ]
         for i, col_sql in enumerate(migracoes):
             sp = f"sp_mig_{i}"
@@ -855,6 +896,14 @@ def init_db():
             tipos TEXT NOT NULL,
             usuario_id INTEGER NOT NULL,
             criado_em TEXT NOT NULL,
+            orgao_encaminhador TEXT,
+            orgao_outro TEXT,
+            numero_oficio TEXT,
+            data_encaminhamento TEXT,
+            servidor_encaminhador TEXT,
+            motivo_encaminhamento TEXT,
+            obs_encaminhamento TEXT,
+            situacao_encaminhamento TEXT DEFAULT 'Atendido',
             FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
         )''')
         c.execute('''CREATE TABLE IF NOT EXISTS audit_log (
@@ -914,6 +963,14 @@ def init_db():
             "ALTER TABLE solicitacoes_visita ADD COLUMN parecer_as_nome TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN telefone1 TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN telefone2 TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN orgao_encaminhador TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN orgao_outro TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN numero_oficio TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN data_encaminhamento TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN servidor_encaminhador TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN motivo_encaminhamento TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN obs_encaminhamento TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN situacao_encaminhamento TEXT DEFAULT 'Atendido'",
         ]:
             try:
                 c.execute(col_sql)
@@ -1414,7 +1471,11 @@ def dashboard():
 # Registrar / Editar / Excluir atendimentos
 # ---------------------------------------------------------------------------
 
-def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_id=None):
+def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_id=None,
+                        orgao_encaminhador=None, orgao_outro=None, numero_oficio=None,
+                        data_encaminhamento=None, servidor_encaminhador=None,
+                        motivo_encaminhamento=None, obs_encaminhamento=None,
+                        situacao_encaminhamento='Atendido'):
     """Insere ou atualiza um atendimento. Retorna lista de erros ou []."""
     erros = []
     if not data:
@@ -1434,13 +1495,24 @@ def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_
     tipos_str = '|'.join(tipos)
     if at_id:
         _exec(conn,
-            "UPDATE atendimentos SET data=?,cpf=?,nome_rf=?,origem=?,tipos=? WHERE id=?",
-            (data, cpf, nome_rf, origem, tipos_str, at_id)
+            """UPDATE atendimentos SET data=?,cpf=?,nome_rf=?,origem=?,tipos=?,
+               orgao_encaminhador=?,orgao_outro=?,numero_oficio=?,data_encaminhamento=?,
+               servidor_encaminhador=?,motivo_encaminhamento=?,obs_encaminhamento=?,situacao_encaminhamento=?
+               WHERE id=?""",
+            (data, cpf, nome_rf, origem, tipos_str,
+             orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
+             servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento,
+             at_id)
         )
     else:
         _exec(conn,
-            "INSERT INTO atendimentos (data,cpf,nome_rf,origem,tipos,usuario_id,criado_em) VALUES (?,?,?,?,?,?,?)",
-            (data, cpf, nome_rf, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat())
+            """INSERT INTO atendimentos (data,cpf,nome_rf,origem,tipos,usuario_id,criado_em,
+               orgao_encaminhador,orgao_outro,numero_oficio,data_encaminhamento,
+               servidor_encaminhador,motivo_encaminhamento,obs_encaminhamento,situacao_encaminhamento)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (data, cpf, nome_rf, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat(),
+             orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
+             servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento)
         )
     conn.commit()
     return []
@@ -1456,21 +1528,40 @@ def registrar():
         nome_rf = request.form.get('nome_rf', '').strip()
         origem = request.form.get('origem', '').strip()
         tipos = request.form.getlist('tipos')
+        orgao_encaminhador = request.form.get('orgao_encaminhador', '').strip() or None
+        orgao_outro = request.form.get('orgao_outro', '').strip() or None
+        numero_oficio = request.form.get('numero_oficio', '').strip() or None
+        data_encaminhamento = request.form.get('data_encaminhamento', '').strip() or None
+        servidor_encaminhador = request.form.get('servidor_encaminhador', '').strip() or None
+        motivo_encaminhamento = request.form.get('motivo_encaminhamento', '').strip() or None
+        obs_encaminhamento = request.form.get('obs_encaminhamento', '').strip() or None
+        situacao_encaminhamento = request.form.get('situacao_encaminhamento', 'Atendido').strip() or 'Atendido'
+
         # Bloquear SIBEC sem acesso
         if not session.get('acesso_sibec'):
             tipos = [t for t in tipos if t not in TIPOS_SIBEC]
         conn = get_db()
-        erros = _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, session['usuario_id'])
+        erros = _salvar_atendimento(
+            conn, data, cpf, nome_rf, origem, tipos, session['usuario_id'],
+            orgao_encaminhador=orgao_encaminhador, orgao_outro=orgao_outro,
+            numero_oficio=numero_oficio, data_encaminhamento=data_encaminhamento,
+            servidor_encaminhador=servidor_encaminhador, motivo_encaminhamento=motivo_encaminhamento,
+            obs_encaminhamento=obs_encaminhamento, situacao_encaminhamento=situacao_encaminhamento
+        )
         conn.close()
         if erros:
             return render_template('registrar.html', erros=erros, tipos=TIPOS_ATENDIMENTO,
                                    tipos_sibec=TIPOS_SIBEC, origens=ORIGENS,
+                                   orgaos_enc=ORGAOS_ENCAMINHADORES, motivos_enc=MOTIVOS_ENCAMINHAMENTO,
+                                   situacoes_enc=SITUACES_ENCAMINHAMENTO,
                                    acesso_sibec=session.get('acesso_sibec'), form=request.form)
-        audit('REGISTRAR_ATENDIMENTO', f"cpf={cpf} nome={nome_rf}")
+        audit('REGISTRAR_ATENDIMENTO', f"cpf={cpf} nome={nome_rf} origem={origem}")
         flash('Atendimento registrado com sucesso!', 'ok')
         return redirect(url_for('dashboard'))
     return render_template('registrar.html', erros=[], tipos=TIPOS_ATENDIMENTO,
                            tipos_sibec=TIPOS_SIBEC, origens=ORIGENS,
+                           orgaos_enc=ORGAOS_ENCAMINHADORES, motivos_enc=MOTIVOS_ENCAMINHAMENTO,
+                           situacoes_enc=SITUACES_ENCAMINHAMENTO,
                            acesso_sibec=session.get('acesso_sibec'), form={})
 
 
@@ -1489,23 +1580,41 @@ def editar_atendimento(at_id):
         nome_rf = request.form.get('nome_rf', '').strip()
         origem = request.form.get('origem', '').strip()
         tipos = request.form.getlist('tipos')
+        orgao_encaminhador = request.form.get('orgao_encaminhador', '').strip() or None
+        orgao_outro = request.form.get('orgao_outro', '').strip() or None
+        numero_oficio = request.form.get('numero_oficio', '').strip() or None
+        data_encaminhamento = request.form.get('data_encaminhamento', '').strip() or None
+        servidor_encaminhador = request.form.get('servidor_encaminhador', '').strip() or None
+        motivo_encaminhamento = request.form.get('motivo_encaminhamento', '').strip() or None
+        obs_encaminhamento = request.form.get('obs_encaminhamento', '').strip() or None
+        situacao_encaminhamento = request.form.get('situacao_encaminhamento', 'Atendido').strip() or 'Atendido'
+
         if not session.get('acesso_sibec'):
             tipos = [t for t in tipos if t not in TIPOS_SIBEC]
-        erros = _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, at['usuario_id'], at_id=at_id)
+        erros = _salvar_atendimento(
+            conn, data, cpf, nome_rf, origem, tipos, at['usuario_id'], at_id=at_id,
+            orgao_encaminhador=orgao_encaminhador, orgao_outro=orgao_outro,
+            numero_oficio=numero_oficio, data_encaminhamento=data_encaminhamento,
+            servidor_encaminhador=servidor_encaminhador, motivo_encaminhamento=motivo_encaminhamento,
+            obs_encaminhamento=obs_encaminhamento, situacao_encaminhamento=situacao_encaminhamento
+        )
         if erros:
             conn.close()
-            return render_template('editar_atendimento.html', erros=erros, at=at,
-                                   tipos=TIPOS_ATENDIMENTO, tipos_sibec=TIPOS_SIBEC,
-                                   origens=ORIGENS, acesso_sibec=session.get('acesso_sibec'),
-                                   form=request.form)
+            return render_template('editar_atendimento.html', at=at, erros=erros, tipos=TIPOS_ATENDIMENTO,
+                                   tipos_sibec=TIPOS_SIBEC, origens=ORIGENS,
+                                   orgaos_enc=ORGAOS_ENCAMINHADORES, motivos_enc=MOTIVOS_ENCAMINHAMENTO,
+                                   situacoes_enc=SITUACES_ENCAMINHAMENTO,
+                                   acesso_sibec=session.get('acesso_sibec'), form=request.form)
         conn.close()
         audit('EDITAR_ATENDIMENTO', f"id={at_id} cpf={cpf}")
         flash('Atendimento atualizado com sucesso!', 'ok')
         return redirect(url_for('dashboard'))
     conn.close()
-    return render_template('editar_atendimento.html', erros=[], at=at,
-                           tipos=TIPOS_ATENDIMENTO, tipos_sibec=TIPOS_SIBEC,
-                           origens=ORIGENS, acesso_sibec=session.get('acesso_sibec'), form=at)
+    return render_template('editar_atendimento.html', at=at, erros=[], tipos=TIPOS_ATENDIMENTO,
+                           tipos_sibec=TIPOS_SIBEC, origens=ORIGENS,
+                           orgaos_enc=ORGAOS_ENCAMINHADORES, motivos_enc=MOTIVOS_ENCAMINHAMENTO,
+                           situacoes_enc=SITUACES_ENCAMINHAMENTO,
+                           acesso_sibec=session.get('acesso_sibec'), form={})
 
 
 @app.route('/atendimento/<int:at_id>/excluir', methods=['POST'])
@@ -1628,8 +1737,27 @@ def dados_relatorio(mes):
         key=lambda x: x['total'], reverse=True
     )[:8]
 
+    # Estatísticas de Encaminhamentos por Órgão e Situação
+    orgaos_quant = {}
+    situacoes_enc_quant = {s: 0 for s in SITUACES_ENCAMINHAMENTO}
+    for at in atendimentos:
+        at_dict = dict(at)
+        if at_dict.get('origem') == 'Encaminhado':
+            org = at_dict.get('orgao_outro') if at_dict.get('orgao_encaminhador') == 'Outro' else at_dict.get('orgao_encaminhador')
+            org = org.strip() if org else 'Não especificado'
+            orgaos_quant[org] = orgaos_quant.get(org, 0) + 1
+
+            sit = at_dict.get('situacao_encaminhamento') or 'Atendido'
+            situacoes_enc_quant[sit] = situacoes_enc_quant.get(sit, 0) + 1
+
+    grafico_orgaos = sorted(
+        [{'nome': o, 'total': t} for o, t in orgaos_quant.items()],
+        key=lambda x: x['total'], reverse=True
+    )
+    grafico_situacoes_enc = [{'nome': s, 'total': t} for s, t in situacoes_enc_quant.items() if t > 0]
+
     conn.close()
-    return atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_entrevistadores, grafico_bairros
+    return atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_entrevistadores, grafico_bairros, grafico_orgaos, grafico_situacoes_enc
 
 
 @app.route('/relatorio')
@@ -1637,13 +1765,15 @@ def relatorio():
     if _requer_login():
         return redirect(url_for('login'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
-    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros = dados_relatorio(mes)
+    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc = dados_relatorio(mes)
     return render_template('relatorio.html', quant=quant, entrevistadores=entrevistadores,
                            tipos=TIPOS_ATENDIMENTO, mes=mes, atendimentos=atendimentos,
                            mes_nome=nome_mes(mes), grafico_tipos=grafico_tipos,
                            grafico_origens=grafico_origens, total_geral=total_geral,
                            grafico_entrevistadores=grafico_ents,
-                           grafico_bairros=grafico_bairros)
+                           grafico_bairros=grafico_bairros,
+                           grafico_orgaos=grafico_orgaos,
+                           grafico_situacoes_enc=grafico_situacoes_enc)
 
 # ---------------------------------------------------------------------------
 # Exportação Excel
@@ -2145,7 +2275,7 @@ def exportar_relatorio():
         return redirect(url_for('login'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
     formato = request.args.get('formato', 'excel').lower()
-    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros = dados_relatorio(mes)
+    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc = dados_relatorio(mes)
 
     if formato == 'word':
         try:
@@ -2177,7 +2307,7 @@ def exportar_registro():
         return redirect(url_for('login'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
     formato = request.args.get('formato', 'pdf').lower()
-    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros = dados_relatorio(mes)
+    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc = dados_relatorio(mes)
 
     if formato == 'word':
         try:
