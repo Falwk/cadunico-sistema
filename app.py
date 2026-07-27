@@ -1387,10 +1387,6 @@ def dashboard():
         b = r['bairro'].strip().title()
         bairros_quant[b] = bairros_quant.get(b, 0) + 1
 
-    rows_a = _fetchall(conn, f"SELECT origem, COUNT(*) as total FROM atendimentos WHERE data LIKE {PH} GROUP BY origem", (mes + '%',))
-    for r in rows_a:
-        bairros_quant[r['origem']] = bairros_quant.get(r['origem'], 0) + r['total']
-
     grafico_bairros = sorted(
         [{'nome': b, 'total': t} for b, t in bairros_quant.items()],
         key=lambda x: x['total'], reverse=True
@@ -1626,10 +1622,6 @@ def dados_relatorio(mes):
     for r in rows_v:
         b = r['bairro'].strip().title()
         bairros_quant[b] = bairros_quant.get(b, 0) + 1
-
-    for o, t in origens_quant.items():
-        if t > 0:
-            bairros_quant[o] = bairros_quant.get(o, 0) + t
 
     grafico_bairros = sorted(
         [{'nome': b, 'total': t} for b, t in bairros_quant.items()],
