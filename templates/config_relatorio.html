@@ -134,12 +134,59 @@
       </div>
     </div>
 
+    <!-- Card Notificações de E-mail (SMTP & Alertas de Segurança) -->
+    <div class="card">
+      <div class="card-title" style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <span style="display:flex; align-items:center; gap:8px; color:var(--cad-roxo);">
+          📧 Notificações por E-mail (Alertas de 5 Erros de Senha & SMTP)
+        </span>
+        <button type="submit" form="form-teste-email" class="btn btn-outline btn-sm" style="border-color:#783DB2; color:#783DB2; font-weight:700;">
+          🧪 Testar Envio de E-mail
+        </button>
+      </div>
+      <p style="font-size:0.88rem; color:#4B5563; margin-bottom:16px;">
+        Quando um usuário erra a senha <strong>5 vezes seguidas</strong>, o Administrador recebe um e-mail automático informando o nome e login do usuário para efetuar a redefinição de senha.
+      </p>
+
+      <div class="form-group">
+        <label for="email_admin_notificacao" style="font-weight:700; color:var(--cad-verde-escuro);">E-mail do Administrador (para receber os alertas de 5 erros de senha):</label>
+        <input type="email" id="email_admin_notificacao" name="email_admin_notificacao" value="{{ cfg.get('email_admin_notificacao', 'setascadastrounico@gmail.com') }}" placeholder="admin@prefeitura.gov.br">
+      </div>
+
+      <div style="display:grid; grid-template-columns:2fr 1fr; gap:16px;">
+        <div class="form-group">
+          <label for="smtp_host" style="font-weight:600;">Servidor SMTP (Host):</label>
+          <input type="text" id="smtp_host" name="smtp_host" value="{{ cfg.get('smtp_host', 'smtp.gmail.com') }}" placeholder="smtp.gmail.com">
+        </div>
+
+        <div class="form-group">
+          <label for="smtp_port" style="font-weight:600;">Porta SMTP:</label>
+          <input type="text" id="smtp_port" name="smtp_port" value="{{ cfg.get('smtp_port', '587') }}" placeholder="587">
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+        <div class="form-group mb-0">
+          <label for="smtp_user" style="font-weight:600;">Usuário SMTP (E-mail Remetente):</label>
+          <input type="text" id="smtp_user" name="smtp_user" value="{{ cfg.get('smtp_user', 'setascadastrounico@gmail.com') }}" placeholder="setascadastrounico@gmail.com">
+        </div>
+
+        <div class="form-group mb-0">
+          <label for="smtp_pass" style="font-weight:600;">Senha SMTP / Senha de App:</label>
+          <input type="password" id="smtp_pass" name="smtp_pass" value="{{ cfg.get('smtp_pass', '') }}" placeholder="••••••••••••••••">
+          <small class="text-muted" style="display:block; margin-top:4px;">Para o Gmail, utilize uma "Senha de App" (App Password).</small>
+        </div>
+      </div>
+    </div>
+
     <div style="margin-top:20px; text-align:right;">
       <button type="submit" class="btn btn-primary" style="padding:12px 28px; font-size:1rem;">
         💾 Salvar Configurações do Relatório
       </button>
     </div>
   </form>
+
+  <form id="form-teste-email" method="POST" action="{{ url_for('testar_email_smtp') }}" style="display:none;"></form>
 </div>
 
 <!-- Editor de Texto Visual (Estilo Word) -->

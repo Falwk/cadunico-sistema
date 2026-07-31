@@ -10,17 +10,35 @@
       <a href="{{ url_for('novo_usuario') }}" class="btn btn-primary">+ Novo Usuário</a>
     </div>
   </div>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="alerta alerta-{{ 'ok' if category == 'ok' else ('erro' if category == 'erro' else 'aviso') }}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
   <div class="card">
     <div class="table-wrap">
       <table>
         <thead>
-          <tr><th>Nome</th><th>Login</th><th>Unidade / Polo</th><th>Perfil</th><th>Acesso SIBEC</th><th>Ações</th></tr>
+          <tr>
+            <th>Nome</th>
+            <th>Login</th>
+            <th>Unidade / Polo</th>
+            <th>Perfil</th>
+            <th>Status Senha</th>
+            <th>Ações</th>
+          </tr>
         </thead>
         <tbody>
           {% for u in usuarios %}
           <tr>
             <td><strong>{{ u.nome }}</strong></td>
-            <td>{{ u.login }}</td>
+            <td><code>{{ u.login }}</code></td>
             <td>
               {% if u.unidade == 'Quatro Bocas' %}
                 <span class="tag" style="background:#F3E8FF;color:#783DB2;border:1px solid #E9D5FF;font-weight:600;">Quatro Bocas</span>
@@ -29,13 +47,35 @@
               {% endif %}
             </td>
             <td><span class="tag">{{ u.perfil }}</span></td>
-            <td>{% if u.acesso_sibec %}<span class="tag" style="background:#EDE9F6;color:#6B3FA0">✓ Sim</span>{% else %}<span style="color:#ccc">–</span>{% endif %}</td>
-            <td style="display:flex;gap:6px">
+            <td>
+              {% set tent = u.tentativas_login or 0 %}
+              {% if tent >= 5 %}
+                <span class="tag" style="background:#FFE4E6; color:#9F1239; border:1px solid #FECDD3; font-weight:800;">
+                  ⚠️ {{ tent }} Erros de Senha
+                </span>
+              {% elif u.trocar_senha %}
+                <span class="tag" style="background:#FEF3C7; color:#B45309; border:1px solid #FDE68A; font-weight:600;">
+                  🔑 Troca Pendente
+                </span>
+              {% else %}
+                <span style="color:#10B981; font-weight:600; font-size:0.85rem;">✓ Normal</span>
+              {% endif %}
+            </td>
+            <td style="display:flex; gap:6px; align-items:center;">
               <a href="{{ url_for('editar_usuario', uid=u.id) }}" class="btn btn-outline btn-sm">Editar</a>
+
+              {% if tent >= 5 or u.trocar_senha %}
+              <form method="POST" action="{{ url_for('resetar_tentativas_usuario', uid=u.id) }}">
+                <button type="submit" class="btn btn-outline btn-sm" style="border-color:#F59E0B; color:#B45309; font-weight:700;" title="Zerar tentativas incorretas e solicitar nova senha no próximo acesso">
+                  🔓 Resetar Senha
+                </button>
+              </form>
+              {% endif %}
+
               {% if u.id != session.usuario_id %}
               <form method="POST" action="{{ url_for('excluir_usuario', uid=u.id) }}"
                     onsubmit="return confirm('Excluir usuário {{ u.nome }}?')">
-                <button class="btn btn-danger">Excluir</button>
+                <button class="btn btn-danger btn-sm">Excluir</button>
               </form>
               {% endif %}
             </td>

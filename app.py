@@ -288,6 +288,11 @@ def _config_defaults() -> dict:
         'setor_nome': 'Setor do Cadastro Único /PBF',
         'endereco': 'Bairro: Campina - Rua Bruno de Menezes s/n',
         'email_setor': 'setascadastrounico@gmail.com',
+        'email_admin_notificacao': 'setascadastrounico@gmail.com',
+        'smtp_host': 'smtp.gmail.com',
+        'smtp_port': '587',
+        'smtp_user': 'setascadastrounico@gmail.com',
+        'smtp_pass': '',
         'territorio': 'Sede do Município e Distrito de Quatro Bocas',
         'texto_identificacao': (
             'Ao dia três de janeiro de 2024 (03.01.2024), iniciamos o ano letivo com realização de serviços '
@@ -852,6 +857,7 @@ def init_db():
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS motivo_encaminhamento TEXT",
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS obs_encaminhamento TEXT",
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS situacao_encaminhamento TEXT DEFAULT 'Atendido'",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tentativas_login INTEGER NOT NULL DEFAULT 0",
         ]
         for i, col_sql in enumerate(migracoes):
             sp = f"sp_mig_{i}"
@@ -885,7 +891,8 @@ def init_db():
             senha TEXT NOT NULL,
             perfil TEXT NOT NULL DEFAULT 'entrevistador',
             acesso_sibec INTEGER NOT NULL DEFAULT 0,
-            trocar_senha INTEGER NOT NULL DEFAULT 0
+            trocar_senha INTEGER NOT NULL DEFAULT 0,
+            tentativas_login INTEGER NOT NULL DEFAULT 0
         )''')
         c.execute('''CREATE TABLE IF NOT EXISTS atendimentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -958,6 +965,7 @@ def init_db():
             "ALTER TABLE usuarios ADD COLUMN trocar_senha INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE usuarios ADD COLUMN email TEXT",
             "ALTER TABLE usuarios ADD COLUMN telefone TEXT",
+            "ALTER TABLE usuarios ADD COLUMN tentativas_login INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE solicitacoes_visita ADD COLUMN numero_vd TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN parecer_as_url TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN parecer_as_nome TEXT",
@@ -1025,6 +1033,77 @@ def index():
     return redirect(url_for('dashboard'))
 
 
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+
+def _enviar_email_smtp(destino, assunto, html_corpo):
+    """Envia um e-mail HTML via SMTP usando as configurações cadastradas no sistema."""
+    cfg = get_config()
+    smtp_host = cfg.get('smtp_host', 'smtp.gmail.com').strip()
+    try:
+        smtp_port = int(cfg.get('smtp_port', 587))
+    except (ValueError, TypeError):
+        smtp_port = 587
+    smtp_user = cfg.get('smtp_user', cfg.get('email_setor', 'setascadastrounico@gmail.com')).strip()
+    smtp_pass = cfg.get('smtp_pass', '').strip()
+
+    if not smtp_user or not smtp_pass:
+        return False, "Configurações de e-mail (SMTP) não preenchidas no sistema."
+
+    msg = MIMEMultipart('alternative')
+    msg['Subject'] = assunto
+    msg['From'] = f"Sistema CadÚnico <{smtp_user}>"
+    msg['To'] = destino
+    msg.attach(MIMEText(html_corpo, 'html'))
+
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_user, destino, msg.as_string())
+        return True, "E-mail enviado com sucesso."
+    except Exception as e:
+        return False, f"Falha no envio via SMTP: {str(e)}"
+
+
+def _notificar_admin_senha_incorreta(usuario, tentativas):
+    """Notifica o e-mail do administrador quando um usuário erra a senha 5 ou mais vezes."""
+    cfg = get_config()
+    email_admin = cfg.get('email_admin_notificacao') or cfg.get('email_setor') or 'setascadastrounico@gmail.com'
+    u_dict = dict(usuario)
+    nome_user = u_dict.get('nome', 'Usuário')
+    login_user = u_dict.get('login', 'N/A')
+    horario = datetime.now(_TZ_BELEM).strftime('%d/%m/%Y às %H:%M:%S')
+
+    assunto = f"⚠️ [Alerta CadÚnico] 5 Tentativas Incorretas de Senha - {nome_user}"
+    html = f"""
+    <div style="font-family: Arial, sans-serif; max-width:600px; margin:0 auto; padding:20px; border:1px solid #E2E8F0; border-radius:12px; background:#FFFFFF;">
+      <div style="background:#00542A; color:#FFFFFF; padding:16px; border-radius:8px 8px 0 0; text-align:center;">
+        <h2 style="margin:0; font-size:18px; color:#FFFFFF;">⚠️ Alerta de Segurança — Tentativas de Senha</h2>
+        <p style="margin:4px 0 0 0; font-size:13px; opacity:0.9;">Sistema de Cadastro Único</p>
+      </div>
+      <div style="padding:20px; color:#1E293B; line-height:1.6;">
+        <p>Olá, <strong>Administrador</strong>,</p>
+        <p>O usuário <strong>{nome_user}</strong> (Login: <code>{login_user}</code>) errou a senha de acesso <strong>{tentativas} vezes seguidas</strong>.</p>
+        <div style="background:#FFFBEB; border-left:4px solid #FAB614; padding:12px 16px; margin:16px 0; border-radius:4px;">
+          <strong>Data/Horário:</strong> {horario}<br>
+          <strong>Total de Falhas:</strong> {tentativas} tentativas incorretas
+        </div>
+        <p>Acesse o painel administrativo do sistema para efetuar a redefinição da senha do usuário ou orientar o seu acesso.</p>
+      </div>
+      <div style="border-top:1px solid #E2E8F0; padding-top:12px; text-align:center; font-size:12px; color:#64748B;">
+        Sistema Oficial do Cadastro Único · Notificação Automática
+      </div>
+    </div>
+    """
+    
+    sucesso, msg = _enviar_email_smtp(email_admin, assunto, html)
+    audit('ALERTA_SENHA_5X', f"usuario={login_user} email_admin={email_admin} env_status={sucesso}")
+    return sucesso
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     erro = None
@@ -1033,8 +1112,10 @@ def login():
         senha = request.form.get('senha', '').strip()
         conn = get_db()
         u = _fetchone(conn, "SELECT * FROM usuarios WHERE login=?", (login_,))
-        conn.close()
         if u and check_password_hash(u['senha'], senha):
+            _exec(conn, "UPDATE usuarios SET tentativas_login=0 WHERE id=?", (u['id'],))
+            conn.commit()
+            conn.close()
             session['usuario_id'] = u['id']
             session['usuario_nome'] = u['nome']
             session['perfil'] = u['perfil']
@@ -1045,7 +1126,21 @@ def login():
                 return redirect(url_for('trocar_senha_obrigatorio'))
             return redirect(url_for('dashboard'))
         else:
-            erro = 'Login ou senha incorretos.'
+            if u:
+                u_dict = dict(u)
+                novas_tentativas = (u_dict.get('tentativas_login') or 0) + 1
+                _exec(conn, "UPDATE usuarios SET tentativas_login=? WHERE id=?", (novas_tentativas, u['id']))
+                conn.commit()
+                conn.close()
+                audit('LOGIN_FALHA', f"login={login_} tentativas={novas_tentativas}")
+                if novas_tentativas >= 5:
+                    _notificar_admin_senha_incorreta(u, novas_tentativas)
+                    erro = f"Login ou senha incorretos. Você errou a senha {novas_tentativas} vezes. O Administrador foi notificado no e-mail para auxiliar na troca de senha."
+                else:
+                    erro = 'Login ou senha incorretos.'
+            else:
+                conn.close()
+                erro = 'Login ou senha incorretos.'
     return render_template('login.html', erro=erro)
 
 
@@ -2514,13 +2609,13 @@ def config_relatorio():
         campos = [
             'coordenadora', 'setor_nome', 'endereco', 'email_setor',
             'territorio', 'texto_identificacao', 'texto_apresentacao',
-            'rodape', 'municipio',
+            'rodape', 'municipio', 'email_admin_notificacao',
+            'smtp_host', 'smtp_port', 'smtp_user', 'smtp_pass',
         ]
         for key, val in request.form.items():
             if key in campos or key.startswith('prazo_visita_'):
                 val_strip = val.strip()
-                if val_strip:
-                    set_config(key, val_strip)
+                set_config(key, val_strip)
         
         file = request.files.get('imagem_cabecalho')
         if file and file.filename:
@@ -2534,11 +2629,46 @@ def config_relatorio():
                 flash('Formato de imagem inválido. Use PNG, JPG ou JPEG.', 'erro')
                 return redirect(url_for('config_relatorio'))
 
-        audit('CONFIG_RELATORIO', 'configurações do relatório atualizadas')
-        flash('Configurações do relatório salvas com sucesso!', 'ok')
+        audit('CONFIG_RELATORIO', 'configurações salvas')
+        flash('Configurações salvas com sucesso!', 'ok')
         return redirect(url_for('config_relatorio'))
     cfg = get_config()
     return render_template('config_relatorio.html', cfg=cfg)
+
+
+@app.route('/admin/testar-email', methods=['POST'])
+def testar_email_smtp():
+    if session.get('perfil') != 'admin':
+        return redirect(url_for('dashboard'))
+    cfg = get_config()
+    destino = cfg.get('email_admin_notificacao') or cfg.get('email_setor') or 'setascadastrounico@gmail.com'
+    assunto = "🧪 Teste de Notificação SMTP - Sistema CadÚnico"
+    html = f"""
+    <div style="font-family: Arial, sans-serif; padding:20px; border:1px solid #00883A; border-radius:8px; background:#FFFFFF;">
+      <h3 style="color:#00542A; margin-top:0;">✅ Teste de E-mail Bem-Sucedido!</h3>
+      <p>As configurações de e-mail SMTP do Sistema CadÚnico estão funcionando corretamente.</p>
+      <p><strong>E-mail de Notificação do Administrador:</strong> <code>{destino}</code></p>
+    </div>
+    """
+    sucesso, msg = _enviar_email_smtp(destino, assunto, html)
+    if sucesso:
+        flash(f"E-mail de teste enviado com sucesso para {destino}!", "ok")
+    else:
+        flash(f"Falha ao enviar e-mail de teste: {msg}", "erro")
+    return redirect(url_for('config_relatorio'))
+
+
+@app.route('/admin/usuarios/<int:uid>/resetar-tentativas', methods=['POST'])
+def resetar_tentativas_usuario(uid):
+    if session.get('perfil') != 'admin':
+        return redirect(url_for('dashboard'))
+    conn = get_db()
+    _exec(conn, "UPDATE usuarios SET tentativas_login=0, trocar_senha=1 WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+    audit('RESETAR_TENTATIVAS_SENHA', f"uid={uid}")
+    flash("Tentativas incorretas zeradas! O usuário solicitará nova senha no próximo acesso.", "ok")
+    return redirect(url_for('admin_usuarios'))
 
 
 @app.route('/admin/config-visita', methods=['GET', 'POST'])
