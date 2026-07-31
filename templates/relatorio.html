@@ -74,7 +74,8 @@
     </div>
   </div>
 
-  <!-- Row 1 Charts: Origem do Atendimento (Rosca) + Atendimentos por Bairro (Barras) -->
+  {% if session.perfil == 'admin' %}
+  <!-- Row 1 Charts (Admin): Origem do Atendimento + Atendimentos por Bairro -->
   <div class="chart-grid">
     <!-- Card 1: Gráfico de Origem dos Atendimentos -->
     <div class="card chart-card">
@@ -171,7 +172,7 @@
     </div>
   </div>
 
-  {% if session.perfil == 'admin' and grafico_entrevistadores %}
+  {% if grafico_entrevistadores %}
   <div class="card chart-card" style="margin-bottom:24px;">
     <div class="card-title" style="color:var(--cad-verde-escuro);">Gráfico de Atendimentos por Entrevistador</div>
     <div style="position:relative; width:100%; height:220px; margin-top:8px;">
@@ -180,6 +181,29 @@
   </div>
   {% endif %}
 
+  {% else %}
+  <!-- Para Entrevistadores (Não Admin): Apenas Gráfico de Origem do Atendimento -->
+  <div class="card chart-card" style="margin-bottom:24px;">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
+      <span style="display:flex; align-items:center; gap:8px; color:var(--cad-roxo);">
+        📌 Gráfico de Origem do Atendimento
+      </span>
+      <span style="font-size:0.75rem; color:var(--text-muted); font-weight:600;">Seus Canais de Entrada</span>
+    </div>
+    {% if grafico_origens %}
+      <div style="display:grid; grid-template-columns: minmax(180px, 240px) 1fr; gap:24px; align-items:center; margin-top:12px;">
+        <div style="position:relative; width:100%; height:220px;">
+          <canvas id="chart-origens" aria-label="Gráfico de Origens" role="img"></canvas>
+        </div>
+        <div id="legenda-origens" style="font-size:0.9rem; line-height:2.2;"></div>
+      </div>
+    {% else %}
+      <p class="text-muted empty-state">Nenhum registro de origem no período.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Para TODOS (Admin e Entrevistadores): Gráfico Circulação / Distribuição Geral de Serviços -->
   {% if grafico_tipos %}
   <div class="card" style="margin-bottom:24px;">
     <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
