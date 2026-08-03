@@ -567,6 +567,13 @@
         <span>Auditoria</span>
       </a>
       {% endif %}
+
+      <div style="margin-top:auto; padding-top:12px; border-top:1px solid rgba(255,255,255,0.12);">
+        <a href="{{ url_for('tutorial') }}" class="sidebar-link {% if request.endpoint == 'tutorial' %}ativo{% endif %}" style="background:rgba(250,182,20,0.15); color:#FAB614; font-weight:700;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#FAB614"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <span>Manual / Tutorial</span>
+        </a>
+      </div>
     </nav>
   </aside>
 

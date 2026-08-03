@@ -1,0 +1,484 @@
+{% extends 'base.html' %}
+{% block content %}
+<style>
+  .tutorial-container {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  .tutorial-header {
+    background: linear-gradient(135deg, var(--cad-verde-escuro) 0%, #003F1F 100%);
+    color: #FFFFFF;
+    padding: 32px 36px;
+    border-radius: var(--radius-xl);
+    box-shadow: 0 8px 30px rgba(0, 84, 42, 0.15);
+    margin-bottom: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .tutorial-header::after {
+    content: "📖";
+    position: absolute;
+    right: 20px;
+    bottom: -15px;
+    font-size: 110px;
+    opacity: 0.12;
+    pointer-events: none;
+  }
+
+  .tutorial-search-wrap {
+    margin-top: 20px;
+    position: relative;
+    max-width: 500px;
+  }
+
+  .tutorial-search-input {
+    width: 100%;
+    padding: 12px 18px 12px 46px;
+    border-radius: 30px;
+    border: none;
+    font-size: 0.95rem;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.12);
+    color: #1E293B;
+  }
+
+  .tutorial-search-icon {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--cad-verde-escuro);
+  }
+
+  /* Layout em Grid (Navegação por Abas + Conteúdo) */
+  .tutorial-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  @media(max-width: 900px) {
+    .tutorial-layout { grid-template-columns: 1fr; }
+  }
+
+  .tutorial-nav {
+    background: #FFFFFF;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--card-border);
+    padding: 12px;
+    box-shadow: var(--card-shadow);
+    position: sticky;
+    top: 84px;
+  }
+
+  .tutorial-nav-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 16px;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.18s ease;
+  }
+
+  .tutorial-nav-btn:hover {
+    background: #F1F5F9;
+    color: var(--cad-verde-escuro);
+  }
+
+  .tutorial-nav-btn.active {
+    background: #F0FDF4;
+    color: var(--cad-verde-escuro);
+    border-left: 4px solid var(--cad-verde);
+    font-weight: 700;
+  }
+
+  .tutorial-card {
+    background: #FFFFFF;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--card-border);
+    padding: 28px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 24px;
+  }
+
+  .step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: var(--cad-verde-escuro);
+    color: #FFFFFF;
+    font-weight: 800;
+    border-radius: 50%;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+  }
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #F1F5F9;
+  }
+
+  .step-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--cad-verde-escuro);
+  }
+
+  .step-content {
+    font-size: 0.95rem;
+    line-height: 1.7;
+    color: var(--text-primary);
+  }
+
+  /* Ilustração Mockup da Interface */
+  .ui-mockup {
+    background: #F8FAFC;
+    border: 1.5px solid #E2E8F0;
+    border-radius: var(--radius-md);
+    padding: 16px;
+    margin: 16px 0;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+  }
+
+  .ui-mockup-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #E2E8F0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+  }
+
+  .ui-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot-red { background: #EF4444; } .dot-yellow { background: #F59E0B; } .dot-green { background: #10B981; }
+
+  .callout-box {
+    padding: 14px 18px;
+    border-radius: var(--radius-md);
+    margin: 16px 0;
+    font-size: 0.9rem;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .callout-tip { background: #F0FDF4; border-left: 4px solid var(--cad-verde); color: #166534; }
+  .callout-warning { background: #FFFBEB; border-left: 4px solid var(--cad-amarelo); color: #92400E; }
+  .callout-purple { background: #F5F3FF; border-left: 4px solid var(--cad-roxo); color: #5B21B6; }
+
+  @media print {
+    aside.sidebar, header.top-header, .tutorial-nav, .tutorial-search-wrap, .btn-print-manual { display: none !important; }
+    .main-wrapper { margin-left: 0 !important; }
+    .tutorial-layout { display: block !important; }
+    .tutorial-card { page-break-inside: avoid; border: 1px solid #000; box-shadow: none; }
+  }
+</style>
+
+<div class="tutorial-container">
+  <!-- Cabeçalho do Tutorial -->
+  <div class="tutorial-header">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;">
+      <div>
+        <span style="background:rgba(255,255,255,0.2); color:#FFF; padding:4px 12px; border-radius:20px; font-size:0.78rem; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+          Guia do Usuário CadÚnico
+        </span>
+        <h1 style="font-size:1.8rem; font-weight:800; margin:8px 0 4px 0; color:#FFFFFF;">
+          Manual do Usuário & Central de Treinamento
+        </h1>
+        <p style="font-size:0.95rem; opacity:0.9; margin:0; max-width:650px;">
+          Aprenda a utilizar todos os recursos do Sistema de Gestão do Cadastro Único e PBF de forma simples, visual e rápida.
+        </p>
+      </div>
+
+      <button onclick="window.print()" class="btn btn-outline btn-print-manual" style="background:#FFFFFF; color:var(--cad-verde-escuro); border:none; font-weight:700;">
+        🖨️ Imprimir Manual Completo
+      </button>
+    </div>
+
+    <!-- Barra de Pesquisa Rápida -->
+    <div class="tutorial-search-wrap">
+      <svg class="tutorial-search-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="tutorial-search" class="tutorial-search-input" placeholder="Digite para buscar (ex: trocar senha, ofício, visita, pdf)..." onkeyup="filtrarTutorial()">
+    </div>
+  </div>
+
+  <div class="tutorial-layout">
+    <!-- Menu de Navegação Lateral -->
+    <div class="tutorial-nav">
+      <div style="font-size:0.75rem; font-weight:800; color:var(--text-muted); text-transform:uppercase; padding:6px 12px 10px 12px; border-bottom:1px solid #E2E8F0; margin-bottom:8px;">
+        Módulos do Sistema
+      </div>
+      <button class="tutorial-nav-btn active" onclick="mostrarModulo('mod-1', this)">
+        🔑 1. Acesso & Senha
+      </button>
+      <button class="tutorial-nav-btn" onclick="mostrarModulo('mod-2', this)">
+        📝 2. Registro de Atendimento
+      </button>
+      <button class="tutorial-nav-btn" onclick="mostrarModulo('mod-3', this)">
+        📩 3. Encaminhamentos / Ofícios
+      </button>
+      <button class="tutorial-nav-btn" onclick="mostrarModulo('mod-4', this)">
+        📍 4. Visitas Domiciliares
+      </button>
+      <button class="tutorial-nav-btn" onclick="mostrarModulo('mod-5', this)">
+        📊 5. Relatórios & Gráficos
+      </button>
+      {% if session.perfil == 'admin' %}
+      <button class="tutorial-nav-btn" onclick="mostrarModulo('mod-6', this)">
+        ⚙️ 6. Painel do Administrador
+      </button>
+      {% endif %}
+    </div>
+
+    <!-- Conteúdo dos Módulos -->
+    <div class="tutorial-content-area">
+
+      <!-- MÓDULO 1: ACESSO & SENHA -->
+      <div id="mod-1" class="modulo-secao">
+        <div class="tutorial-card">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <span class="step-title">Primeiro Acesso & Troca Obrigatória de Senha</span>
+          </div>
+          <div class="step-content">
+            <p>Ao realizar o seu primeiro login no sistema com a senha padrão temporária (ex: <code>admin123</code> ou fornecida pela coordenação), o sistema solicitará automaticamente a <strong>troca imediata da senha</strong> para garantir a segurança dos seus dados.</p>
+            
+            <div class="ui-mockup">
+              <div class="ui-mockup-header">
+                <span class="ui-dot dot-red"></span><span class="ui-dot dot-yellow"></span><span class="ui-dot dot-green"></span>
+                <span>Tela de Troca de Senha Obrigatória</span>
+              </div>
+              <div style="max-width:360px; margin:0 auto; padding:12px; background:#FFF; border-radius:8px; border:1px solid #CBD5E1;">
+                <label style="font-size:0.8rem; font-weight:700; color:var(--cad-verde-escuro);">Nova Senha (mínimo 6 caracteres):</label>
+                <input type="password" value="••••••••" disabled style="padding:6px 10px; margin-bottom:8px;">
+                <label style="font-size:0.8rem; font-weight:700; color:var(--cad-verde-escuro);">Confirmar Nova Senha:</label>
+                <input type="password" value="••••••••" disabled style="padding:6px 10px; margin-bottom:12px;">
+                <button class="btn btn-success btn-sm" style="width:100%;">Salvar Nova Senha</button>
+              </div>
+            </div>
+
+            <div class="callout-box callout-warning">
+              <span style="font-size:1.2rem;">⚠️</span>
+              <div>
+                <strong>Alerta de Segurança (5 Erros de Senha):</strong><br>
+                Se um usuário errar a senha por <strong>5 vezes consecutivas</strong>, o sistema enviará uma notificação por e-mail automaticamente para o Administrador para auxiliar na redefinição de sua senha.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tutorial-card">
+          <div class="step-header">
+            <span class="step-number">2</span>
+            <span class="step-title">Alterar Senha a qualquer momento em "Meu Perfil"</span>
+          </div>
+          <div class="step-content">
+            <p>Você pode atualizar seus dados pessoais (nome, e-mail, telefone) e alterar sua senha a qualquer momento clicando no seu avatar no canto superior direito e selecionando <strong>"Meu Perfil"</strong>.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÓDULO 2: REGISTRO DE ATENDIMENTO -->
+      <div id="mod-2" class="modulo-secao" style="display:none;">
+        <div class="tutorial-card">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <span class="step-title">Preenchimento de Atendimento Individual ou Coletivo</span>
+          </div>
+          <div class="step-content">
+            <p>Para cadastrar um atendimento realizado no setor do CadÚnico, acesse o menu <strong>"Registrar Atendimento"</strong>.</p>
+            
+            <ul style="margin-left:20px; line-height:1.8;">
+              <li><strong>Data do Atendimento:</strong> Selecione a data em que a família foi atendida.</li>
+              <li><strong>CPF do Responsável Familiar (RF):</strong> Digite os 11 dígitos do CPF. Se o munícipe já possui atendimentos anteriores, o sistema preencherá o **Nome Completo automaticamente**!</li>
+              <li><strong>Nome do Responsável Familiar:</strong> Nome completo do titular da família.</li>
+              <li><strong>Origem do Atendimento:</strong> Escolha entre <em>Demanda Espontânea</em>, <em>Encaminhado</em> ou <em>Visita Domiciliar</em>.</li>
+            </ul>
+
+            <div class="ui-mockup">
+              <div class="ui-mockup-header">
+                <span class="ui-dot dot-red"></span><span class="ui-dot dot-yellow"></span><span class="ui-dot dot-green"></span>
+                <span>Seleção dos Tipos de Atendimento Realizados</span>
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div style="padding:10px; background:#F0FDF4; border:1.5px solid var(--cad-verde); border-radius:8px; font-weight:700; color:var(--cad-verde-escuro); font-size:0.85rem;">
+                  ✓ Inclusão Cadastral
+                </div>
+                <div style="padding:10px; background:#F3E8FF; border:1.5px solid var(--cad-roxo); border-radius:8px; font-weight:700; color:var(--cad-roxo); font-size:0.85rem;">
+                  ✓ Emissão de NIS (SIBEC)
+                </div>
+              </div>
+            </div>
+
+            <div class="callout-box callout-tip">
+              <span style="font-size:1.2rem;">💡</span>
+              <div>
+                <strong>Multi-Seleção:</strong> Você pode marcar quantos tipos de serviço foram prestados àquela família em uma única sessão.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÓDULO 3: ENCAMINHAMENTOS RECEBIDOS & OFÍCIOS -->
+      <div id="mod-3" class="modulo-secao" style="display:none;">
+        <div class="tutorial-card">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <span class="step-title">Como Registrar um Encaminhamento Recebido (Pop-Up Modal)</span>
+          </div>
+          <div class="step-content">
+            <p>Ao selecionar a opção <strong>"Encaminhado"</strong> no campo Origem do Atendimento, o sistema abrirá automaticamente uma janela <strong>Pop-Up Modal Interativo</strong> para controlar o órgão demandante e o ofício.</p>
+
+            <div class="ui-mockup">
+              <div class="ui-mockup-header">
+                <span class="ui-dot dot-red"></span><span class="ui-dot dot-yellow"></span><span class="ui-dot dot-green"></span>
+                <span>Pop-Up Modal de Encaminhamento Recebido</span>
+              </div>
+              <div style="background:#FFF; border-radius:8px; border:2px solid var(--cad-roxo); padding:16px;">
+                <h4 style="color:var(--cad-roxo); margin-top:0; font-size:0.95rem;">🏛️ Controle de Encaminhamentos Recebidos</h4>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; font-size:0.8rem; margin-top:8px;">
+                  <div>
+                    <strong>Órgão Demandante:</strong><br>
+                    <select disabled style="padding:4px;"><option>CRAS</option></select>
+                  </div>
+                  <div>
+                    <strong>Nº do Ofício / Encaminhamento:</strong><br>
+                    <input type="text" value="Ofício nº 124/2026" disabled style="padding:4px;">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <p>Você pode selecionar entre diversos órgãos oficiais cadastrados: <strong>CRAS, CREAS, SETAS, SEMED, SEMSA, Conselho Tutelar, Ministério Público, Defensoria Pública, Poder Judiciário, Equatorial Pará</strong> ou <strong>Outro</strong>.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÓDULO 4: VISITAS DOMICILIARES -->
+      <div id="mod-4" class="modulo-secao" style="display:none;">
+        <div class="tutorial-card">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <span class="step-title">Painel de Solicitações e Emissão em PDF Timbrado</span>
+          </div>
+          <div class="step-content">
+            <p>O módulo de Visitas Domiciliares permite cadastrar solicitações, acompanhar pendências e gerar os pareceres técnicos com prazos configurados.</p>
+
+            <ul style="margin-left:20px; line-height:1.8;">
+              <li><strong>Prazos Automáticos:</strong> O sistema alerta automaticamente caso a solicitação ultrapasse o limite de dias (ex: 7 dias para Denúncias, 15 dias para Averiguação, 30 dias para BPC).</li>
+              <li><strong>Impressão Timbrada 25 Anos CadÚnico:</strong> Clique no botão <strong>"🖨️ Imprimir PDF"</strong> para gerar a folha timbrada oficial pronta para assinatura e parecer da Assistente Social.</li>
+            </ul>
+
+            <div class="callout-box callout-purple">
+              <span style="font-size:1.2rem;">📋</span>
+              <div>
+                <strong>Parecer e Fotos:</strong> Você também pode anexar arquivos PDF de Parecer Social e fotos da residência direto no sistema!
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÓDULO 5: RELATÓRIOS & GRÁFICOS -->
+      <div id="mod-5" class="modulo-secao" style="display:none;">
+        <div class="tutorial-card">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <span class="step-title">Gráficos Interativos & Exportação em Excel, PDF e Word</span>
+          </div>
+          <div class="step-content">
+            <p>Na área de <strong>Relatórios</strong>, você pode visualizar todos os indicadores mensais divididos de acordo com o seu perfil de usuário:</p>
+
+            <ul style="margin-left:20px; line-height:1.8;">
+              <li><strong>Entrevistadores (Não-Admin):</strong> Visualizam o <em>Gráfico de Origem do Atendimento</em> (refletindo o seu quantitativo individual) e o <em>Gráfico Circulação / Distribuição Geral de Serviços</em>.</li>
+              <li><strong>Administradores:</strong> Visualizam a consolidação de todos os entrevistadores, bairros, órgãos demandantes e status de encaminhamentos.</li>
+            </ul>
+
+            <p style="margin-top:14px;"><strong>Exportação com 1 Clique:</strong></p>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">
+              <span class="btn btn-success btn-sm">📗 Exportar Excel (.xlsx)</span>
+              <span class="btn btn-danger btn-sm">📕 Exportar PDF Timbrado</span>
+              <span class="btn btn-purple btn-sm">📘 Exportar Word (.docx)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MÓDULO 6: PAINEL DO ADMINISTRADOR -->
+      {% if session.perfil == 'admin' %}
+      <div id="mod-6" class="modulo-secao" style="display:none;">
+        <div class="tutorial-card">
+          <div class="step-header">
+            <span class="step-number">1</span>
+            <span class="step-title">Gestão de Usuários, Backup & Configurações SMTP</span>
+          </div>
+          <div class="step-content">
+            <p>Como Administrador, você possui acesso a recursos exclusivos para gerenciamento completo do sistema:</p>
+
+            <ul style="margin-left:20px; line-height:1.8;">
+              <li><strong>Usuários (`/admin/usuarios`):</strong> Crie novos entrevistadores, habilite permissões de SIBEC e destrave usuários que erraram a senha por 5 vezes.</li>
+              <li><strong>Backup do Banco de Dados:</strong> Baixe o arquivo ZIP com o banco de dados completo do sistema com 1 clique.</li>
+              <li><strong>Configurações do Relatório & SMTP (`/admin/config-relatorio`):</strong> Altere a imagem do cabeçalho oficial, coordenadora, prazos de visita e credenciais de e-mail SMTP para disparo dos alertas.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+
+<script>
+  function mostrarModulo(idModulo, btn) {
+    // Oculta todos os módulos
+    document.querySelectorAll('.modulo-secao').forEach(el => el.style.display = 'none');
+    // Remove classe ativa dos botoes
+    document.querySelectorAll('.tutorial-nav-btn').forEach(b => b.classList.remove('active'));
+    
+    // Exibe o modulo selecionado
+    document.getElementById(idModulo).style.display = 'block';
+    btn.classList.add('active');
+  }
+
+  function filtrarTutorial() {
+    const termo = document.getElementById('tutorial-search').value.toLowerCase();
+    const cards = document.querySelectorAll('.tutorial-card');
+
+    cards.forEach(card => {
+      const texto = card.innerText.toLowerCase();
+      if (texto.includes(termo)) {
+        card.style.display = 'block';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+
+    if (termo.length > 0) {
+      document.querySelectorAll('.modulo-secao').forEach(el => el.style.display = 'block');
+    } else {
+      mostrarModulo('mod-1', document.querySelector('.tutorial-nav-btn'));
+    }
+  }
+</script>
+{% endblock %}

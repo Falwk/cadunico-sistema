@@ -20,7 +20,22 @@
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span>+ Novo Atendimento</span>
       </a>
+  </div>
+
+  <!-- Banner de Acolhimento ao Usuário & Link para o Tutorial -->
+  <div style="background:linear-gradient(135deg, #F0FDF4 0%, #E6F4EA 100%); border:1px solid #86EFAC; border-radius:var(--radius-lg); padding:16px 20px; margin-bottom:24px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div style="width:40px; height:40px; border-radius:50%; background:var(--cad-verde); color:#FFF; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0;">
+        📖
+      </div>
+      <div>
+        <strong style="color:var(--cad-verde-escuro); font-size:0.95rem;">Novo no sistema ou quer tirar dúvidas?</strong>
+        <p style="font-size:0.85rem; color:#166534; margin:2px 0 0 0;">Acesse o Manual do Usuário com tutoriais passo a passo sobre registros, ofícios, relatórios e visitas.</p>
+      </div>
     </div>
+    <a href="{{ url_for('tutorial') }}" class="btn btn-success btn-sm" style="font-weight:700; background:var(--cad-verde);">
+      Acessar Tutorial Completo →
+    </a>
   </div>
 
   <!-- KPI Metric Cards (Cores Oficiais do Manual CadÚnico 25 Anos) -->

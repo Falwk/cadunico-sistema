@@ -1033,6 +1033,13 @@ def index():
     return redirect(url_for('dashboard'))
 
 
+@app.route('/tutorial')
+def tutorial():
+    if _requer_login():
+        return redirect(url_for('login'))
+    return render_template('tutorial.html')
+
+
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
