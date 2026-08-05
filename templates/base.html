@@ -280,8 +280,8 @@
   /* Metric KPI Cards (Cores Oficiais do Manual 25 Anos) */
   .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
     margin-bottom: 24px;
   }
 
@@ -295,6 +295,7 @@
     box-shadow: 0 6px 20px rgba(0,0,0,0.06);
     position: relative;
     overflow: hidden;
+    height: 100%;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
 
@@ -314,6 +315,7 @@
     align-items: center;
     justify-content: center;
     color: #FFF;
+    flex-shrink: 0;
   }
 
   .kpi-card.yellow .kpi-icon-badge { background: rgba(0, 0, 0, 0.12); color: #000; }
@@ -325,6 +327,123 @@
   .kpi-details { display: flex; flex-direction: column; gap: 4px; }
   .kpi-label { font-size: 0.85rem; font-weight: 700; opacity: 0.95; text-transform: uppercase; letter-spacing: 0.4px; }
   .kpi-number { font-size: 2.3rem; font-weight: 800; line-height: 1.1; }
+
+  @media(max-width: 600px) {
+    .kpi-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .kpi-card {
+      padding: 14px 12px;
+    }
+    .kpi-label {
+      font-size: 0.72rem;
+    }
+    .kpi-number {
+      font-size: 1.7rem;
+    }
+    .kpi-icon-badge {
+      width: 40px;
+      height: 40px;
+    }
+    .kpi-icon-badge svg {
+      width: 22px;
+      height: 22px;
+    }
+  }
+
+  /* Pop-up Dropdown de Notificações */
+  .header-notif-wrap { position: relative; }
+  .notif-dot-count {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #DC2626;
+    color: #FFFFFF;
+    font-size: 0.68rem;
+    font-weight: 800;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #FFFFFF;
+    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
+  }
+
+  .notif-dropdown-menu {
+    position: absolute;
+    top: 48px;
+    right: 0;
+    width: 330px;
+    background: #FFFFFF;
+    border-radius: var(--radius-md);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--card-border);
+    z-index: 1000;
+    overflow: hidden;
+    animation: fadeInNotif 0.18s ease-out;
+  }
+
+  @keyframes fadeInNotif {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .notif-dropdown-header {
+    padding: 12px 16px;
+    background: #F8FAFC;
+    border-bottom: 1px solid #E2E8F0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.85rem;
+  }
+
+  .notif-badge-count {
+    background: #FEF2F2;
+    color: #DC2626;
+    border: 1px solid #FCA5A5;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+
+  .notif-dropdown-body {
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .notif-item {
+    display: block;
+    padding: 12px 16px;
+    border-bottom: 1px solid #F1F5F9;
+    text-decoration: none;
+    transition: background 0.15s ease;
+  }
+
+  .notif-item:last-child { border-bottom: none; }
+  .notif-item:hover { background: #F8FAFC; }
+
+  .notif-tag-atraso {
+    background: #FEF2F2;
+    color: #DC2626;
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid #FECDD3;
+  }
+
+  .notif-dropdown-footer {
+    padding: 10px 16px;
+    background: #F8FAFC;
+    border-top: 1px solid #E2E8F0;
+    text-align: center;
+  }
 
   /* Alert Banners */
   .alerta { padding: 14px 18px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 10px; }
@@ -586,9 +705,61 @@
           <span>+ Novo Atendimento</span>
         </a>
 
-        <div class="header-notif" title="Notificações">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-          <div class="notif-dot"></div>
+        <div class="header-notif-wrap">
+          <div class="header-notif" id="btn-notif-icon" onclick="toggleNotifDropdown(event)" title="Notificações de Visitas em Atraso">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            {% if notif_total_atrasadas|default(0) > 0 %}
+              <div class="notif-dot-count">{{ notif_total_atrasadas }}</div>
+            {% else %}
+              <div class="notif-dot"></div>
+            {% endif %}
+          </div>
+
+          <!-- Dropdown Pop-Up das Visitas em Atraso do Entrevistador -->
+          <div id="notif-dropdown" class="notif-dropdown-menu" style="display:none;">
+            <div class="notif-dropdown-header">
+              <span style="font-weight:700; color:var(--cad-verde-escuro); display:flex; align-items:center; gap:6px;">
+                🔔 Visitas em Atraso
+              </span>
+              {% if notif_total_atrasadas|default(0) > 0 %}
+                <span class="notif-badge-count">{{ notif_total_atrasadas }} pendente{{ 's' if notif_total_atrasadas > 1 else '' }}</span>
+              {% endif %}
+            </div>
+
+            <div class="notif-dropdown-body">
+              {% if notif_visitas_atrasadas %}
+                {% for v in notif_visitas_atrasadas %}
+                  <a href="{{ url_for('detalhe_visita', visita_id=v.id) }}" class="notif-item">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
+                      <strong style="color:var(--text-primary); font-size:0.85rem;">{{ v.nome_rf }}</strong>
+                      <span class="notif-tag-atraso">⚠️ {{ v.dias_atraso }}d atraso</span>
+                    </div>
+                    <div style="font-size:0.78rem; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center;">
+                      <span>Motivo: <strong>{{ v.motivo }}</strong></span>
+                      {% if v.numero_vd %}
+                        <span style="font-family:monospace; font-weight:700; color:var(--cad-verde-escuro);">{{ v.numero_vd }}</span>
+                      {% endif %}
+                    </div>
+                    {% if v.bairro %}
+                      <div style="font-size:0.75rem; color:#64748B; margin-top:2px;">📍 Bairro: {{ v.bairro }}</div>
+                    {% endif %}
+                  </a>
+                {% endfor %}
+              {% else %}
+                <div style="padding:22px 16px; text-align:center; color:var(--text-muted); font-size:0.85rem;">
+                  <div style="font-size:1.6rem; margin-bottom:6px;">✅</div>
+                  <strong>Nenhuma visita em atraso!</strong>
+                  <p style="margin:4px 0 0 0; font-size:0.78rem; color:#94A3B8;">Todas as solicitações de visitas estão em dia.</p>
+                </div>
+              {% endif %}
+            </div>
+
+            <div class="notif-dropdown-footer">
+              <a href="{{ url_for('painel_visitas', status='Pendente') }}" style="color:var(--cad-verde-escuro); font-weight:700; font-size:0.82rem; text-decoration:none;">
+                Ver Painel Completo de Visitas →
+              </a>
+            </div>
+          </div>
         </div>
 
         <a href="{{ url_for('meu_perfil') }}" class="user-profile-chip" title="Meu Perfil">
@@ -628,5 +799,24 @@
   </div>
 {% endif %}
 
+<script>
+  function toggleNotifDropdown(e) {
+    e.stopPropagation();
+    const dropdown = document.getElementById('notif-dropdown');
+    if (dropdown.style.display === 'none' || !dropdown.style.display) {
+      dropdown.style.display = 'block';
+    } else {
+      dropdown.style.display = 'none';
+    }
+  }
+
+  document.addEventListener('click', function(e) {
+    const dropdown = document.getElementById('notif-dropdown');
+    const btn = document.getElementById('btn-notif-icon');
+    if (dropdown && !dropdown.contains(e.target) && !btn.contains(e.target)) {
+      dropdown.style.display = 'none';
+    }
+  });
+</script>
 </body>
 </html>

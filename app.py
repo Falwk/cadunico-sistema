@@ -1038,6 +1038,30 @@ def tutorial():
     return redirect(url_for('dashboard'))
 
 
+@app.context_processor
+def inject_notificacoes_visitas():
+    if 'usuario_id' not in session:
+        return {'notif_visitas_atrasadas': [], 'notif_total_atrasadas': 0}
+    try:
+        conn = get_db()
+        uid = session['usuario_id']
+        perfil = session.get('perfil')
+        if perfil == 'admin':
+            visitas = _fetchall(conn, "SELECT * FROM solicitacoes_visita WHERE status='Pendente' ORDER BY criado_em ASC")
+        else:
+            visitas = _fetchall(conn, "SELECT * FROM solicitacoes_visita WHERE status='Pendente' AND (solicitante_id=? OR responsavel_id=?) ORDER BY criado_em ASC", (uid, uid))
+        cfg = get_config()
+        conn.close()
+        visitas_proc, total_atrasadas = _processar_sla_visitas(visitas, cfg)
+        visitas_atrasadas = [v for v in visitas_proc if v.get('atrasada')]
+        return {
+            'notif_visitas_atrasadas': visitas_atrasadas,
+            'notif_total_atrasadas': len(visitas_atrasadas)
+        }
+    except Exception:
+        return {'notif_visitas_atrasadas': [], 'notif_total_atrasadas': 0}
+
+
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
