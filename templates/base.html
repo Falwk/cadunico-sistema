@@ -768,7 +768,7 @@
           </div>
           <div class="user-info">
             <span class="user-name">{{ session.usuario_nome }}</span>
-            <span class="user-role">{{ 'Administrador' if session.perfil == 'admin' else 'Entrevistador' }}</span>
+            <span class="user-role">{{ 'Administrador' if session.perfil == 'admin' else ('Assistente Social' if session.perfil == 'assistente_social' else 'Entrevistador') }}</span>
           </div>
         </a>
 

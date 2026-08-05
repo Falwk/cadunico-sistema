@@ -22,6 +22,7 @@
           <label>Perfil</label>
           <select name="perfil">
             <option value="entrevistador" {% if u.perfil=='entrevistador' %}selected{% endif %}>Entrevistador</option>
+            <option value="assistente_social" {% if u.perfil=='assistente_social' %}selected{% endif %}>Assistente Social</option>
             <option value="admin" {% if u.perfil=='admin' %}selected{% endif %}>Administrador</option>
           </select>
         </div>

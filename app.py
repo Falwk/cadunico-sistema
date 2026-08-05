@@ -181,6 +181,9 @@ TIPOS_ATENDIMENTO = [
     "Comprovante de Cadastro",
     "Consulta Cadastro Único",
     "Consulta SIBEC",
+    "Escuta Qualificada",
+    "Benefício Eventual",
+    "Atendimento Técnico / Parecer Social",
     "Exclusão de membros",
     "Folha de Pagamento (SIBEC)",
     "Inclusão de membros",
@@ -617,6 +620,29 @@ def _build_pdf_story(visita, solicitante, responsavel, cfg: dict) -> list:
         story.append(par(obs, size=9))
         story.append(Spacer(1, 0.3*cm))
 
+    # ── Parecer Técnico Assistencial (Serviço Social) ────────────────────────
+    parecer_txt = visita.get('parecer_tecnico_txt')
+    if parecer_txt:
+        hdr_parecer = Table([[par('PARECER TÉCNICO ASSISTENCIAL / SERVIÇO SOCIAL', size=9, bold=True, color=branco, align='CENTER')]], colWidths=[17*cm])
+        hdr_parecer.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), verde_escuro),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ]))
+        story.append(hdr_parecer)
+
+        box_parecer = Table([[par(parecer_txt, size=8.5, color=cinza_t, align='JUSTIFY')]], colWidths=[17*cm])
+        box_parecer.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), cinza_fundo),
+            ('BOX', (0, 0), (-1, -1), 0.5, verde_escuro),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        story.append(box_parecer)
+        story.append(Spacer(1, 0.4*cm))
+
     # ── Texto de Orientação Institucional (Configurável no Admin) ────────────
     orientacao_txt = cfg.get('visita_orientacao_texto')
     if orientacao_txt:
@@ -858,6 +884,7 @@ def init_db():
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS obs_encaminhamento TEXT",
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS situacao_encaminhamento TEXT DEFAULT 'Atendido'",
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tentativas_login INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_tecnico_txt TEXT",
         ]
         for i, col_sql in enumerate(migracoes):
             sp = f"sp_mig_{i}"
@@ -947,7 +974,8 @@ def init_db():
             anexo_nome          TEXT,
             atendimento_id      INTEGER,
             criado_em           TEXT NOT NULL,
-            atualizado_em       TEXT NOT NULL
+            atualizado_em       TEXT NOT NULL,
+            parecer_tecnico_txt TEXT
         )''')
         c.execute('''CREATE TABLE IF NOT EXISTS visita_contadores (
             ano             INTEGER PRIMARY KEY,
@@ -969,6 +997,7 @@ def init_db():
             "ALTER TABLE solicitacoes_visita ADD COLUMN numero_vd TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN parecer_as_url TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN parecer_as_nome TEXT",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN parecer_tecnico_txt TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN telefone1 TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN telefone2 TEXT",
             "ALTER TABLE atendimentos ADD COLUMN orgao_encaminhador TEXT",
@@ -2961,6 +2990,58 @@ def detalhe_visita(visita_id):
         fotos=fotos,
         historico=historico,
     )
+
+
+@app.route('/visitas/<int:visita_id>/parecer-tecnico', methods=['POST'])
+def emitir_parecer_tecnico_visita(visita_id):
+    if _requer_login():
+        return redirect(url_for('login'))
+
+    conn = get_db()
+    visita = _fetchone(conn, "SELECT * FROM solicitacoes_visita WHERE id=?", (visita_id,))
+    if not visita:
+        conn.close()
+        flash('Solicitação não encontrada.', 'erro')
+        return redirect(url_for('painel_visitas'))
+
+    parecer_txt = request.form.get('parecer_tecnico_txt', '').strip()
+    if not parecer_txt:
+        conn.close()
+        flash('Por favor, informe o texto do Parecer Técnico Assistencial.', 'erro')
+        return redirect(url_for('detalhe_visita', visita_id=visita_id))
+
+    parecer_url = dict(visita).get('parecer_as_url')
+    parecer_nome = dict(visita).get('parecer_as_nome')
+
+    arquivo_parecer = request.files.get('parecer_as_file')
+    if arquivo_parecer and arquivo_parecer.filename:
+        err = _validar_parecer(arquivo_parecer)
+        if err:
+            conn.close()
+            flash(err, 'erro')
+            return redirect(url_for('detalhe_visita', visita_id=visita_id))
+        url_p, nome_p = _upload_anexo(arquivo_parecer, pasta='visitas_pareceres')
+        if url_p:
+            parecer_url = url_p
+            parecer_nome = nome_p
+
+    agora = datetime.now(_TZ_BELEM).isoformat()
+    hoje_str = date.today().isoformat()
+
+    _exec(conn,
+        """UPDATE solicitacoes_visita
+           SET parecer_tecnico_txt=?, parecer_as_url=?, parecer_as_nome=?,
+               status='Realizada', data_realizada=?, responsavel_id=?,
+               atualizado_em=?
+           WHERE id=?""",
+        (parecer_txt, parecer_url, parecer_nome, hoje_str, session['usuario_id'], agora, visita_id)
+    )
+    conn.commit()
+    conn.close()
+
+    audit('PARECER_TECNICO_EMITIDO', f"id={visita_id} por {session['usuario_nome']}")
+    flash('Parecer Técnico Assistencial registrado e visita concluída com sucesso!', 'ok')
+    return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
 
 @app.route('/visitas/<int:visita_id>/editar', methods=['GET', 'POST'])

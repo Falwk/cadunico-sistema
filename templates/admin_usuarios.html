@@ -46,7 +46,15 @@
                 <span class="tag" style="background:#E6F4EA;color:#00542A;border:1px solid #CEEAD6;font-weight:600;">Tomé-Açu (Sede)</span>
               {% endif %}
             </td>
-            <td><span class="tag">{{ u.perfil }}</span></td>
+            <td>
+              {% if u.perfil == 'admin' %}
+                <span class="tag" style="background:#FEF3C7; color:#B45309; border:1px solid #FDE68A; font-weight:700;">Administrador</span>
+              {% elif u.perfil == 'assistente_social' %}
+                <span class="tag" style="background:#F0FDF4; color:#00542A; border:1px solid #86EFAC; font-weight:700;">Assistente Social</span>
+              {% else %}
+                <span class="tag" style="background:#F1F5F9; color:#475569; font-weight:600;">Entrevistador</span>
+              {% endif %}
+            </td>
             <td>
               {% set tent = u.tentativas_login or 0 %}
               {% if tent >= 5 %}
