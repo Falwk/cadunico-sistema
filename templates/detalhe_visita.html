@@ -27,6 +27,8 @@
       {% set badge_bg = '#BDD7EE' %}{% set badge_color = '#1F4E79' %}{% set badge_border = '#2E6FAD' %}
     {% elif s == 'Realizada' %}
       {% set badge_bg = '#D4EDDA' %}{% set badge_color = '#1A6B3C' %}{% set badge_border = '#1A6B3C' %}
+    {% elif s == 'Não Localizada' %}
+      {% set badge_bg = '#FFF7ED' %}{% set badge_color = '#C2410C' %}{% set badge_border = '#FDBA74' %}
     {% elif s == 'Cancelada' %}
       {% set badge_bg = '#FDECEA' %}{% set badge_color = '#8B1A1A' %}{% set badge_border = '#8B1A1A' %}
     {% else %}
@@ -119,10 +121,12 @@
       </div>
       {% endif %}
 
-      {% if visita.status == 'Cancelada' and visita.motivo_cancelamento %}
+      {% if visita.motivo_cancelamento %}
       <div style="grid-column:1 / -1">
-        <div class="text-muted" style="font-size:.78rem;font-weight:600;text-transform:uppercase;margin-bottom:4px">Motivo do Cancelamento</div>
-        <div style="font-size:.95rem;color:var(--vermelho);white-space:pre-line">{{ visita.motivo_cancelamento }}</div>
+        <div class="text-muted" style="font-size:.78rem;font-weight:600;text-transform:uppercase;margin-bottom:4px">
+          {{ 'Justificativa (Família Não Localizada)' if visita.status == 'Não Localizada' else 'Motivo do Cancelamento' }}
+        </div>
+        <div style="font-size:.95rem;color:{{ '#C2410C' if visita.status == 'Não Localizada' else 'var(--vermelho)' }};white-space:pre-line">{{ visita.motivo_cancelamento }}</div>
       </div>
       {% endif %}
 
@@ -252,30 +256,39 @@
 
   </div>
 
-  {# ── Seção: Atualizar Status ──────────────────────────────────────────── #}
-  {% if pode_editar %}
-  <div class="card">
-    <div class="card-title">Atualizar Status</div>
-    <form method="POST" action="{{ url_for('atualizar_status_visita', visita_id=visita.id) }}"
-          id="form-status" novalidate>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:end">
-        <div class="form-group mb-0">
-          <label for="novo_status">Novo Status</label>
-          <select id="novo_status" name="novo_status" onchange="toggleStatusFields(this.value)">
-            <option value="">— selecione —</option>
-            {% for opt in ['Pendente', 'Em Andamento', 'Cancelada'] %}
-            <option value="{{ opt }}" {% if visita.status == opt %}selected{% endif %}>{{ opt }}</option>
-            {% endfor %}
-          </select>
+  {# ── Seção: Encerrar Solicitação (Não Localizada ou Cancelar) ──────────── #}
+  {% if pode_editar and visita.status not in ('Realizada', 'Cancelada', 'Não Localizada') %}
+  <div class="card" style="border-top:3px solid #E11D48;">
+    <div class="card-title" style="color:#991B1B; display:flex; align-items:center; gap:8px;">
+      ⚠️ Informar Família Não Localizada ou Cancelar Solicitação
+    </div>
+    <form method="POST" action="{{ url_for('atualizar_status_visita', visita_id=visita.id) }}" id="form-status">
+      
+      <div class="form-group">
+        <label style="font-weight:700;">Selecione a opção desejada: *</label>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:8px;">
+          <label style="display:flex; align-items:center; gap:8px; padding:12px 16px; border:1.5px solid #FDBA74; border-radius:8px; background:#FFF7ED; cursor:pointer;">
+            <input type="radio" name="novo_status" value="Não Localizada" required>
+            <span style="font-weight:800; color:#C2410C;">🏠 Família Não Localizada</span>
+          </label>
+
+          <label style="display:flex; align-items:center; gap:8px; padding:12px 16px; border:1.5px solid #FECDD3; border-radius:8px; background:#FEF2F2; cursor:pointer;">
+            <input type="radio" name="novo_status" value="Cancelada" required>
+            <span style="font-weight:800; color:#991B1B;">🚫 Cancelar Solicitação</span>
+          </label>
         </div>
       </div>
-      <div class="form-group" id="campo-motivo-cancelamento" style="display:none;margin-top:16px">
-        <label for="motivo_cancelamento">Motivo do Cancelamento *</label>
-        <textarea id="motivo_cancelamento" name="motivo_cancelamento"
-                  rows="3" placeholder="Descreva o motivo do cancelamento…">{{ visita.motivo_cancelamento or '' }}</textarea>
+
+      <div class="form-group" style="margin-top:14px;">
+        <label for="motivo_cancelamento" style="font-weight:700;">Justificativa / Motivo Detalhado *</label>
+        <textarea id="motivo_cancelamento" name="motivo_cancelamento" rows="3"
+                  placeholder="Descreva a justificativa detalhada (ex: família mudou-se de endereço, não atendida após 3 tentativas no local, solicitação cancelada...)" required>{{ visita.motivo_cancelamento or '' }}</textarea>
       </div>
-      <div class="flex" style="margin-top:16px">
-        <button type="submit" class="btn btn-primary" style="margin-left:auto">Salvar Status</button>
+
+      <div style="text-align:right; margin-top:16px;">
+        <button type="submit" class="btn btn-danger" style="padding:10px 22px; font-weight:700;">
+          💾 Salvar Alteração
+        </button>
       </div>
     </form>
   </div>

@@ -3107,7 +3107,7 @@ def detalhe_visita(visita_id):
         )
 
     # Calcula flags de permissão
-    STATUS_TERMINAIS = ('Realizada', 'Cancelada')
+    STATUS_TERMINAIS = ('Realizada', 'Cancelada', 'Não Localizada')
     status_nao_terminal = visita['status'] not in STATUS_TERMINAIS
     tem_permissao = (perfil == 'admin') or (
         visita['solicitante_id'] == uid or visita['responsavel_id'] == uid
@@ -3204,7 +3204,7 @@ def editar_visita(visita_id):
     uid = session['usuario_id']
     perfil = session.get('perfil')
 
-    STATUS_TERMINAIS = ('Realizada', 'Cancelada')
+    STATUS_TERMINAIS = ('Realizada', 'Cancelada', 'Não Localizada')
 
     # Busca a solicitação; se não existir, flash de erro e redireciona
     visita = _fetchone(conn,
@@ -3516,17 +3516,15 @@ def atualizar_status_visita(visita_id):
     uid = session['usuario_id']
     perfil = session.get('perfil')
 
-    STATUSES_VALIDOS = {'Pendente', 'Em Andamento', 'Realizada', 'Cancelada'}
-    STATUS_TERMINAIS = {'Realizada', 'Cancelada'}
+    STATUSES_VALIDOS = {'Pendente', 'Em Andamento', 'Realizada', 'Cancelada', 'Não Localizada'}
+    STATUS_TERMINAIS = {'Realizada', 'Cancelada', 'Não Localizada'}
 
-    # Busca a solicitação
     visita = _fetchone(conn, "SELECT * FROM solicitacoes_visita WHERE id=?", (visita_id,))
     if not visita:
         conn.close()
         flash('Solicitação não encontrada.', 'erro')
         return redirect(url_for('painel_visitas'))
 
-    # Verifica permissão: entrevistador só altera suas próprias solicitações
     if perfil != 'admin':
         if visita['solicitante_id'] != uid and visita['responsavel_id'] != uid:
             conn.close()
@@ -3535,7 +3533,6 @@ def atualizar_status_visita(visita_id):
 
     status_anterior = visita['status']
 
-    # Rejeita se status atual já for terminal
     if status_anterior in STATUS_TERMINAIS:
         conn.close()
         flash('Esta solicitação já foi finalizada e não pode ter o status alterado.', 'erro')
@@ -3543,89 +3540,34 @@ def atualizar_status_visita(visita_id):
 
     novo_status = request.form.get('novo_status', '').strip()
 
-    # Rejeita se o valor for inválido
-    if novo_status not in STATUSES_VALIDOS:
+    if novo_status not in ('Cancelada', 'Não Localizada'):
         conn.close()
-        flash('Status inválido.', 'erro')
+        flash('Selecione uma opção válida: Família Não Localizada ou Cancelar Solicitação.', 'erro')
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
-    # Validações condicionais
-    data_realizada = request.form.get('data_realizada', '').strip() or None
     motivo_cancelamento = request.form.get('motivo_cancelamento', '').strip() or None
 
-    if novo_status == 'Realizada' and not data_realizada:
+    if not motivo_cancelamento:
         conn.close()
-        flash('Informe a data de realização da visita.', 'erro')
-        return redirect(url_for('detalhe_visita', visita_id=visita_id))
-
-    if novo_status == 'Cancelada' and not motivo_cancelamento:
-        conn.close()
-        flash('Informe o motivo do cancelamento.', 'erro')
+        flash('Por favor, informe a justificativa / motivo.', 'erro')
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
     agora = datetime.now(_TZ_BELEM).isoformat()
-    atendimento_id = None
 
-    # Para 'Realizada': inserir atendimento dentro de uma transação
-    if novo_status == 'Realizada':
-        try:
-            cpf_rf  = visita['cpf_rf']
-            nome_rf = visita['nome_rf']
-
-            if _USE_PG:
-                cur = _exec(conn,
-                    """INSERT INTO atendimentos
-                        (data, cpf, nome_rf, origem, tipos, usuario_id, criado_em)
-                       VALUES (%s, %s, %s, %s, %s, %s, %s)
-                       RETURNING id""",
-                    (data_realizada, cpf_rf, nome_rf,
-                     'Visita Domiciliar', 'Visita Domiciliar',
-                     uid, agora)
-                )
-                atendimento_id = cur.fetchone()['id']
-            else:
-                _exec(conn,
-                    """INSERT INTO atendimentos
-                        (data, cpf, nome_rf, origem, tipos, usuario_id, criado_em)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                    (data_realizada, cpf_rf, nome_rf,
-                     'Visita Domiciliar', 'Visita Domiciliar',
-                     uid, agora)
-                )
-                atendimento_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-            _exec(conn,
-                """UPDATE solicitacoes_visita
-                   SET status=?, data_realizada=?, motivo_cancelamento=?,
-                       atendimento_id=?, atualizado_em=?
-                   WHERE id=?""",
-                (novo_status, data_realizada, motivo_cancelamento,
-                 atendimento_id, agora, visita_id)
-            )
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            conn.close()
-            flash('Erro ao gerar atendimento. Tente novamente.', 'erro')
-            return redirect(url_for('detalhe_visita', visita_id=visita_id))
-    else:
-        _exec(conn,
-            """UPDATE solicitacoes_visita
-               SET status=?, data_realizada=?, motivo_cancelamento=?, atualizado_em=?
-               WHERE id=?""",
-            (novo_status, data_realizada, motivo_cancelamento, agora, visita_id)
-        )
-        conn.commit()
-
+    _exec(conn,
+        """UPDATE solicitacoes_visita
+           SET status=?, motivo_cancelamento=?, atualizado_em=?
+           WHERE id=?""",
+        (novo_status, motivo_cancelamento, agora, visita_id)
+    )
+    conn.commit()
     conn.close()
 
-    audit('VISITA_STATUS_ATUALIZADO',
-          f"id={visita_id} status={status_anterior}→{novo_status}")
-    if novo_status == 'Realizada':
-        audit('VISITA_CONCLUIDA',
-              f"id={visita_id} atendimento_id={atendimento_id}")
-
-    flash('Status da solicitação atualizado com sucesso!', 'ok')
+    audit('VISITA_STATUS_ATUALIZADO', f"id={visita_id} status={status_anterior}→{novo_status}")
+    if novo_status == 'Não Localizada':
+        flash('Solicitação registrada como Família Não Localizada com sucesso!', 'ok')
+    else:
+        flash('Solicitação de visita cancelada com sucesso!', 'ok')
     return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
 
