@@ -1035,9 +1035,7 @@ def index():
 
 @app.route('/tutorial')
 def tutorial():
-    if _requer_login():
-        return redirect(url_for('login'))
-    return render_template('tutorial.html')
+    return redirect(url_for('dashboard'))
 
 
 import smtplib
