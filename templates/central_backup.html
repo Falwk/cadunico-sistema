@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container" style="max-width:960px">
+  
+  <div class="flex" style="margin-bottom:24px; align-items:center; gap:12px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title mb-0">📦 Central de Backup do Sistema</h1>
+      <p style="margin:4px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
+        Gere e baixe cópias completas de segurança dos dados, banco de dados e anexos do sistema.
+      </p>
+    </div>
+  </div>
+
+  {# ── Cards de Estatísticas dos Dados ────────────────────────────────── #}
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
+    
+    <div class="card" style="padding:18px 20px; border-left:4px solid #00542A; background:#FFFFFF;">
+      <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Atendimentos</div>
+      <div style="font-size:1.8rem; font-weight:800; color:#00542A; margin-top:4px;">{{ stats.total_atendimentos }}</div>
+      <div style="font-size:0.75rem; color:#64748B; margin-top:2px;">Registros gravados</div>
+    </div>
+
+    <div class="card" style="padding:18px 20px; border-left:4px solid #783DB2; background:#FFFFFF;">
+      <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Solicitações de Visita</div>
+      <div style="font-size:1.8rem; font-weight:800; color:#783DB2; margin-top:4px;">{{ stats.total_visitas }}</div>
+      <div style="font-size:0.75rem; color:#64748B; margin-top:2px;">VDs registradas</div>
+    </div>
+
+    <div class="card" style="padding:18px 20px; border-left:4px solid #FAB614; background:#FFFFFF;">
+      <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Usuários</div>
+      <div style="font-size:1.8rem; font-weight:800; color:#B45309; margin-top:4px;">{{ stats.total_usuarios }}</div>
+      <div style="font-size:0.75rem; color:#64748B; margin-top:2px;">Cadastrados no sistema</div>
+    </div>
+
+    <div class="card" style="padding:18px 20px; border-left:4px solid #0284C7; background:#FFFFFF;">
+      <div style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Banco de Dados</div>
+      <div style="font-size:1.8rem; font-weight:800; color:#0369A1; margin-top:4px;">
+        {% if stats.tamanho_db_mb > 1 %}
+          {{ stats.tamanho_db_mb }} <span style="font-size:1.1rem; font-weight:600;">MB</span>
+        {% else %}
+          {{ stats.tamanho_db_kb }} <span style="font-size:1.1rem; font-weight:600;">KB</span>
+        {% endif %}
+      </div>
+      <div style="font-size:0.75rem; color:#64748B; margin-top:2px;">Tamanho estimado</div>
+    </div>
+
+  </div>
+
+  {# ── Card Opções de Backup Completo ──────────────────────────────────── #}
+  <div class="card" style="margin-bottom:24px; border:1.5px solid #00542A;">
+    <div class="card-title" style="color:#00542A; font-weight:800; font-size:1.1rem; display:flex; align-items:center; gap:8px;">
+      🛡️ Opções de Exportação e Backup de Segurança
+    </div>
+    
+    <p style="font-size:0.9rem; color:#334155; line-height:1.6; margin-bottom:20px;">
+      Escolha abaixo a modalidade de backup desejada. Recomendamos realizar o <strong>Backup Completo do Sistema (ZIP)</strong> periodicamente para garantir a preservação de todo o banco de dados, JSONs estruturados, anexos e logs.
+    </p>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:20px;">
+      
+      <!-- Opção 1: ZIP Completo -->
+      <div style="border:1px solid #CBD5E1; border-radius:12px; padding:20px; background:#F8FAFC; display:flex; flex-direction:column; justify-content:space-between;">
+        <div>
+          <div style="font-size:1.05rem; font-weight:800; color:#00542A; display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+            📦 Backup Completo do Sistema (.ZIP)
+          </div>
+          <p style="font-size:0.84rem; color:#64748B; line-height:1.5; margin-bottom:16px;">
+            Exporta o banco de dados completo (<code>cadunico.db</code>), todas as tabelas em formato <code>JSON</code>, manifesto de integridade e pasta de anexos locais.
+          </p>
+        </div>
+        <a href="{{ url_for('admin_backup') }}" class="btn btn-primary" style="background:#00883A; border-color:#00542A; font-weight:700; width:100%; text-align:center; padding:12px; font-size:0.92rem; display:block;">
+          ⬇️ Baixar Backup Completo (.ZIP)
+        </a>
+      </div>
+
+      <!-- Opção 2: Planilha Excel -->
+      <div style="border:1px solid #CBD5E1; border-radius:12px; padding:20px; background:#F8FAFC; display:flex; flex-direction:column; justify-content:space-between;">
+        <div>
+          <div style="font-size:1.05rem; font-weight:800; color:#783DB2; display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+            📊 Planilha de Dados Consolidados (.XLSX)
+          </div>
+          <p style="font-size:0.84rem; color:#64748B; line-height:1.5; margin-bottom:16px;">
+            Gera um livro do Excel contendo abas organizadas para <strong>Atendimentos</strong>, <strong>Solicitações de Visita</strong>, <strong>Usuários</strong> e <strong>Auditoria</strong>.
+          </p>
+        </div>
+        <a href="{{ url_for('backup_excel') }}" class="btn btn-outline" style="border-color:#783DB2; color:#783DB2; font-weight:700; width:100%; text-align:center; padding:12px; font-size:0.92rem; background:#FFFFFF; display:block;">
+          📑 Exportar para Excel (.XLSX)
+        </a>
+      </div>
+
+    </div>
+  </div>
+
+  {# ── Card Guia de Restauração ────────────────────────────────────────── #}
+  <div class="card" style="background:#F1F5F9; border:1px solid #CBD5E1;">
+    <div class="card-title" style="color:#1E293B; font-weight:700; font-size:0.95rem; display:flex; align-items:center; gap:8px;">
+      ℹ️ Orientações de Segurança e Restauração
+    </div>
+    <div style="font-size:0.86rem; color:#475569; line-height:1.6;">
+      <ul style="margin:0; padding-left:20px;">
+        <li style="margin-bottom:6px;">Armazene o arquivo <code>.ZIP</code> gerado em um local seguro (disco externo ou nuvem institucional).</li>
+        <li style="margin-bottom:6px;">O arquivo <code>manifesto_backup.json</code> incluso no pacote ZIP registra a data, hora e contagem exata de registros no momento da cópia.</li>
+        <li>Em caso de necessidade de restauração direta do banco de dados, o arquivo <code>cadunico.db</code> contido na pasta <code>banco_dados/</code> pode ser restaurado diretamente na raiz do sistema.</li>
+      </ul>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

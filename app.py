@@ -2617,6 +2617,41 @@ def auditoria():
     return render_template('auditoria.html', registros=registros)
 
 
+@app.route('/admin/central-backup')
+def central_backup():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    conn = get_db()
+    total_usuarios = _fetchone(conn, "SELECT COUNT(*) as n FROM usuarios")['n']
+    total_atendimentos = _fetchone(conn, "SELECT COUNT(*) as n FROM atendimentos")['n']
+    total_visitas = _fetchone(conn, "SELECT COUNT(*) as n FROM solicitacoes_visita")['n']
+    total_audit = _fetchone(conn, "SELECT COUNT(*) as n FROM audit_log")['n']
+    conn.close()
+
+    tamanho_db_kb = 0
+    db_path = os.path.join(app.root_path, 'cadunico.db')
+    if not os.path.exists(db_path):
+        db_path = os.path.join(BASE_DIR, 'cadunico.db')
+    if os.path.exists(db_path):
+        tamanho_db_kb = round(os.path.getsize(db_path) / 1024, 1)
+
+    agora_str = datetime.now(_TZ_BELEM).strftime('%d/%m/%Y às %H:%M:%S')
+
+    stats = {
+        'total_usuarios': total_usuarios,
+        'total_atendimentos': total_atendimentos,
+        'total_visitas': total_visitas,
+        'total_audit': total_audit,
+        'tamanho_db_kb': tamanho_db_kb,
+        'tamanho_db_mb': round(tamanho_db_kb / 1024, 2),
+        'agora_str': agora_str,
+    }
+
+    return render_template('central_backup.html', stats=stats)
+
+
 @app.route('/admin/backup')
 def admin_backup():
     if _requer_login() or session.get('perfil') != 'admin':
@@ -2627,35 +2662,151 @@ def admin_backup():
     import json
 
     buf = io.BytesIO()
-    hoje_str = datetime.now().strftime('%Y-%m-%d_%H%M')
-    zip_filename = f"Backup_CadUnico_{hoje_str}.zip"
+    hoje_str = datetime.now(_TZ_BELEM).strftime('%Y-%m-%d_%H%M%S')
+    zip_filename = f"Backup_CadUnico_COMPLETO_{hoje_str}.zip"
 
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         conn = get_db()
+
         if not _USE_PG:
             db_path = os.path.join(app.root_path, 'cadunico.db')
             if not os.path.exists(db_path):
                 db_path = os.path.join(BASE_DIR, 'cadunico.db')
             if os.path.exists(db_path):
-                zf.write(db_path, arcname='cadunico.db')
+                zf.write(db_path, arcname='banco_dados/cadunico.db')
 
-        # Dumps em JSON das tabelas do banco
-        tabelas = ['usuarios', 'atendimentos', 'solicitacoes_visita', 'config_relatorio', 'audit_log', 'visita_contadores']
+        tabelas = [
+            'usuarios', 'atendimentos', 'solicitacoes_visita',
+            'config_relatorio', 'audit_log', 'visita_contadores', 'visita_fotos'
+        ]
+        manifest_counts = {}
         for tab in tabelas:
             try:
                 rows = [dict(r) for r in _fetchall(conn, f"SELECT * FROM {tab}")]
-                zf.writestr(f"dados_{tab}.json", json.dumps(rows, indent=2, ensure_ascii=False))
-            except Exception:
-                pass
+                manifest_counts[tab] = len(rows)
+                zf.writestr(f"tabelas_json/dados_{tab}.json", json.dumps(rows, indent=2, ensure_ascii=False))
+            except Exception as e:
+                manifest_counts[tab] = f"Erro: {str(e)}"
         conn.close()
 
+        upload_dirs = [
+            os.path.join(app.root_path, 'uploads'),
+            os.path.join(BASE_DIR, 'uploads'),
+            os.path.join(app.root_path, 'static', 'uploads'),
+        ]
+        for u_dir in upload_dirs:
+            if os.path.exists(u_dir):
+                for root, dirs, files in os.walk(u_dir):
+                    for f in files:
+                        full_p = os.path.join(root, f)
+                        rel_p = os.path.relpath(full_p, u_dir)
+                        zf.write(full_p, arcname=os.path.join('arquivos_anexos', rel_p))
+
+        manifest = {
+            'sistema': 'Sistema de Gestão do Cadastro Único e Programa Bolsa Família',
+            'municipio': 'Tomé-Açu / PA',
+            'versao_sistema': '2.5.0',
+            'data_geracao': datetime.now(_TZ_BELEM).isoformat(),
+            'fuso_horario': 'America/Belem (UTC-3)',
+            'tabelas_backup': manifest_counts,
+        }
+        zf.writestr('manifesto_backup.json', json.dumps(manifest, indent=2, ensure_ascii=False))
+
     buf.seek(0)
-    audit('BACKUP_DATABASE', f"arquivo={zip_filename}")
+    audit('BACKUP_SISTEMA_ZIP', f"arquivo={zip_filename}")
     return send_file(
         buf,
         as_attachment=True,
         download_name=zip_filename,
         mimetype='application/zip'
+    )
+
+
+@app.route('/admin/backup/excel')
+def backup_excel():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from openpyxl.utils import get_column_letter
+
+    wb = openpyxl.Workbook()
+    conn = get_db()
+
+    ws_at = wb.active
+    ws_at.title = "Atendimentos"
+    ats = [dict(r) for r in _fetchall(conn, "SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id ORDER BY a.id DESC")]
+    headers_at = ['ID', 'Data', 'CPF', 'Nome do RF', 'Origem', 'Tipos', 'Entrevistador', 'Criado em', 'Órgão Encaminhador', 'Situação']
+    ws_at.append(headers_at)
+    for at in ats:
+        ws_at.append([
+            at.get('id'), at.get('data'), at.get('cpf'), at.get('nome_rf'),
+            at.get('origem'), at.get('tipos'), at.get('entrevistador'),
+            at.get('criado_em'), at.get('orgao_encaminhador') or '—', at.get('situacao_encaminhamento') or 'Atendido'
+        ])
+
+    ws_v = wb.create_sheet("Visitas Domiciliares")
+    visitas = [dict(r) for r in _fetchall(conn, "SELECT sv.*, sol.nome as solicitante_nome, res.nome as responsavel_nome FROM solicitacoes_visita sv LEFT JOIN usuarios sol ON sol.id=sv.solicitante_id LEFT JOIN usuarios res ON res.id=sv.responsavel_id ORDER BY sv.id DESC")]
+    headers_v = ['ID', 'Nº VD', 'CPF RF', 'Nome RF', 'Logradouro', 'Número', 'Bairro', 'Motivo', 'Status', 'Data Realizada', 'Solicitante', 'Responsável', 'Parecer Técnico']
+    ws_v.append(headers_v)
+    for v in visitas:
+        ws_v.append([
+            v.get('id'), v.get('numero_vd') or f"#{v.get('id')}", v.get('cpf_rf'), v.get('nome_rf'),
+            v.get('logradouro'), v.get('numero'), v.get('bairro'), v.get('motivo'),
+            v.get('status'), v.get('data_realizada') or '—', v.get('solicitante_nome') or '—',
+            v.get('responsavel_nome') or '—', v.get('parecer_tecnico_txt') or '—'
+        ])
+
+    ws_u = wb.create_sheet("Usuários")
+    users = [dict(r) for r in _fetchall(conn, "SELECT id, nome, login, perfil, unidade, email, telefone, acesso_sibec, tentativas_login FROM usuarios ORDER BY id")]
+    headers_u = ['ID', 'Nome', 'Login', 'Perfil', 'Unidade', 'E-mail', 'Telefone', 'Acesso SIBEC', 'Falhas Login']
+    ws_u.append(headers_u)
+    for u in users:
+        ws_u.append([
+            u.get('id'), u.get('nome'), u.get('login'), u.get('perfil'),
+            u.get('unidade'), u.get('email') or '—', u.get('telefone') or '—',
+            'Sim' if u.get('acesso_sibec') else 'Não', u.get('tentativas_login', 0)
+        ])
+
+    ws_aud = wb.create_sheet("Histórico Auditoria")
+    audits = [dict(r) for r in _fetchall(conn, "SELECT id, usuario_nome, acao, detalhe, ip, criado_em FROM audit_log ORDER BY id DESC LIMIT 1000")]
+    headers_aud = ['ID', 'Usuário', 'Ação', 'Detalhes', 'IP', 'Data/Hora']
+    ws_aud.append(headers_aud)
+    for a in audits:
+        ws_aud.append([
+            a.get('id'), a.get('usuario_nome') or '—', a.get('acao'),
+            a.get('detalhe') or '—', a.get('ip') or '—', a.get('criado_em')
+        ])
+
+    conn.close()
+
+    fill_hdr = PatternFill("solid", fgColor="00542A")
+    font_hdr = Font(bold=True, color="FFFFFF")
+    for ws in [ws_at, ws_v, ws_u, ws_aud]:
+        for cell in ws[1]:
+            cell.fill = fill_hdr
+            cell.font = font_hdr
+            cell.alignment = Alignment(horizontal='center', vertical='center')
+        for col in ws.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            col_letter = get_column_letter(col[0].column)
+            ws.column_dimensions[col_letter].width = max(max_len + 4, 12)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    hoje_str = datetime.now(_TZ_BELEM).strftime('%Y-%m-%d')
+    xlsx_filename = f"Backup_Dados_CadUnico_{hoje_str}.xlsx"
+
+    audit('BACKUP_SISTEMA_EXCEL', f"arquivo={xlsx_filename}")
+    return send_file(
+        buf,
+        as_attachment=True,
+        download_name=xlsx_filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
 
