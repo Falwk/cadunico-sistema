@@ -26,21 +26,36 @@ LOGOS_DIR = os.path.join(BASE_DIR, 'static', 'logos')
 # Caso contrário, usa SQLite local — zero configuração para desenvolvimento.
 
 DATABASE_URL = os.environ.get('DATABASE_URL', '')
+_DB_PATH = os.path.join(BASE_DIR, 'database.db')
+_USE_PG = bool(DATABASE_URL)
+_PG_FAILED = False
 
-if DATABASE_URL:
-    # Railway fornece "postgres://..." — psycopg2 requer "postgresql://..."
+if _USE_PG:
     if DATABASE_URL.startswith('postgres://'):
         DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
-    import psycopg2
-    import psycopg2.extras
-    _USE_PG = True
+    try:
+        import psycopg2
+        import psycopg2.extras
+    except ImportError:
+        _USE_PG = False
+        import sqlite3
 else:
     import sqlite3
-    _USE_PG = False
-    _DB_PATH = os.path.join(BASE_DIR, 'database.db')
 
-# Marcador de placeholder: %s (PostgreSQL) ou ? (SQLite)
-PH = '%s' if _USE_PG else '?'
+
+def _is_pg():
+    return _USE_PG and not _PG_FAILED
+
+
+class _Placeholder:
+    def __str__(self):
+        return '%s' if _is_pg() else '?'
+    def __add__(self, other):
+        return str(self) + str(other)
+    def __radd__(self, other):
+        return str(other) + str(self)
+
+PH = _Placeholder()
 
 # Fuso horário de Belém (UTC-3) — usado para determinar o ano da numeração VD
 _TZ_BELEM = timezone(timedelta(hours=-3))
@@ -48,25 +63,31 @@ _TZ_BELEM = timezone(timedelta(hours=-3))
 
 def _adapt_sql(sql: str) -> str:
     """Converte placeholders ? para %s quando usando PostgreSQL."""
-    if _USE_PG:
+    if _is_pg():
         return sql.replace('?', '%s')
     return sql
 
 
 def get_db():
-    """Retorna uma conexão com o banco configurado."""
-    if _USE_PG:
-        conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
-        return conn
-    else:
-        conn = sqlite3.connect(_DB_PATH)
-        conn.row_factory = sqlite3.Row
-        return conn
+    """Retorna uma conexão com o banco configurado (PostgreSQL ou SQLite com fallback)."""
+    global _USE_PG, _PG_FAILED
+    if _USE_PG and not _PG_FAILED:
+        try:
+            conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+            return conn
+        except Exception as e:
+            app.logger.warning(f"[BANCO] Não foi possível conectar ao PostgreSQL ({e}). Alternando automaticamente para SQLite local ({_DB_PATH}).")
+            _PG_FAILED = True
+
+    import sqlite3
+    conn = sqlite3.connect(_DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def _lastrowid(conn):
     """Retorna o ID do último INSERT (compatível com ambos os bancos)."""
-    if _USE_PG:
+    if _is_pg():
         return None  # PostgreSQL usa RETURNING na query
     else:
         return conn.cursor().lastrowid if hasattr(conn, 'cursor') else None
@@ -106,7 +127,7 @@ def _fetchone(conn, sql, params=()):
     row = cur.fetchone()
     if row is None:
         return None
-    if _USE_PG:
+    if _is_pg():
         return _PGRow(dict(row))
     return row
 
@@ -115,7 +136,7 @@ def _fetchall(conn, sql, params=()):
     """Executa SELECT e retorna todas as linhas como lista de Row-like."""
     cur = _exec(conn, sql, params)
     rows = cur.fetchall()
-    if _USE_PG:
+    if _is_pg():
         return [_PGRow(dict(r)) for r in rows]
     return rows
 
@@ -739,7 +760,7 @@ def _gerar_numero_vd(conn, ano: int) -> str:
     o número no formato 'VD-AAAA-NNNNNN'.
     Lança ValueError('limite_anual') se o contador atingir 999999.
     """
-    if _USE_PG:
+    if _is_pg():
         row = _fetchone(conn,
             "SELECT ultimo_numero FROM visita_contadores WHERE ano = %s FOR UPDATE",
             (ano,)
@@ -782,7 +803,7 @@ def _gerar_numero_vd(conn, ano: int) -> str:
 
 def init_db():
     conn = get_db()
-    if _USE_PG:
+    if _is_pg():
         cur = conn.cursor()
         cur.execute('''CREATE TABLE IF NOT EXISTS usuarios (
             id SERIAL PRIMARY KEY,
@@ -1355,7 +1376,7 @@ def meu_perfil():
     )['n']
 
     # Atendimentos por mês nos últimos 12 meses
-    if _USE_PG:
+    if _is_pg():
         meses_rows = _fetchall(conn, """
             SELECT substring(data from 1 for 7) as mes, COUNT(*) as total
             FROM atendimentos WHERE usuario_id=%s
@@ -1388,7 +1409,7 @@ def meu_perfil():
     media_dia = round(total_mes / dias_trabalhados, 1) if dias_trabalhados else 0
 
     # Histórico mensal completo (para tabela)
-    if _USE_PG:
+    if _is_pg():
         historico = _fetchall(conn, """
             SELECT substring(data from 1 for 7) as mes, COUNT(*) as total
             FROM atendimentos WHERE usuario_id=%s
@@ -2668,7 +2689,7 @@ def admin_backup():
     with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         conn = get_db()
 
-        if not _USE_PG:
+        if not _is_pg():
             db_path = os.path.join(app.root_path, 'cadunico.db')
             if not os.path.exists(db_path):
                 db_path = os.path.join(BASE_DIR, 'cadunico.db')
