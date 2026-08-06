@@ -2861,6 +2861,44 @@ def restaurar_backup():
         except Exception:
             return set()
 
+    def _bulk_insert_table(t_name, rows_list):
+        if not rows_list:
+            return 0
+        from collections import defaultdict
+        t_cols = _get_target_cols(t_name)
+        batches = defaultdict(list)
+        for r in rows_list:
+            row_filt = {k: v for k, v in r.items() if not t_cols or k in t_cols}
+            if not row_filt:
+                continue
+            cols_tuple = tuple(sorted(row_filt.keys()))
+            vals = [row_filt[k] for k in cols_tuple]
+            batches[cols_tuple].append(vals)
+
+        count_added = 0
+        cur = conn.cursor()
+        for cols_tuple, val_matrix in batches.items():
+            if not val_matrix:
+                continue
+            cols_str = ', '.join(cols_tuple)
+            placeholders = ', '.join([str(PH)] * len(cols_tuple))
+            if _is_pg():
+                sql = f"INSERT INTO {t_name} ({cols_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
+                try:
+                    import psycopg2.extras
+                    psycopg2.extras.execute_batch(cur, _adapt_sql(sql), val_matrix, page_size=200)
+                except Exception:
+                    for v in val_matrix:
+                        try:
+                            cur.execute(_adapt_sql(sql), v)
+                        except Exception:
+                            pass
+            else:
+                sql = f"INSERT OR IGNORE INTO {t_name} ({cols_str}) VALUES ({placeholders})"
+                cur.executemany(_adapt_sql(sql), val_matrix)
+            count_added += len(val_matrix)
+        return count_added
+
     try:
         if filename.endswith('.zip'):
             zip_buf = io.BytesIO(arquivo.read())
@@ -2880,21 +2918,9 @@ def restaurar_backup():
                     if json_name in zf.namelist():
                         with zf.open(json_name) as f:
                             rows = json.loads(f.read().decode('utf-8'))
-                            t_cols = _get_target_cols(tab)
-                            for r in rows:
-                                row_filt = {k: v for k, v in r.items() if not t_cols or k in t_cols}
-                                if not row_filt:
-                                    continue
-                                cols = list(row_filt.keys())
-                                vals = list(row_filt.values())
-                                placeholders = ', '.join([str(PH)] * len(cols))
-                                cols_str = ', '.join(cols)
-                                if _is_pg():
-                                    sql = f"INSERT INTO {tab} ({cols_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
-                                else:
-                                    sql = f"INSERT OR IGNORE INTO {tab} ({cols_str}) VALUES ({placeholders})"
-                                _exec(conn, sql, vals)
-                                total_restaurados += 1
+                            n_inserted = _bulk_insert_table(tab, rows)
+                            if n_inserted > 0:
+                                total_restaurados += n_inserted
                                 tabelas_afetadas.add(tab)
 
         elif filename.endswith('.db') or filename.endswith('.sqlite'):
@@ -2907,21 +2933,9 @@ def restaurar_backup():
             for tab in tabelas_ordem:
                 try:
                     rows = [dict(r) for r in src_conn.execute(f"SELECT * FROM {tab}").fetchall()]
-                    t_cols = _get_target_cols(tab)
-                    for r in rows:
-                        row_filt = {k: v for k, v in r.items() if not t_cols or k in t_cols}
-                        if not row_filt:
-                            continue
-                        cols = list(row_filt.keys())
-                        vals = list(row_filt.values())
-                        placeholders = ', '.join([str(PH)] * len(cols))
-                        cols_str = ', '.join(cols)
-                        if _is_pg():
-                            sql = f"INSERT INTO {tab} ({cols_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
-                        else:
-                            sql = f"INSERT OR IGNORE INTO {tab} ({cols_str}) VALUES ({placeholders})"
-                        _exec(conn, sql, vals)
-                        total_restaurados += 1
+                    n_inserted = _bulk_insert_table(tab, rows)
+                    if n_inserted > 0:
+                        total_restaurados += n_inserted
                         tabelas_afetadas.add(tab)
                 except Exception:
                     pass

@@ -36,6 +36,44 @@ def _get_table_cols(conn, tab):
     except Exception:
         return set()
 
+def _bulk_insert_cli(conn, tab, rows_list):
+    if not rows_list:
+        return 0
+    from collections import defaultdict
+    t_cols = _get_table_cols(conn, tab)
+    batches = defaultdict(list)
+    for r in rows_list:
+        row_filt = {k: v for k, v in r.items() if not t_cols or k in t_cols}
+        if not row_filt:
+            continue
+        cols_tuple = tuple(sorted(row_filt.keys()))
+        vals = [row_filt[k] for k in cols_tuple]
+        batches[cols_tuple].append(vals)
+
+    count_added = 0
+    cur = conn.cursor()
+    for cols_tuple, val_matrix in batches.items():
+        if not val_matrix:
+            continue
+        cols_str = ', '.join(cols_tuple)
+        placeholders = ', '.join([str(app.PH)] * len(cols_tuple))
+        if app._is_pg():
+            sql = f"INSERT INTO {tab} ({cols_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
+            try:
+                import psycopg2.extras
+                psycopg2.extras.execute_batch(cur, app._adapt_sql(sql), val_matrix, page_size=200)
+            except Exception:
+                for v in val_matrix:
+                    try:
+                        cur.execute(app._adapt_sql(sql), v)
+                    except Exception:
+                        pass
+        else:
+            sql = f"INSERT OR IGNORE INTO {tab} ({cols_str}) VALUES ({placeholders})"
+            cur.executemany(app._adapt_sql(sql), val_matrix)
+        count_added += len(val_matrix)
+    return count_added
+
 def migrar(filepath):
     if not os.path.exists(filepath):
         print(f"❌ Erro: Arquivo de backup não encontrado em '{filepath}'")
@@ -57,25 +95,11 @@ def migrar(filepath):
                 if json_name in zf.namelist():
                     with zf.open(json_name) as f:
                         rows = json.loads(f.read().decode('utf-8'))
-                        target_cols = _get_table_cols(conn, tab)
-                        count_tab = 0
-                        for r in rows:
-                            row_filt = {k: v for k, v in r.items() if not target_cols or k in target_cols}
-                            if not row_filt:
-                                continue
-                            cols = list(row_filt.keys())
-                            vals = list(row_filt.values())
-                            placeholders = ', '.join([str(app.PH)] * len(cols))
-                            cols_str = ', '.join(cols)
-                            if app._is_pg():
-                                sql = f"INSERT INTO {tab} ({cols_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
-                            else:
-                                sql = f"INSERT OR IGNORE INTO {tab} ({cols_str}) VALUES ({placeholders})"
-                            app._exec(conn, sql, vals)
-                            total_restaurados += 1
-                            count_tab += 1
+                        n_inserted = _bulk_insert_cli(conn, tab, rows)
+                        if n_inserted > 0:
+                            total_restaurados += n_inserted
                             tabelas_afetadas.add(tab)
-                        print(f"  ✓ Tabela '{tab}': {count_tab} registros restaurados")
+                        print(f"  ✓ Tabela '{tab}': {n_inserted} registros restaurados")
 
     elif filename.endswith('.db') or filename.endswith('.sqlite'):
         src_conn = sqlite3.connect(filepath)
@@ -85,25 +109,11 @@ def migrar(filepath):
         for tab in tabelas_ordem:
             try:
                 rows = [dict(r) for r in src_conn.execute(f"SELECT * FROM {tab}").fetchall()]
-                target_cols = _get_table_cols(conn, tab)
-                count_tab = 0
-                for r in rows:
-                    row_filt = {k: v for k, v in r.items() if not target_cols or k in target_cols}
-                    if not row_filt:
-                        continue
-                    cols = list(row_filt.keys())
-                    vals = list(row_filt.values())
-                    placeholders = ', '.join([str(app.PH)] * len(cols))
-                    cols_str = ', '.join(cols)
-                    if app._is_pg():
-                        sql = f"INSERT INTO {tab} ({cols_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
-                    else:
-                        sql = f"INSERT OR IGNORE INTO {tab} ({cols_str}) VALUES ({placeholders})"
-                    app._exec(conn, sql, vals)
-                    total_restaurados += 1
-                    count_tab += 1
+                n_inserted = _bulk_insert_cli(conn, tab, rows)
+                if n_inserted > 0:
+                    total_restaurados += n_inserted
                     tabelas_afetadas.add(tab)
-                print(f"  ✓ Tabela '{tab}': {count_tab} registros migrados")
+                print(f"  ✓ Tabela '{tab}': {n_inserted} registros migrados")
             except Exception as e:
                 print(f"  ⚠️ Aviso na tabela '{tab}': {e}")
         src_conn.close()
