@@ -20,6 +20,22 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BASE_DIR)
 import app
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8')
+
+def _get_table_cols(conn, tab):
+    try:
+        if app._is_pg():
+            rows = app._fetchall(conn, f"SELECT column_name FROM information_schema.columns WHERE table_name='{tab}'")
+            return set(r['column_name'] for r in rows)
+        else:
+            rows = conn.execute(f"PRAGMA table_info({tab})").fetchall()
+            return set(r[1] for r in rows)
+    except Exception:
+        return set()
+
 def migrar(filepath):
     if not os.path.exists(filepath):
         print(f"❌ Erro: Arquivo de backup não encontrado em '{filepath}'")
@@ -41,9 +57,14 @@ def migrar(filepath):
                 if json_name in zf.namelist():
                     with zf.open(json_name) as f:
                         rows = json.loads(f.read().decode('utf-8'))
+                        target_cols = _get_table_cols(conn, tab)
+                        count_tab = 0
                         for r in rows:
-                            cols = list(r.keys())
-                            vals = list(r.values())
+                            row_filt = {k: v for k, v in r.items() if not target_cols or k in target_cols}
+                            if not row_filt:
+                                continue
+                            cols = list(row_filt.keys())
+                            vals = list(row_filt.values())
                             placeholders = ', '.join([str(app.PH)] * len(cols))
                             cols_str = ', '.join(cols)
                             if app._is_pg():
@@ -52,8 +73,9 @@ def migrar(filepath):
                                 sql = f"INSERT OR IGNORE INTO {tab} ({cols_str}) VALUES ({placeholders})"
                             app._exec(conn, sql, vals)
                             total_restaurados += 1
+                            count_tab += 1
                             tabelas_afetadas.add(tab)
-                        print(f"  ✓ Tabela '{tab}': {len(rows)} registros restaurados")
+                        print(f"  ✓ Tabela '{tab}': {count_tab} registros restaurados")
 
     elif filename.endswith('.db') or filename.endswith('.sqlite'):
         src_conn = sqlite3.connect(filepath)
@@ -63,9 +85,14 @@ def migrar(filepath):
         for tab in tabelas_ordem:
             try:
                 rows = [dict(r) for r in src_conn.execute(f"SELECT * FROM {tab}").fetchall()]
+                target_cols = _get_table_cols(conn, tab)
+                count_tab = 0
                 for r in rows:
-                    cols = list(r.keys())
-                    vals = list(r.values())
+                    row_filt = {k: v for k, v in r.items() if not target_cols or k in target_cols}
+                    if not row_filt:
+                        continue
+                    cols = list(row_filt.keys())
+                    vals = list(row_filt.values())
                     placeholders = ', '.join([str(app.PH)] * len(cols))
                     cols_str = ', '.join(cols)
                     if app._is_pg():
@@ -74,8 +101,9 @@ def migrar(filepath):
                         sql = f"INSERT OR IGNORE INTO {tab} ({cols_str}) VALUES ({placeholders})"
                     app._exec(conn, sql, vals)
                     total_restaurados += 1
+                    count_tab += 1
                     tabelas_afetadas.add(tab)
-                print(f"  ✓ Tabela '{tab}': {len(rows)} registros migrados")
+                print(f"  ✓ Tabela '{tab}': {count_tab} registros migrados")
             except Exception as e:
                 print(f"  ⚠️ Aviso na tabela '{tab}': {e}")
         src_conn.close()

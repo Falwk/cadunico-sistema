@@ -2850,6 +2850,17 @@ def restaurar_backup():
     total_restaurados = 0
     tabelas_afetadas = set()
 
+    def _get_target_cols(t_name):
+        try:
+            if _is_pg():
+                rows_c = _fetchall(conn, f"SELECT column_name FROM information_schema.columns WHERE table_name='{t_name}'")
+                return set(r['column_name'] for r in rows_c)
+            else:
+                rows_c = conn.execute(f"PRAGMA table_info({t_name})").fetchall()
+                return set(r[1] for r in rows_c)
+        except Exception:
+            return set()
+
     try:
         if filename.endswith('.zip'):
             zip_buf = io.BytesIO(arquivo.read())
@@ -2869,9 +2880,13 @@ def restaurar_backup():
                     if json_name in zf.namelist():
                         with zf.open(json_name) as f:
                             rows = json.loads(f.read().decode('utf-8'))
+                            t_cols = _get_target_cols(tab)
                             for r in rows:
-                                cols = list(r.keys())
-                                vals = list(r.values())
+                                row_filt = {k: v for k, v in r.items() if not t_cols or k in t_cols}
+                                if not row_filt:
+                                    continue
+                                cols = list(row_filt.keys())
+                                vals = list(row_filt.values())
                                 placeholders = ', '.join([str(PH)] * len(cols))
                                 cols_str = ', '.join(cols)
                                 if _is_pg():
@@ -2892,9 +2907,13 @@ def restaurar_backup():
             for tab in tabelas_ordem:
                 try:
                     rows = [dict(r) for r in src_conn.execute(f"SELECT * FROM {tab}").fetchall()]
+                    t_cols = _get_target_cols(tab)
                     for r in rows:
-                        cols = list(r.keys())
-                        vals = list(r.values())
+                        row_filt = {k: v for k, v in r.items() if not t_cols or k in t_cols}
+                        if not row_filt:
+                            continue
+                        cols = list(row_filt.keys())
+                        vals = list(row_filt.values())
                         placeholders = ', '.join([str(PH)] * len(cols))
                         cols_str = ', '.join(cols)
                         if _is_pg():
