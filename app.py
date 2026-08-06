@@ -2831,6 +2831,105 @@ def backup_excel():
     )
 
 
+@app.route('/admin/restaurar-backup', methods=['POST'])
+def restaurar_backup():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    import zipfile
+    import json
+
+    arquivo = request.files.get('arquivo_backup')
+    if not arquivo or not arquivo.filename:
+        flash('Por favor, selecione um arquivo de backup (.zip ou .db).', 'erro')
+        return redirect(url_for('central_backup'))
+
+    filename = arquivo.filename.lower()
+    conn = get_db()
+    total_restaurados = 0
+    tabelas_afetadas = set()
+
+    try:
+        if filename.endswith('.zip'):
+            zip_buf = io.BytesIO(arquivo.read())
+            with zipfile.ZipFile(zip_buf, 'r') as zf:
+                for name in zf.namelist():
+                    if name.startswith('arquivos_anexos/'):
+                        rel_path = name.replace('arquivos_anexos/', '', 1)
+                        if rel_path:
+                            dest_path = os.path.join(app.root_path, 'uploads', rel_path)
+                            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                            with zf.open(name) as src, open(dest_path, 'wb') as dst:
+                                dst.write(src.read())
+
+                tabelas_ordem = ['usuarios', 'atendimentos', 'solicitacoes_visita', 'config_relatorio', 'audit_log', 'visita_contadores', 'visita_fotos']
+                for tab in tabelas_ordem:
+                    json_name = f"tabelas_json/dados_{tab}.json"
+                    if json_name in zf.namelist():
+                        with zf.open(json_name) as f:
+                            rows = json.loads(f.read().decode('utf-8'))
+                            for r in rows:
+                                cols = list(r.keys())
+                                vals = list(r.values())
+                                placeholders = ', '.join([str(PH)] * len(cols))
+                                cols_str = ', '.join(cols)
+                                if _is_pg():
+                                    sql = f"INSERT INTO {tab} ({cols_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
+                                else:
+                                    sql = f"INSERT OR IGNORE INTO {tab} ({cols_str}) VALUES ({placeholders})"
+                                _exec(conn, sql, vals)
+                                total_restaurados += 1
+                                tabelas_afetadas.add(tab)
+
+        elif filename.endswith('.db') or filename.endswith('.sqlite'):
+            temp_db_path = os.path.join(BASE_DIR, 'temp_restore.db')
+            arquivo.save(temp_db_path)
+            src_conn = sqlite3.connect(temp_db_path)
+            src_conn.row_factory = sqlite3.Row
+
+            tabelas_ordem = ['usuarios', 'atendimentos', 'solicitacoes_visita', 'config_relatorio', 'audit_log', 'visita_contadores', 'visita_fotos']
+            for tab in tabelas_ordem:
+                try:
+                    rows = [dict(r) for r in src_conn.execute(f"SELECT * FROM {tab}").fetchall()]
+                    for r in rows:
+                        cols = list(r.keys())
+                        vals = list(r.values())
+                        placeholders = ', '.join([str(PH)] * len(cols))
+                        cols_str = ', '.join(cols)
+                        if _is_pg():
+                            sql = f"INSERT INTO {tab} ({cols_str}) VALUES ({placeholders}) ON CONFLICT DO NOTHING"
+                        else:
+                            sql = f"INSERT OR IGNORE INTO {tab} ({cols_str}) VALUES ({placeholders})"
+                        _exec(conn, sql, vals)
+                        total_restaurados += 1
+                        tabelas_afetadas.add(tab)
+                except Exception:
+                    pass
+            src_conn.close()
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
+
+        conn.commit()
+
+        if _is_pg():
+            for t in ['usuarios', 'atendimentos', 'solicitacoes_visita', 'audit_log', 'visita_fotos']:
+                try:
+                    _exec(conn, f"SELECT setval(pg_get_serial_sequence('{t}', 'id'), COALESCE((SELECT MAX(id) FROM {t}), 1));")
+                except Exception:
+                    pass
+            conn.commit()
+
+        conn.close()
+        audit('RESTAURAR_BACKUP', f"arquivo={filename} registros={total_restaurados}")
+        flash(f'Restauração concluída com sucesso! {total_restaurados} registros restaurados em {len(tabelas_afetadas)} tabelas.', 'ok')
+    except Exception as e:
+        conn.close()
+        flash(f'Erro ao restaurar backup: {str(e)}', 'erro')
+
+    return redirect(url_for('central_backup'))
+
+
 @app.route('/admin/config-relatorio', methods=['GET', 'POST'])
 def config_relatorio():
     if session.get('perfil') != 'admin':
