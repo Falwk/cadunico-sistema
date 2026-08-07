@@ -192,7 +192,7 @@
           {% for log in logs_historico %}
           <tr>
             <td style="white-space:nowrap; font-size:0.82rem;">
-              {{ log.criado_em[:19].replace('T', ' ') if log.criado_em else '—' }}
+              {{ log.criado_em or '—' }}
             </td>
             <td>{{ log.usuario_nome or 'Sistema' }}</td>
             <td>

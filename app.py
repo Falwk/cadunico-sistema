@@ -3017,19 +3017,42 @@ def central_backup():
     total_visitas = _fetchone(conn, "SELECT COUNT(*) as n FROM solicitacoes_visita")['n']
     total_audit = _fetchone(conn, "SELECT COUNT(*) as n FROM audit_log")['n']
 
-    logs_historico = _fetchall(conn,
+    logs_raw = _fetchall(conn,
         "SELECT * FROM audit_log WHERE acao LIKE 'BACKUP_%' OR acao='RESTAURAR_BACKUP' OR acao LIKE 'CONFIG_GOOGLE_%' ORDER BY id DESC LIMIT 15"
     )
-    conn.close()
+
+    logs_historico = []
+    for r in logs_raw:
+        r_dict = dict(r)
+        c_val = r_dict.get('criado_em')
+        if c_val:
+            if hasattr(c_val, 'strftime'):
+                r_dict['criado_em'] = c_val.strftime('%d/%m/%Y às %H:%M:%S')
+            else:
+                s_val = str(c_val)
+                r_dict['criado_em'] = s_val[:19].replace('T', ' ')
+        else:
+            r_dict['criado_em'] = '—'
+        logs_historico.append(r_dict)
 
     tamanho_db_kb = 0
-    db_path = os.path.join(app.root_path, 'cadunico.db')
-    if not os.path.exists(db_path):
-        db_path = os.path.join(BASE_DIR, 'cadunico.db')
-    if not os.path.exists(db_path):
-        db_path = os.path.join(BASE_DIR, 'database.db')
-    if os.path.exists(db_path):
-        tamanho_db_kb = round(os.path.getsize(db_path) / 1024, 1)
+    if _is_pg():
+        try:
+            row_sz = _fetchone(conn, "SELECT pg_database_size(current_database()) as size_bytes")
+            if row_sz and row_sz.get('size_bytes'):
+                tamanho_db_kb = round(row_sz['size_bytes'] / 1024, 1)
+        except Exception:
+            pass
+    else:
+        db_path = os.path.join(app.root_path, 'cadunico.db')
+        if not os.path.exists(db_path):
+            db_path = os.path.join(BASE_DIR, 'cadunico.db')
+        if not os.path.exists(db_path):
+            db_path = os.path.join(BASE_DIR, 'database.db')
+        if os.path.exists(db_path):
+            tamanho_db_kb = round(os.path.getsize(db_path) / 1024, 1)
+
+    conn.close()
 
     agora_str = datetime.now(_TZ_BELEM).strftime('%d/%m/%Y às %H:%M:%S')
 
