@@ -88,13 +88,12 @@
           {% set is_as = tipos_assistente_social and (tipo in tipos_assistente_social) %}
           {% set can_show = (not is_sibec or acesso_sibec) and (not is_as or user_perfil in ['assistente_social', 'admin']) %}
           {% if can_show %}
-          <label class="check-item {% if is_sibec %}sibec{% endif %}">
+          <label class="check-item {% if is_sibec %}sibec{% endif %} {% if is_as %}as-only{% endif %}">
             <input type="checkbox" name="tipos" value="{{ tipo }}"
                    {% if tipo in tipos_atuais %}checked{% endif %}>
             <span>
               {{ tipo }}
               {% if is_sibec %}<span class="badge-sibec">SIBEC</span>{% endif %}
-              {% if is_as %}<span class="badge-sibec" style="background:#F3E8FF; color:#6B21A8; border:1px solid #D8B4FE;">Assistente Social</span>{% endif %}
             </span>
           </label>
           {% endif %}

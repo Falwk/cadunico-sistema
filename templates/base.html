@@ -586,6 +586,32 @@
     box-shadow: 0 3px 12px rgba(120, 61, 178, 0.12);
   }
 
+  /* Estilo Especial para Opções Exclusivas de Assistente Social (.as-only) */
+  .check-item.as-only {
+    background: #F3E8FF;
+    border-color: #D8B4FE;
+  }
+  .check-item.as-only:hover {
+    background: #EDE9FE;
+    border-color: #C084FC;
+  }
+  .check-item.as-only span {
+    color: #6B21A8;
+    font-weight: 700;
+  }
+  .check-item.as-only input[type=checkbox] {
+    border-color: #A855F7;
+  }
+  .check-item.as-only input[type=checkbox]:checked {
+    background-color: #783DB2;
+    border-color: #783DB2;
+  }
+  .check-item.as-only:has(input[type=checkbox]:checked) {
+    border-color: #783DB2;
+    background: #F3E8FF;
+    box-shadow: 0 3px 12px rgba(120, 61, 178, 0.22);
+  }
+
   .check-item span {
     font-size: 0.88rem;
     font-weight: 600;
