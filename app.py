@@ -221,6 +221,7 @@ TIPOS_ATENDIMENTO = [
 ]
 
 TIPOS_ASSISTENTE_SOCIAL = {
+    "Encaminhamentos",
     "Escuta Qualificada",
     "Benefício Eventual",
 }
