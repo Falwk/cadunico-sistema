@@ -74,6 +74,53 @@
     </div>
   </div>
 
+  <!-- Card: Exportação & Quantitativo Individual por Entrevistador -->
+  <div class="card" style="margin-bottom:24px; border:1.5px solid #00542A; background:#FFFFFF;">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center; color:#00542A; margin-bottom:12px;">
+      <span style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:1.1rem;">
+        👤 Download de Quantitativo e Planilha por Entrevistador
+      </span>
+      <span style="font-size:0.75rem; background:#E6F4EA; color:#00542A; padding:4px 10px; border-radius:20px; font-weight:700;">
+        Filtro Individual
+      </span>
+    </div>
+
+    <p style="font-size:0.88rem; color:#475569; margin-bottom:16px; line-height:1.5;">
+      Selecione um entrevistador abaixo para gerar a planilha individual em Excel ou o relatório quantitativo contendo a contagem por tipo de atendimento e a listagem de registros daquele servidor no mês de <strong>{{ mes_nome }}</strong>.
+    </p>
+
+    <form method="GET" action="{{ url_for('exportar_entrevistador') }}" style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+      <input type="hidden" name="mes" value="{{ mes }}">
+
+      <div style="flex:1; min-width:240px;">
+        <label for="usuario_id" style="font-weight:700; font-size:0.84rem; margin-bottom:4px; color:var(--cad-verde-escuro);">Selecione o Entrevistador(a):</label>
+        <select id="usuario_id" name="usuario_id" required style="padding:10px; border-radius:8px; border:1px solid #CBD5E1; background:#F8FAFC;">
+          <option value="">-- Selecione o Entrevistador --</option>
+          {% for u in todos_usuarios %}
+            {% if session.perfil == 'admin' or session.usuario_id == u.id %}
+              <option value="{{ u.id }}">{{ u.nome }} ({{ u.unidade }})</option>
+            {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="flex:1; min-width:180px;">
+        <label for="formato_ent" style="font-weight:700; font-size:0.84rem; margin-bottom:4px; color:var(--cad-verde-escuro);">Formato de Download:</label>
+        <select id="formato_ent" name="formato" style="padding:10px; border-radius:8px; border:1px solid #CBD5E1; background:#F8FAFC;">
+          <option value="excel">📊 Planilha Excel (.XLSX)</option>
+          <option value="pdf">📄 Relatório Quantitativo (PDF)</option>
+          <option value="word">📝 Relatório Quantitativo (Word)</option>
+        </select>
+      </div>
+
+      <div>
+        <button type="submit" class="btn btn-primary" style="background:#00542A; border-color:#003F1F; font-weight:700; padding:11px 22px;">
+          ⬇️ Baixar Quantitativo Individual
+        </button>
+      </div>
+    </form>
+  </div>
+
   {% if session.perfil == 'admin' %}
   <!-- Row 1 Charts (Admin): Origem do Atendimento -->
   <div class="card chart-card" style="margin-bottom:24px;">

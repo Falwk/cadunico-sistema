@@ -1951,6 +1951,11 @@ def relatorio():
         return redirect(url_for('login'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
     atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc = dados_relatorio(mes)
+    
+    conn = get_db()
+    todos_usuarios = [dict(u) for u in _fetchall(conn, "SELECT id, nome, perfil, COALESCE(unidade, 'Tomé-Açu (Sede)') as unidade FROM usuarios ORDER BY nome ASC")]
+    conn.close()
+
     return render_template('relatorio.html', quant=quant, entrevistadores=entrevistadores,
                            tipos=TIPOS_ATENDIMENTO, mes=mes, atendimentos=atendimentos,
                            mes_nome=nome_mes(mes), grafico_tipos=grafico_tipos,
@@ -1958,7 +1963,8 @@ def relatorio():
                            grafico_entrevistadores=grafico_ents,
                            grafico_bairros=grafico_bairros,
                            grafico_orgaos=grafico_orgaos,
-                           grafico_situacoes_enc=grafico_situacoes_enc)
+                           grafico_situacoes_enc=grafico_situacoes_enc,
+                           todos_usuarios=todos_usuarios)
 
 # ---------------------------------------------------------------------------
 # Exportação Excel
@@ -2510,6 +2516,254 @@ def exportar_registro():
     return send_file(output, as_attachment=True,
                      download_name=f"Registro_Detalhado_{mes}.pdf",
                      mimetype='application/pdf')
+
+
+def criar_excel_entrevistador(mes, usuario_id):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    conn = get_db()
+    u = _fetchone(conn, "SELECT * FROM usuarios WHERE id=?", (usuario_id,))
+    if not u:
+        conn.close()
+        return None
+
+    nome_entrevistador = u['nome']
+    unidade_u = dict(u).get('unidade') or 'Tomé-Açu (Sede)'
+    mes_titulo = nome_mes(mes).upper()
+
+    wb = openpyxl.Workbook()
+    
+    verde_escuro = "00542A"
+    verde_claro = "E6F4EA"
+    branco = "FFFFFF"
+    cinza = "F8FAFC"
+    borda_fina = Side(style='thin', color='CBD5E1')
+    borda = Border(left=borda_fina, right=borda_fina, top=borda_fina, bottom=borda_fina)
+
+    # ABA 1: QUANTITATIVO INDIVIDUAL
+    ws_q = wb.active
+    ws_q.title = "Quantitativo Individual"
+    ws_q.merge_cells('A1:D1')
+    ws_q['A1'] = f"RELATÓRIO QUANTITATIVO INDIVIDUAL - {mes_titulo}"
+    ws_q['A1'].font = Font(bold=True, color=branco, size=13)
+    ws_q['A1'].fill = PatternFill("solid", fgColor=verde_escuro)
+    ws_q['A1'].alignment = Alignment(horizontal='center', vertical='center')
+    ws_q.row_dimensions[1].height = 26
+
+    ws_q.merge_cells('A2:D2')
+    ws_q['A2'] = f"Entrevistador(a): {nome_entrevistador}  |  Unidade: {unidade_u}"
+    ws_q['A2'].font = Font(bold=True, size=11)
+    ws_q['A2'].fill = PatternFill("solid", fgColor=verde_claro)
+    ws_q['A2'].alignment = Alignment(horizontal='left', vertical='center')
+    ws_q.row_dimensions[2].height = 20
+
+    headers_q = ['Nº', 'TIPO DE ATENDIMENTO', 'QUANTIDADE', '% DO TOTAL']
+    for ci, h in enumerate(headers_q, 1):
+        c = ws_q.cell(3, ci, h)
+        c.font = Font(bold=True, color=branco)
+        c.fill = PatternFill("solid", fgColor=verde_escuro)
+        c.border = borda
+        c.alignment = Alignment(horizontal='center')
+    ws_q.row_dimensions[3].height = 20
+
+    ats_u = _fetchall(conn,
+        "SELECT * FROM atendimentos WHERE usuario_id=? AND data LIKE ? ORDER BY data ASC",
+        (usuario_id, mes + '%')
+    )
+    
+    quant_dict = {t: 0 for t in TIPOS_ATENDIMENTO}
+    tot_atendimentos = 0
+    for at in ats_u:
+        tipos_list = at['tipos'].split('|')
+        for tipo in tipos_list:
+            if tipo in quant_dict:
+                quant_dict[tipo] += 1
+                tot_atendimentos += 1
+
+    tot_para_pct = tot_atendimentos or 1
+    ri = 4
+    for idx, tipo in enumerate(TIPOS_ATENDIMENTO, 1):
+        v = quant_dict[tipo]
+        pct = (v / tot_para_pct) * 100
+        fill = PatternFill("solid", fgColor=cinza if ri % 2 == 0 else branco)
+        
+        c1 = ws_q.cell(ri, 1, idx)
+        c1.alignment = Alignment(horizontal='center')
+        c2 = ws_q.cell(ri, 2, tipo)
+        c3 = ws_q.cell(ri, 3, v)
+        c3.alignment = Alignment(horizontal='center')
+        c4 = ws_q.cell(ri, 4, f"{pct:.1f}%")
+        c4.alignment = Alignment(horizontal='center')
+        
+        for c in (c1, c2, c3, c4):
+            c.fill = fill
+            c.border = borda
+        ri += 1
+
+    # Linha Total
+    ws_q.cell(ri, 1, "").border = borda
+    ws_q.cell(ri, 2, "TOTAL DE ATENDIMENTOS").font = Font(bold=True)
+    ws_q.cell(ri, 2).border = borda
+    ws_q.cell(ri, 3, tot_atendimentos).font = Font(bold=True)
+    ws_q.cell(ri, 3).alignment = Alignment(horizontal='center')
+    ws_q.cell(ri, 3).border = borda
+    ws_q.cell(ri, 4, "100.0%").font = Font(bold=True)
+    ws_q.cell(ri, 4).alignment = Alignment(horizontal='center')
+    ws_q.cell(ri, 4).border = borda
+
+    ws_q.column_dimensions['A'].width = 6
+    ws_q.column_dimensions['B'].width = 38
+    ws_q.column_dimensions['C'].width = 20
+    ws_q.column_dimensions['D'].width = 16
+
+    # ABA 2: LISTAGEM DETALHADA
+    ws_d = wb.create_sheet("Atendimentos Detalhados")
+    ws_d.merge_cells('A1:G1')
+    ws_d['A1'] = f"LISTAGEM DE ATENDIMENTOS - {nome_entrevistador.upper()} ({mes_titulo})"
+    ws_d['A1'].font = Font(bold=True, color=branco, size=12)
+    ws_d['A1'].fill = PatternFill("solid", fgColor=verde_escuro)
+    ws_d['A1'].alignment = Alignment(horizontal='center', vertical='center')
+    ws_d.row_dimensions[1].height = 22
+
+    headers_d = ['ID', 'DATA', 'CPF DO RF', 'NOME DO RF', 'ORIGEM', 'TIPOS DE ATENDIMENTO', 'SITUAÇÃO']
+    for ci, h in enumerate(headers_d, 1):
+        c = ws_d.cell(2, ci, h)
+        c.font = Font(bold=True, color=branco)
+        c.fill = PatternFill("solid", fgColor=verde_escuro)
+        c.border = borda
+        c.alignment = Alignment(horizontal='center')
+
+    for r_idx, at in enumerate(ats_u, 3):
+        fill = PatternFill("solid", fgColor=cinza if r_idx % 2 == 0 else branco)
+        data_fmt = datetime.strptime(at['data'], '%Y-%m-%d').strftime('%d/%m/%Y') if at['data'] else '—'
+        vals = [
+            at['id'], data_fmt, at['cpf'], at['nome_rf'],
+            at['origem'], at['tipos'].replace('|', ', '),
+            at.get('situacao_encaminhamento') or 'Atendido'
+        ]
+        for ci, v in enumerate(vals, 1):
+            c = ws_d.cell(r_idx, ci, v)
+            c.fill = fill
+            c.border = borda
+            if ci in (1, 2, 3, 5, 7):
+                c.alignment = Alignment(horizontal='center')
+
+    ws_d.column_dimensions['A'].width = 8
+    ws_d.column_dimensions['B'].width = 14
+    ws_d.column_dimensions['C'].width = 16
+    ws_d.column_dimensions['D'].width = 30
+    ws_d.column_dimensions['E'].width = 22
+    ws_d.column_dimensions['F'].width = 45
+    ws_d.column_dimensions['G'].width = 16
+
+    conn.close()
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
+
+@app.route('/exportar/entrevistador')
+def exportar_entrevistador():
+    if _requer_login():
+        return redirect(url_for('login'))
+    
+    usuario_id = request.args.get('usuario_id', type=int)
+    mes = request.args.get('mes', date.today().strftime('%Y-%m'))
+    formato = request.args.get('formato', 'excel').lower()
+
+    if not usuario_id:
+        flash('Por favor, selecione um entrevistador para exportação.', 'erro')
+        return redirect(url_for('relatorio', mes=mes))
+
+    conn = get_db()
+    u = _fetchone(conn, "SELECT * FROM usuarios WHERE id=?", (usuario_id,))
+    if not u:
+        conn.close()
+        flash('Entrevistador não encontrado.', 'erro')
+        return redirect(url_for('relatorio', mes=mes))
+
+    nome_entrevistador = u['nome']
+
+    if session.get('perfil') != 'admin' and session['usuario_id'] != usuario_id:
+        conn.close()
+        flash('Acesso permitido apenas para seus próprios dados ou Administrador.', 'erro')
+        return redirect(url_for('relatorio', mes=mes))
+
+    ats_u = _fetchall(conn,
+        "SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.usuario_id=? AND a.data LIKE ? ORDER BY a.data ASC",
+        (usuario_id, mes + '%')
+    )
+    conn.close()
+
+    ats_dict_list = [dict(at) for at in ats_u]
+
+    quant_ent = {t: {nome_entrevistador: 0} for t in TIPOS_ATENDIMENTO}
+    tot_geral = 0
+    for at in ats_dict_list:
+        for t in at['tipos'].split('|'):
+            if t in quant_ent:
+                quant_ent[t][nome_entrevistador] += 1
+                tot_geral += 1
+
+    audit('EXPORTAR_ENTREVISTADOR', f"uid={usuario_id} mes={mes} formato={formato}")
+
+    if formato == 'excel':
+        output = criar_excel_entrevistador(mes, usuario_id)
+        if not output:
+            flash('Erro ao gerar planilha do entrevistador.', 'erro')
+            return redirect(url_for('relatorio', mes=mes))
+        fn = f"Quantitativo_{nome_entrevistador.replace(' ', '_')}_{mes}.xlsx"
+        return send_file(output, as_attachment=True, download_name=fn,
+                         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+    elif formato == 'word':
+        try:
+            from relatorio_oficial import criar_docx_oficial
+            output = criar_docx_oficial(
+                mes=mes,
+                mes_nome=nome_mes(mes),
+                atendimentos=ats_dict_list,
+                quant=quant_ent,
+                entrevistadores=[dict(u)],
+                tipos_atendimento=TIPOS_ATENDIMENTO,
+                total_geral=tot_geral,
+                assinatura_nome=nome_entrevistador,
+                assets_dir=os.path.join(BASE_DIR, 'static', 'report_assets'),
+                config=get_config()
+            )
+            fn = f"Relatorio_Quantitativo_{nome_entrevistador.replace(' ', '_')}_{mes}.docx"
+            return send_file(output, as_attachment=True, download_name=fn,
+                             mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+        except Exception as e:
+            flash(f"Erro ao gerar Word: {str(e)}", "erro")
+            return redirect(url_for('relatorio', mes=mes))
+
+    elif formato == 'pdf':
+        try:
+            from relatorio_oficial import criar_pdf_oficial
+            output = criar_pdf_oficial(
+                mes=mes,
+                mes_nome=nome_mes(mes),
+                atendimentos=ats_dict_list,
+                quant=quant_ent,
+                entrevistadores=[dict(u)],
+                tipos_atendimento=TIPOS_ATENDIMENTO,
+                total_geral=tot_geral,
+                assinatura_nome=nome_entrevistador,
+                assets_dir=os.path.join(BASE_DIR, 'static', 'report_assets'),
+                config=get_config()
+            )
+            fn = f"Relatorio_Quantitativo_{nome_entrevistador.replace(' ', '_')}_{mes}.pdf"
+            return send_file(output, as_attachment=True, download_name=fn, mimetype='application/pdf')
+        except Exception as e:
+            flash(f"Erro ao gerar PDF: {str(e)}", "erro")
+            return redirect(url_for('relatorio', mes=mes))
+
+    return redirect(url_for('relatorio', mes=mes))
 
 # ---------------------------------------------------------------------------
 # Admin: gestão de usuários
