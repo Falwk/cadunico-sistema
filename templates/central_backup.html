@@ -4,9 +4,9 @@
   
   <div class="flex" style="margin-bottom:24px; align-items:center; gap:12px; flex-wrap:wrap;">
     <div>
-      <h1 class="page-title mb-0">📦 Central de Backup do Sistema</h1>
+      <h1 class="page-title mb-0">📦 Central de Backup e Integração Nuvem</h1>
       <p style="margin:4px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-        Gere e baixe cópias completas de segurança dos dados, banco de dados e anexos do sistema.
+        Gere cópias de segurança, restaure dados em lote e envie backups automáticos para o Google Drive.
       </p>
     </div>
   </div>
@@ -46,14 +46,77 @@
 
   </div>
 
-  {# ── Card Opções de Backup Completo ──────────────────────────────────── #}
+  {# ── Card Integration Google Drive ──────────────────────────────────── #}
+  <div class="card" style="margin-bottom:24px; border:1.5px solid #10B981; background:#F0FDF4;">
+    <div class="card-title" style="color:#047857; font-weight:800; font-size:1.1rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <span>☁️ Backup Automático no Google Drive API</span>
+      {% if stats.gdrive_configurado %}
+        <span class="tag" style="background:#DCFCE7; color:#15803D; border:1px solid #86EFAC; font-weight:700; font-size:0.8rem; padding:4px 10px;">
+          ✓ Google Drive Conectado
+        </span>
+      {% else %}
+        <span class="tag" style="background:#FEF3C7; color:#B45309; border:1px solid #FDE68A; font-weight:700; font-size:0.8rem; padding:4px 10px;">
+          ⚠️ Aguardando Configuração de Credenciais
+        </span>
+      {% endif %}
+    </div>
+
+    <p style="font-size:0.9rem; color:#334155; line-height:1.6; margin-bottom:16px;">
+      Envie backups compactados em tempo real diretamente para a pasta institucional <strong>Backup Cadastro Único</strong> do seu Google Drive via Service Account oficial.
+    </p>
+
+    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:20px;">
+      <form method="POST" action="{{ url_for('backup_drive') }}" style="margin:0;">
+        <button type="submit" class="btn btn-primary" style="background:#059669; border-color:#047857; font-weight:800; padding:12px 24px; font-size:0.95rem;">
+          ☁️ Enviar Backup para o Google Drive Agora
+        </button>
+      </form>
+    </div>
+
+    <!-- Accordion / Form de Configuração da Service Account -->
+    <details style="border:1px solid #A7F3D0; border-radius:8px; background:#FFFFFF; padding:14px 18px;">
+      <summary style="font-weight:700; color:#047857; cursor:pointer; font-size:0.92rem;">
+        ⚙️ Configurar ID da Pasta e Chave Service Account (credentials.json)
+      </summary>
+      
+      <form method="POST" action="{{ url_for('config_gdrive') }}" enctype="multipart/form-data" style="margin-top:16px;">
+        <div class="form-group">
+          <label style="font-weight:700;">ID da Pasta do Google Drive (Folder ID):</label>
+          <input type="text" name="gdrive_folder_id" value="{{ stats.gdrive_folder_id or '' }}" 
+                 placeholder="Cole o ID da pasta (ex: 1A2b3C4d5E6f7G8h9I... na URL da pasta)" style="padding:10px;">
+          <small style="color:#64748B;">O ID fica no final da URL no Drive: <code>drive.google.com/drive/folders/<strong>ID_DA_PASTA</strong></code></small>
+        </div>
+
+        <div class="form-group" style="margin-top:14px;">
+          <label style="font-weight:700;">Arquivo de Credenciais <code>credentials.json</code>:</label>
+          <input type="file" name="credentials_file" accept=".json" style="padding:8px; background:#F8FAFC; border:1px solid #CBD5E1; border-radius:6px; width:100%;">
+          {% if stats.has_credentials_file %}
+            <small style="color:#059669; font-weight:700;">✓ Arquivo credentials.json já carregado na raiz do servidor.</small>
+          {% endif %}
+        </div>
+
+        <div class="form-group" style="margin-top:14px;">
+          <label style="font-weight:700;">Ou Cole o Conteúdo do JSON da Service Account:</label>
+          <textarea name="gdrive_json_txt" rows="4" placeholder='{"type": "service_account", "project_id": "...", "private_key": "..."}' style="font-family:monospace; font-size:0.82rem; padding:10px;"></textarea>
+        </div>
+
+        <div style="text-align:right; margin-top:14px;">
+          <button type="submit" class="btn btn-outline" style="border-color:#047857; color:#047857; font-weight:700; background:#ECFDF5;">
+            💾 Salvar Configurações do Google Drive
+          </button>
+        </div>
+      </form>
+    </details>
+  </div>
+
+  {# ── Card Opções de Exportação Manual ──────────────────────────────────── #}
   <div class="card" style="margin-bottom:24px; border:1.5px solid #00542A;">
     <div class="card-title" style="color:#00542A; font-weight:800; font-size:1.1rem; display:flex; align-items:center; gap:8px;">
-      🛡️ Opções de Exportação e Backup de Segurança
+      🛡️ Opções de Exportação e Download de Segurança
     </div>
     
     <p style="font-size:0.9rem; color:#334155; line-height:1.6; margin-bottom:20px;">
-      Escolha abaixo a modalidade de backup desejada. Recomendamos realizar o <strong>Backup Completo do Sistema (ZIP)</strong> periodicamente para garantir a preservação de todo o banco de dados, JSONs estruturados, anexos e logs.
+      Escolha abaixo a modalidade de backup desejada para download imediato.
     </p>
 
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:20px;">
@@ -98,7 +161,7 @@
     </div>
 
     <p style="font-size:0.9rem; color:#334155; line-height:1.6; margin-bottom:16px;">
-      Envie o arquivo de backup gerado anteriormente (pacote <code>.ZIP</code> ou banco <code>.db</code> / <code>database.db</code>). O sistema importará automaticamente todos os registros (atendimentos, visitas, usuários e auditoria) para o banco de dados ativo.
+      Envie o arquivo de backup gerado anteriormente (pacote <code>.ZIP</code> ou banco <code>.db</code> / <code>database.db</code>). O sistema importará automaticamente todos os registros em lote ultra-rápido para o banco de dados ativo.
     </p>
 
     <form method="POST" action="{{ url_for('restaurar_backup') }}" enctype="multipart/form-data" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
@@ -109,18 +172,65 @@
     </form>
   </div>
 
-  {# ── Card Guia de Restauração ────────────────────────────────────────── #}
+  {# ── Card Histórico de Backups ───────────────────────────────────────── #}
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-title" style="display:flex; align-items:center; justify-content:space-between;">
+      <span>📋 Histórico de Ações de Backup e Restauração</span>
+    </div>
+    
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Data / Hora</th>
+            <th>Usuário</th>
+            <th>Ação Executada</th>
+            <th>Detalhes do Registro</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in logs_historico %}
+          <tr>
+            <td style="white-space:nowrap; font-size:0.82rem;">
+              {{ log.criado_em[:19].replace('T', ' ') if log.criado_em else '—' }}
+            </td>
+            <td>{{ log.usuario_nome or 'Sistema' }}</td>
+            <td>
+              {% if 'SUCESSO' in log.acao or 'ZIP' in log.acao or 'EXCEL' in log.acao %}
+                <span class="tag" style="background:#DCFCE7; color:#15803D;">{{ log.acao }}</span>
+              {% elif 'ERRO' in log.acao %}
+                <span class="tag" style="background:#FEE2E2; color:#991B1B;">{{ log.acao }}</span>
+              {% else %}
+                <span class="tag">{{ log.acao }}</span>
+              {% endif %}
+            </td>
+            <td style="font-size:0.83rem; color:var(--text-muted);">{{ log.detalhe or '—' }}</td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="4" style="text-align:center; padding:20px; color:var(--text-muted);">
+              Nenhum histórico de backup registrado até o momento.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {# ── Card Guia de Restauração e Segurança ────────────────────────────── #}
   <div class="card" style="background:#F1F5F9; border:1px solid #CBD5E1;">
     <div class="card-title" style="color:#1E293B; font-weight:700; font-size:0.95rem; display:flex; align-items:center; gap:8px;">
-      ℹ️ Orientações de Segurança e Restauração
+      ℹ️ Passo a Passo - Integração com a Google Drive API
     </div>
     <div style="font-size:0.86rem; color:#475569; line-height:1.6;">
-      <ul style="margin:0; padding-left:20px;">
-        <li style="margin-bottom:6px;">Armazene o arquivo <code>.ZIP</code> gerado em um local seguro (disco externo ou nuvem institucional).</li>
-        <li style="margin-bottom:6px;">O arquivo <code>manifesto_backup.json</code> incluso no pacote ZIP registra a data, hora e contagem exata de registros no momento da cópia.</li>
-        <li style="margin-bottom:6px;">Ao enviar um arquivo de backup <code>.ZIP</code> ou <code>.db</code>, o sistema mesclará com segurança os dados existentes sem duplicar registros já existentes.</li>
-        <li>Em caso de restauração em novo banco PostgreSQL no Render, a importação sincroniza automaticamente as chaves primárias e sequências de IDs.</li>
-      </ul>
+      <ol style="margin:0; padding-left:20px;">
+        <li style="margin-bottom:6px;"><strong>Criar Pasta no Google Drive:</strong> Crie uma pasta chamada <code>Backup Cadastro Único</code> no seu Google Drive.</li>
+        <li style="margin-bottom:6px;"><strong>Criar Projeto no Google Cloud:</strong> No Console do Google Cloud, crie o projeto <code>Backup Cadastro Único</code> e ative a <strong>Google Drive API</strong>.</li>
+        <li style="margin-bottom:6px;"><strong>Conta de Serviço (Service Account):</strong> Em <em>Credenciais</em>, crie uma <em>Conta de serviço</em> e baixe a chave em formato <code>.json</code>.</li>
+        <li style="margin-bottom:6px;"><strong>Compartilhar Pasta:</strong> Compartilhe a pasta criada no Drive dando permissão de <strong>Editor</strong> para o e-mail da Conta de Serviço (ex: <code>backup@...iam.gserviceaccount.com</code>).</li>
+        <li><strong>Configurar no Sistema:</strong> Cole o ID da pasta e envie o arquivo <code>credentials.json</code> acima.</li>
+      </ol>
     </div>
   </div>
 

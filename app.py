@@ -196,8 +196,10 @@ def _upload_anexo(file_obj, pasta='visitas'):
 TIPOS_ATENDIMENTO = [
     "Bloqueio de Benefício",
     "Desbloqueio de Benefício",
-    "CadÚnico para BPC - 1ª Vez",
-    "CadÚnico para BPC - Atualização",
+    "CadÚnico para BPC - 1ª Vez (Idoso)",
+    "CadÚnico para BPC - 1ª Vez (PCD)",
+    "CadÚnico para BPC - Atualização (Idoso)",
+    "CadÚnico para BPC - Atualização (PCD)",
     "Carteira do Idoso Emitida",
     "Comprovante de Cadastro",
     "Consulta Cadastro Único",
@@ -2638,47 +2640,7 @@ def auditoria():
     return render_template('auditoria.html', registros=registros)
 
 
-@app.route('/admin/central-backup')
-def central_backup():
-    if _requer_login() or session.get('perfil') != 'admin':
-        flash('Acesso negado.', 'erro')
-        return redirect(url_for('dashboard'))
-
-    conn = get_db()
-    total_usuarios = _fetchone(conn, "SELECT COUNT(*) as n FROM usuarios")['n']
-    total_atendimentos = _fetchone(conn, "SELECT COUNT(*) as n FROM atendimentos")['n']
-    total_visitas = _fetchone(conn, "SELECT COUNT(*) as n FROM solicitacoes_visita")['n']
-    total_audit = _fetchone(conn, "SELECT COUNT(*) as n FROM audit_log")['n']
-    conn.close()
-
-    tamanho_db_kb = 0
-    db_path = os.path.join(app.root_path, 'cadunico.db')
-    if not os.path.exists(db_path):
-        db_path = os.path.join(BASE_DIR, 'cadunico.db')
-    if os.path.exists(db_path):
-        tamanho_db_kb = round(os.path.getsize(db_path) / 1024, 1)
-
-    agora_str = datetime.now(_TZ_BELEM).strftime('%d/%m/%Y às %H:%M:%S')
-
-    stats = {
-        'total_usuarios': total_usuarios,
-        'total_atendimentos': total_atendimentos,
-        'total_visitas': total_visitas,
-        'total_audit': total_audit,
-        'tamanho_db_kb': tamanho_db_kb,
-        'tamanho_db_mb': round(tamanho_db_kb / 1024, 2),
-        'agora_str': agora_str,
-    }
-
-    return render_template('central_backup.html', stats=stats)
-
-
-@app.route('/admin/backup')
-def admin_backup():
-    if _requer_login() or session.get('perfil') != 'admin':
-        flash('Acesso negado.', 'erro')
-        return redirect(url_for('dashboard'))
-
+def _gerar_backup_zip_bytes():
     import zipfile
     import json
 
@@ -2693,6 +2655,8 @@ def admin_backup():
             db_path = os.path.join(app.root_path, 'cadunico.db')
             if not os.path.exists(db_path):
                 db_path = os.path.join(BASE_DIR, 'cadunico.db')
+            if not os.path.exists(db_path):
+                db_path = os.path.join(BASE_DIR, 'database.db')
             if os.path.exists(db_path):
                 zf.write(db_path, arcname='banco_dados/cadunico.db')
 
@@ -2734,6 +2698,156 @@ def admin_backup():
         zf.writestr('manifesto_backup.json', json.dumps(manifest, indent=2, ensure_ascii=False))
 
     buf.seek(0)
+    return buf, zip_filename
+
+
+def _enviar_para_google_drive(zip_bytes, zip_filename):
+    """Envia o backup em formato ZIP para a pasta configurada no Google Drive."""
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        from googleapiclient.http import MediaIoBaseUpload
+
+        SCOPES = ['https://www.googleapis.com/auth/drive.file', 'https://www.googleapis.com/auth/drive']
+        
+        cfg = get_config()
+        creds_json = os.environ.get('GOOGLE_CREDENTIALS_JSON', '') or cfg.get('gdrive_credentials_json', '').strip()
+        creds_path = os.path.join(BASE_DIR, 'credentials.json')
+
+        if creds_json:
+            import json
+            info = json.loads(creds_json)
+            creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
+        elif os.path.exists(creds_path):
+            creds = service_account.Credentials.from_service_account_file(creds_path, scopes=SCOPES)
+        else:
+            return False, "Arquivo 'credentials.json' ou a variável 'GOOGLE_CREDENTIALS_JSON' não encontrada. Cadastre as credenciais no formulário abaixo."
+
+        folder_id = cfg.get('gdrive_folder_id', '').strip() or os.environ.get('GDRIVE_FOLDER_ID', '').strip() or None
+
+        service = build('drive', 'v3', credentials=creds)
+
+        file_metadata = {'name': zip_filename}
+        if folder_id:
+            file_metadata['parents'] = [folder_id]
+
+        media = MediaIoBaseUpload(io.BytesIO(zip_bytes), mimetype='application/zip', resumable=True)
+
+        file_obj = service.files().create(body=file_metadata, media_body=media, fields='id, name, webViewLink').execute()
+        
+        link = file_obj.get('webViewLink', '')
+        return True, f"Backup enviado com sucesso para o Google Drive! Arquivo: {zip_filename}"
+    except Exception as e:
+        return False, f"Erro ao enviar para o Google Drive: {str(e)}"
+
+
+@app.route('/admin/central-backup')
+def central_backup():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    conn = get_db()
+    total_usuarios = _fetchone(conn, "SELECT COUNT(*) as n FROM usuarios")['n']
+    total_atendimentos = _fetchone(conn, "SELECT COUNT(*) as n FROM atendimentos")['n']
+    total_visitas = _fetchone(conn, "SELECT COUNT(*) as n FROM solicitacoes_visita")['n']
+    total_audit = _fetchone(conn, "SELECT COUNT(*) as n FROM audit_log")['n']
+
+    logs_historico = _fetchall(conn,
+        "SELECT * FROM audit_log WHERE acao LIKE 'BACKUP_%' OR acao='RESTAURAR_BACKUP' OR acao LIKE 'CONFIG_GOOGLE_%' ORDER BY id DESC LIMIT 15"
+    )
+    conn.close()
+
+    tamanho_db_kb = 0
+    db_path = os.path.join(app.root_path, 'cadunico.db')
+    if not os.path.exists(db_path):
+        db_path = os.path.join(BASE_DIR, 'cadunico.db')
+    if not os.path.exists(db_path):
+        db_path = os.path.join(BASE_DIR, 'database.db')
+    if os.path.exists(db_path):
+        tamanho_db_kb = round(os.path.getsize(db_path) / 1024, 1)
+
+    agora_str = datetime.now(_TZ_BELEM).strftime('%d/%m/%Y às %H:%M:%S')
+
+    cfg = get_config()
+    gdrive_folder_id = cfg.get('gdrive_folder_id', '').strip() or os.environ.get('GDRIVE_FOLDER_ID', '').strip()
+    creds_path = os.path.join(BASE_DIR, 'credentials.json')
+    gdrive_configurado = bool(gdrive_folder_id) or os.path.exists(creds_path) or bool(os.environ.get('GOOGLE_CREDENTIALS_JSON')) or bool(cfg.get('gdrive_credentials_json', ''))
+
+    stats = {
+        'total_usuarios': total_usuarios,
+        'total_atendimentos': total_atendimentos,
+        'total_visitas': total_visitas,
+        'total_audit': total_audit,
+        'tamanho_db_kb': tamanho_db_kb,
+        'tamanho_db_mb': round(tamanho_db_kb / 1024, 2),
+        'agora_str': agora_str,
+        'gdrive_folder_id': gdrive_folder_id,
+        'gdrive_configurado': gdrive_configurado,
+        'has_credentials_file': os.path.exists(creds_path)
+    }
+
+    return render_template('central_backup.html', stats=stats, logs_historico=logs_historico)
+
+
+@app.route('/admin/config-gdrive', methods=['POST'])
+def config_gdrive():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    folder_id = request.form.get('gdrive_folder_id', '').strip()
+    if folder_id:
+        set_config('gdrive_folder_id', folder_id)
+
+    file_creds = request.files.get('credentials_file')
+    if file_creds and file_creds.filename:
+        dest_p = os.path.join(BASE_DIR, 'credentials.json')
+        file_creds.save(dest_p)
+        flash('Arquivo de credenciais credentials.json salvo com sucesso!', 'ok')
+
+    json_txt = request.form.get('gdrive_json_txt', '').strip()
+    if json_txt:
+        set_config('gdrive_credentials_json', json_txt)
+        dest_p = os.path.join(BASE_DIR, 'credentials.json')
+        try:
+            with open(dest_p, 'w', encoding='utf-8') as f:
+                f.write(json_txt)
+        except Exception:
+            pass
+        flash('Credenciais JSON salvas no sistema com sucesso!', 'ok')
+
+    audit('CONFIG_GOOGLE_DRIVE', f"folder_id={folder_id}")
+    flash('Configurações do Google Drive atualizadas com sucesso!', 'ok')
+    return redirect(url_for('central_backup'))
+
+
+@app.route('/admin/backup/drive', methods=['POST'])
+def backup_drive():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    buf, zip_filename = _gerar_backup_zip_bytes()
+    sucesso, msg = _enviar_para_google_drive(buf.getvalue(), zip_filename)
+
+    if sucesso:
+        audit('BACKUP_GOOGLE_DRIVE_SUCESSO', f"arquivo={zip_filename}")
+        flash(msg, 'ok')
+    else:
+        audit('BACKUP_GOOGLE_DRIVE_ERRO', f"erro={msg}")
+        flash(msg, 'erro')
+
+    return redirect(url_for('central_backup'))
+
+
+@app.route('/admin/backup')
+def admin_backup():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    buf, zip_filename = _gerar_backup_zip_bytes()
     audit('BACKUP_SISTEMA_ZIP', f"arquivo={zip_filename}")
     return send_file(
         buf,

@@ -14,8 +14,10 @@ SIBEC_CATEGORIAS = [
     "Averiguação Cadastral",
 ]
 TIPOS_CADUNICO = [
-    "CadÚnico para BPC - 1ª Vez",
-    "CadÚnico para BPC - Atualização",
+    "CadÚnico para BPC - 1ª Vez (Idoso)",
+    "CadÚnico para BPC - 1ª Vez (PCD)",
+    "CadÚnico para BPC - Atualização (Idoso)",
+    "CadÚnico para BPC - Atualização (PCD)",
     "Carteira do Idoso Emitida",
     "Comprovante de Cadastro",
     "Consulta Cadastro Único",
@@ -32,19 +34,21 @@ TIPOS_CADUNICO = [
 
 # Mapeamento: coluna abreviada → tipo(s) do sistema
 COLUNAS_RMA = [
-    ("RECAD",       ["Recadastramento"]),
-    ("1ª VEZ",      ["CadÚnico para BPC - 1ª Vez"]),
-    ("INC",         ["Inclusão de membros"]),
-    ("EXC",         ["Exclusão de membros"]),
-    ("TSEE",        ["Tarifa Social de Energia Elétrica"]),
-    ("TRANSF.\nMUN",["Transferência de Município"]),
-    ("BPC\nPCD",    ["CadÚnico para BPC - Atualização"]),
-    ("BPC\nIDOSO",  ["Carteira do Idoso Emitida"]),
-    ("CART.\nIDOSO",["CadÚnico Unipessoal"]),
-    ("FOLHA\nRESUMO",["Folha de Pagamento (SIBEC)"]),
-    ("INFO",        ["Comprovante de Cadastro", "Consulta Cadastro Único", "Consulta SIBEC"]),
-    ("Troca\nde RF",["Troca de RF"]),
-    ("vis.\ndom",   ["Visita Domiciliar"]),
+    ("RECAD",          ["Recadastramento"]),
+    ("BPC 1ª IDOSO",   ["CadÚnico para BPC - 1ª Vez (Idoso)"]),
+    ("BPC 1ª PCD",     ["CadÚnico para BPC - 1ª Vez (PCD)", "CadÚnico para BPC - 1ª Vez"]),
+    ("BPC ATU IDOSO",  ["CadÚnico para BPC - Atualização (Idoso)"]),
+    ("BPC ATU PCD",    ["CadÚnico para BPC - Atualização (PCD)", "CadÚnico para BPC - Atualização"]),
+    ("INC",            ["Inclusão de membros"]),
+    ("EXC",            ["Exclusão de membros"]),
+    ("TSEE",           ["Tarifa Social de Energia Elétrica"]),
+    ("TRANSF.\nMUN",   ["Transferência de Município"]),
+    ("CART.\nIDOSO",   ["Carteira do Idoso Emitida"]),
+    ("UNIPESSOAL",     ["CadÚnico Unipessoal"]),
+    ("FOLHA\nRESUMO",  ["Folha de Pagamento (SIBEC)"]),
+    ("INFO",           ["Comprovante de Cadastro", "Consulta Cadastro Único", "Consulta SIBEC"]),
+    ("Troca\nde RF",   ["Troca de RF"]),
+    ("vis.\ndom",      ["Visita Domiciliar"]),
 ]
 
 # ---------------------------------------------------------------------------
