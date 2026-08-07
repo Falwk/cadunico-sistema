@@ -205,6 +205,8 @@ TIPOS_ATENDIMENTO = [
     "Consulta Cadastro Único",
     "Consulta SIBEC",
     "Encaminhamentos",
+    "Escuta Qualificada",
+    "Benefício Eventual",
     "Exclusão de membros",
     "Folha de Pagamento (SIBEC)",
     "Inclusão de membros",
@@ -217,6 +219,11 @@ TIPOS_ATENDIMENTO = [
     "Visita Domiciliar",
     "Troca de RF",
 ]
+
+TIPOS_ASSISTENTE_SOCIAL = {
+    "Escuta Qualificada",
+    "Benefício Eventual",
+}
 
 TIPOS_SIBEC = {
     "Bloqueio de Benefício",
@@ -1711,9 +1718,11 @@ def registrar():
         obs_encaminhamento = request.form.get('obs_encaminhamento', '').strip() or None
         situacao_encaminhamento = request.form.get('situacao_encaminhamento', 'Atendido').strip() or 'Atendido'
 
-        # Bloquear SIBEC sem acesso
+        # Bloquear SIBEC sem acesso e opções de Assistente Social
         if not session.get('acesso_sibec'):
             tipos = [t for t in tipos if t not in TIPOS_SIBEC]
+        if session.get('perfil') not in ('assistente_social', 'admin'):
+            tipos = [t for t in tipos if t not in TIPOS_ASSISTENTE_SOCIAL]
         conn = get_db()
         erros = _salvar_atendimento(
             conn, data, cpf, nome_rf, origem, tipos, session['usuario_id'],
@@ -1725,18 +1734,18 @@ def registrar():
         conn.close()
         if erros:
             return render_template('registrar.html', erros=erros, tipos=TIPOS_ATENDIMENTO,
-                                   tipos_sibec=TIPOS_SIBEC, origens=ORIGENS,
-                                   orgaos_enc=ORGAOS_ENCAMINHADORES, motivos_enc=MOTIVOS_ENCAMINHAMENTO,
-                                   situacoes_enc=SITUACES_ENCAMINHAMENTO,
-                                   acesso_sibec=session.get('acesso_sibec'), form=request.form)
+                                   tipos_sibec=TIPOS_SIBEC, tipos_assistente_social=TIPOS_ASSISTENTE_SOCIAL,
+                                   origens=ORIGENS, orgaos_enc=ORGAOS_ENCAMINHADORES,
+                                   motivos_enc=MOTIVOS_ENCAMINHAMENTO, situacoes_enc=SITUACES_ENCAMINHAMENTO,
+                                   acesso_sibec=session.get('acesso_sibec'), perfil=session.get('perfil'), form=request.form)
         audit('REGISTRAR_ATENDIMENTO', f"cpf={cpf} nome={nome_rf} origem={origem}")
         flash('Atendimento registrado com sucesso!', 'ok')
         return redirect(url_for('dashboard'))
     return render_template('registrar.html', erros=[], tipos=TIPOS_ATENDIMENTO,
-                           tipos_sibec=TIPOS_SIBEC, origens=ORIGENS,
-                           orgaos_enc=ORGAOS_ENCAMINHADORES, motivos_enc=MOTIVOS_ENCAMINHAMENTO,
-                           situacoes_enc=SITUACES_ENCAMINHAMENTO,
-                           acesso_sibec=session.get('acesso_sibec'), form={})
+                           tipos_sibec=TIPOS_SIBEC, tipos_assistente_social=TIPOS_ASSISTENTE_SOCIAL,
+                           origens=ORIGENS, orgaos_enc=ORGAOS_ENCAMINHADORES,
+                           motivos_enc=MOTIVOS_ENCAMINHAMENTO, situacoes_enc=SITUACES_ENCAMINHAMENTO,
+                           acesso_sibec=session.get('acesso_sibec'), perfil=session.get('perfil'), form={})
 
 
 @app.route('/atendimento/<int:at_id>/editar', methods=['GET', 'POST'])
@@ -1765,6 +1774,8 @@ def editar_atendimento(at_id):
 
         if not session.get('acesso_sibec'):
             tipos = [t for t in tipos if t not in TIPOS_SIBEC]
+        if session.get('perfil') not in ('assistente_social', 'admin'):
+            tipos = [t for t in tipos if t not in TIPOS_ASSISTENTE_SOCIAL]
         erros = _salvar_atendimento(
             conn, data, cpf, nome_rf, origem, tipos, at['usuario_id'], at_id=at_id,
             orgao_encaminhador=orgao_encaminhador, orgao_outro=orgao_outro,
@@ -1775,20 +1786,20 @@ def editar_atendimento(at_id):
         if erros:
             conn.close()
             return render_template('editar_atendimento.html', at=at, erros=erros, tipos=TIPOS_ATENDIMENTO,
-                                   tipos_sibec=TIPOS_SIBEC, origens=ORIGENS,
-                                   orgaos_enc=ORGAOS_ENCAMINHADORES, motivos_enc=MOTIVOS_ENCAMINHAMENTO,
-                                   situacoes_enc=SITUACES_ENCAMINHAMENTO,
-                                   acesso_sibec=session.get('acesso_sibec'), form=request.form)
+                                   tipos_sibec=TIPOS_SIBEC, tipos_assistente_social=TIPOS_ASSISTENTE_SOCIAL,
+                                   origens=ORIGENS, orgaos_enc=ORGAOS_ENCAMINHADORES,
+                                   motivos_enc=MOTIVOS_ENCAMINHAMENTO, situacoes_enc=SITUACES_ENCAMINHAMENTO,
+                                   acesso_sibec=session.get('acesso_sibec'), perfil=session.get('perfil'), form=request.form)
         conn.close()
         audit('EDITAR_ATENDIMENTO', f"id={at_id} cpf={cpf}")
         flash('Atendimento atualizado com sucesso!', 'ok')
         return redirect(url_for('dashboard'))
     conn.close()
     return render_template('editar_atendimento.html', at=at, erros=[], tipos=TIPOS_ATENDIMENTO,
-                           tipos_sibec=TIPOS_SIBEC, origens=ORIGENS,
-                           orgaos_enc=ORGAOS_ENCAMINHADORES, motivos_enc=MOTIVOS_ENCAMINHAMENTO,
-                           situacoes_enc=SITUACES_ENCAMINHAMENTO,
-                           acesso_sibec=session.get('acesso_sibec'), form={})
+                           tipos_sibec=TIPOS_SIBEC, tipos_assistente_social=TIPOS_ASSISTENTE_SOCIAL,
+                           origens=ORIGENS, orgaos_enc=ORGAOS_ENCAMINHADORES,
+                           motivos_enc=MOTIVOS_ENCAMINHAMENTO, situacoes_enc=SITUACES_ENCAMINHAMENTO,
+                           acesso_sibec=session.get('acesso_sibec'), perfil=session.get('perfil'), form={})
 
 
 @app.route('/atendimento/<int:at_id>/excluir', methods=['POST'])

@@ -66,13 +66,20 @@
       </div>
       <div class="checks-grid">
         {% set tipos_selecionados = form.getlist('tipos') if form.getlist else [] %}
+        {% set user_perfil = perfil or session.get('perfil') %}
         {% for tipo in tipos %}
           {% set is_sibec = tipo in tipos_sibec %}
-          {% if not is_sibec or acesso_sibec %}
+          {% set is_as = tipos_assistente_social and (tipo in tipos_assistente_social) %}
+          {% set can_show = (not is_sibec or acesso_sibec) and (not is_as or user_perfil in ['assistente_social', 'admin']) %}
+          {% if can_show %}
           <label class="check-item {% if is_sibec %}sibec{% endif %}">
             <input type="checkbox" name="tipos" value="{{ tipo }}"
                    {% if tipo in tipos_selecionados %}checked{% endif %}>
-            <span>{{ tipo }}{% if is_sibec %}<span class="badge-sibec">SIBEC</span>{% endif %}</span>
+            <span>
+              {{ tipo }}
+              {% if is_sibec %}<span class="badge-sibec">SIBEC</span>{% endif %}
+              {% if is_as %}<span class="badge-sibec" style="background:#F3E8FF; color:#6B21A8; border:1px solid #D8B4FE;">Assistente Social</span>{% endif %}
+            </span>
           </label>
           {% endif %}
         {% endfor %}
