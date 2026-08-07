@@ -3005,76 +3005,105 @@ def _enviar_para_google_drive(zip_bytes, zip_filename):
         return False, f"Erro ao enviar para o Google Drive: {str(e)}"
 
 
+def _count_table(conn, table_name):
+    try:
+        r = _fetchone(conn, f"SELECT COUNT(*) as n FROM {table_name}")
+        return r['n'] if r and r.get('n') is not None else 0
+    except Exception:
+        return 0
+
+
 @app.route('/admin/central-backup')
 def central_backup():
     if _requer_login() or session.get('perfil') != 'admin':
         flash('Acesso negado.', 'erro')
         return redirect(url_for('dashboard'))
 
-    conn = get_db()
-    total_usuarios = _fetchone(conn, "SELECT COUNT(*) as n FROM usuarios")['n']
-    total_atendimentos = _fetchone(conn, "SELECT COUNT(*) as n FROM atendimentos")['n']
-    total_visitas = _fetchone(conn, "SELECT COUNT(*) as n FROM solicitacoes_visita")['n']
-    total_audit = _fetchone(conn, "SELECT COUNT(*) as n FROM audit_log")['n']
+    try:
+        conn = get_db()
+        total_usuarios = _count_table(conn, "usuarios")
+        total_atendimentos = _count_table(conn, "atendimentos")
+        total_visitas = _count_table(conn, "solicitacoes_visita")
+        total_audit = _count_table(conn, "audit_log")
 
-    logs_raw = _fetchall(conn,
-        "SELECT * FROM audit_log WHERE acao LIKE 'BACKUP_%' OR acao='RESTAURAR_BACKUP' OR acao LIKE 'CONFIG_GOOGLE_%' ORDER BY id DESC LIMIT 15"
-    )
-
-    logs_historico = []
-    for r in logs_raw:
-        r_dict = dict(r)
-        c_val = r_dict.get('criado_em')
-        if c_val:
-            if hasattr(c_val, 'strftime'):
-                r_dict['criado_em'] = c_val.strftime('%d/%m/%Y às %H:%M:%S')
-            else:
-                s_val = str(c_val)
-                r_dict['criado_em'] = s_val[:19].replace('T', ' ')
-        else:
-            r_dict['criado_em'] = '—'
-        logs_historico.append(r_dict)
-
-    tamanho_db_kb = 0
-    if _is_pg():
+        logs_raw = []
         try:
-            row_sz = _fetchone(conn, "SELECT pg_database_size(current_database()) as size_bytes")
-            if row_sz and row_sz.get('size_bytes'):
-                tamanho_db_kb = round(row_sz['size_bytes'] / 1024, 1)
+            logs_raw = _fetchall(conn,
+                "SELECT * FROM audit_log WHERE acao LIKE 'BACKUP_%' OR acao='RESTAURAR_BACKUP' OR acao LIKE 'CONFIG_GOOGLE_%' ORDER BY id DESC LIMIT 15"
+            )
+        except Exception as ex_log:
+            app.logger.warning(f"Erro ao buscar logs de auditoria de backup: {ex_log}")
+
+        logs_historico = []
+        for r in (logs_raw or []):
+            try:
+                r_dict = dict(r)
+                r_dict['acao'] = str(r_dict.get('acao') or '')
+                r_dict['usuario_nome'] = str(r_dict.get('usuario_nome') or 'Sistema')
+                r_dict['detalhe'] = str(r_dict.get('detalhe') or '—')
+                c_val = r_dict.get('criado_em')
+                if c_val:
+                    if hasattr(c_val, 'strftime'):
+                        r_dict['criado_em'] = c_val.strftime('%d/%m/%Y às %H:%M:%S')
+                    else:
+                        s_val = str(c_val)
+                        r_dict['criado_em'] = s_val[:19].replace('T', ' ')
+                else:
+                    r_dict['criado_em'] = '—'
+                logs_historico.append(r_dict)
+            except Exception:
+                pass
+
+        tamanho_db_kb = 0
+        if _is_pg():
+            try:
+                row_sz = _fetchone(conn, "SELECT pg_database_size(current_database()) as size_bytes")
+                if row_sz and row_sz.get('size_bytes') is not None:
+                    tamanho_db_kb = round(row_sz['size_bytes'] / 1024, 1)
+            except Exception:
+                pass
+        else:
+            try:
+                db_path = os.path.join(app.root_path, 'cadunico.db')
+                if not os.path.exists(db_path):
+                    db_path = os.path.join(BASE_DIR, 'cadunico.db')
+                if not os.path.exists(db_path):
+                    db_path = os.path.join(BASE_DIR, 'database.db')
+                if os.path.exists(db_path):
+                    tamanho_db_kb = round(os.path.getsize(db_path) / 1024, 1)
+            except Exception:
+                pass
+
+        try:
+            conn.close()
         except Exception:
             pass
-    else:
-        db_path = os.path.join(app.root_path, 'cadunico.db')
-        if not os.path.exists(db_path):
-            db_path = os.path.join(BASE_DIR, 'cadunico.db')
-        if not os.path.exists(db_path):
-            db_path = os.path.join(BASE_DIR, 'database.db')
-        if os.path.exists(db_path):
-            tamanho_db_kb = round(os.path.getsize(db_path) / 1024, 1)
 
-    conn.close()
+        agora_str = datetime.now(_TZ_BELEM).strftime('%d/%m/%Y às %H:%M:%S')
 
-    agora_str = datetime.now(_TZ_BELEM).strftime('%d/%m/%Y às %H:%M:%S')
+        cfg = get_config()
+        gdrive_folder_id = cfg.get('gdrive_folder_id', '').strip() or os.environ.get('GDRIVE_FOLDER_ID', '').strip()
+        creds_path = os.path.join(BASE_DIR, 'credentials.json')
+        gdrive_configurado = bool(gdrive_folder_id) or os.path.exists(creds_path) or bool(os.environ.get('GOOGLE_CREDENTIALS_JSON')) or bool(cfg.get('gdrive_credentials_json', ''))
 
-    cfg = get_config()
-    gdrive_folder_id = cfg.get('gdrive_folder_id', '').strip() or os.environ.get('GDRIVE_FOLDER_ID', '').strip()
-    creds_path = os.path.join(BASE_DIR, 'credentials.json')
-    gdrive_configurado = bool(gdrive_folder_id) or os.path.exists(creds_path) or bool(os.environ.get('GOOGLE_CREDENTIALS_JSON')) or bool(cfg.get('gdrive_credentials_json', ''))
+        stats = {
+            'total_usuarios': total_usuarios,
+            'total_atendimentos': total_atendimentos,
+            'total_visitas': total_visitas,
+            'total_audit': total_audit,
+            'tamanho_db_kb': tamanho_db_kb,
+            'tamanho_db_mb': round(tamanho_db_kb / 1024, 2),
+            'agora_str': agora_str,
+            'gdrive_folder_id': gdrive_folder_id,
+            'gdrive_configurado': gdrive_configurado,
+            'has_credentials_file': os.path.exists(creds_path)
+        }
 
-    stats = {
-        'total_usuarios': total_usuarios,
-        'total_atendimentos': total_atendimentos,
-        'total_visitas': total_visitas,
-        'total_audit': total_audit,
-        'tamanho_db_kb': tamanho_db_kb,
-        'tamanho_db_mb': round(tamanho_db_kb / 1024, 2),
-        'agora_str': agora_str,
-        'gdrive_folder_id': gdrive_folder_id,
-        'gdrive_configurado': gdrive_configurado,
-        'has_credentials_file': os.path.exists(creds_path)
-    }
-
-    return render_template('central_backup.html', stats=stats, logs_historico=logs_historico)
+        return render_template('central_backup.html', stats=stats, logs_historico=logs_historico)
+    except Exception as e:
+        app.logger.error(f"Erro ao carregar central_backup: {e}", exc_info=True)
+        flash(f"Atenção ao abrir Central de Backup: {str(e)}", "erro")
+        return redirect(url_for('dashboard'))
 
 
 @app.route('/admin/config-gdrive', methods=['POST'])
