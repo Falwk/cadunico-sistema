@@ -154,7 +154,7 @@ def inject_logos():
     return dict(
         logo_prefeitura=_logo_url('prefeitura.png'),
         logo_setas=_logo_url('setas.png'),
-        logo_cadunico=_logo_url('cadunico.png'),
+        logo_cadunico=_logo_url('cadunico_25anos.png') or _logo_url('cadunico.png'),
         logo_bolsafamilia=_logo_url('bolsafamilia.png'),
     )
 
