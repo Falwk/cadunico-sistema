@@ -676,7 +676,7 @@
   <aside class="sidebar">
     <div class="sidebar-brand">
       <a href="{{ url_for('dashboard') }}" class="sidebar-brand-box" title="Cadastro Único 25 Anos">
-        <img src="{{ url_for('static', filename='logos/cadunico_25anos.png') }}" alt="Cadastro Único 25 Anos">
+        <img src="{{ logo_cadunico_25_b64 or url_for('static', filename='logos/cadunico_25anos.png') }}" alt="Cadastro Único 25 Anos">
       </a>
     </div>
 

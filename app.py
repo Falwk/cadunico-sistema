@@ -148,13 +148,27 @@ def _logo_url(filename):
     return None
 
 
+import base64
+
 @app.context_processor
 def inject_logos():
     """Disponibiliza as logos em todos os templates via variáveis logo_*."""
+    logo_25_url = _logo_url('cadunico_25anos.png')
+    logo_25_b64 = None
+    path_25 = os.path.join(LOGOS_DIR, 'cadunico_25anos.png')
+    if os.path.exists(path_25):
+        try:
+            with open(path_25, 'rb') as f:
+                b64 = base64.b64encode(f.read()).decode('utf-8')
+                logo_25_b64 = f"data:image/png;base64,{b64}"
+        except Exception:
+            pass
+
     return dict(
         logo_prefeitura=_logo_url('prefeitura.png'),
         logo_setas=_logo_url('setas.png'),
-        logo_cadunico=_logo_url('cadunico_25anos.png') or _logo_url('cadunico.png'),
+        logo_cadunico=logo_25_url or _logo_url('cadunico.png'),
+        logo_cadunico_25_b64=logo_25_b64,
         logo_bolsafamilia=_logo_url('bolsafamilia.png'),
     )
 
