@@ -3002,21 +3002,41 @@ def _enviar_para_google_drive(zip_bytes, zip_filename):
             return False, "Arquivo 'credentials.json' ou a variável 'GOOGLE_CREDENTIALS_JSON' não encontrada. Cadastre as credenciais no formulário abaixo."
 
         folder_id = cfg.get('gdrive_folder_id', '').strip() or os.environ.get('GDRIVE_FOLDER_ID', '').strip() or None
+        
+        if not folder_id:
+            return False, (
+                "O ID da pasta do Google Drive não foi configurado. Como Contas de Serviço (Service Account) não possuem "
+                "espaço de armazenamento próprio, é obrigatório preencher o ID da pasta criada no seu Google Drive (ex: 1A2b3C4d5E...)."
+            )
 
         service = build('drive', 'v3', credentials=creds)
 
-        file_metadata = {'name': zip_filename}
-        if folder_id:
-            file_metadata['parents'] = [folder_id]
+        file_metadata = {
+            'name': zip_filename,
+            'parents': [folder_id]
+        }
 
         media = MediaIoBaseUpload(io.BytesIO(zip_bytes), mimetype='application/zip', resumable=True)
 
-        file_obj = service.files().create(body=file_metadata, media_body=media, fields='id, name, webViewLink').execute()
+        file_obj = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            supportsAllDrives=True,
+            fields='id, name, webViewLink'
+        ).execute()
         
         link = file_obj.get('webViewLink', '')
         return True, f"Backup enviado com sucesso para o Google Drive! Arquivo: {zip_filename}"
     except Exception as e:
-        return False, f"Erro ao enviar para o Google Drive: {str(e)}"
+        err_msg = str(e)
+        if "storageQuotaExceeded" in err_msg or "Service Accounts do not have storage quota" in err_msg:
+            return False, (
+                "Erro de Cota do Google Drive: A Conta de Serviço precisa salvar arquivos dentro da pasta compartilhada. "
+                "Por favor, verifique duas coisas:\n"
+                "1. Se o ID da pasta do Google Drive foi preenchido corretamente no campo abaixo.\n"
+                "2. Se você compartilhou a pasta 'Backup Cadastro Único' no seu Google Drive com o e-mail da Conta de Serviço dando permissão de 'Editor'."
+            )
+        return False, f"Erro ao enviar para o Google Drive: {err_msg}"
 
 
 def _count_table(conn, table_name):
