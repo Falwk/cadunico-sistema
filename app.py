@@ -180,14 +180,90 @@ import os as _os
 _CLOUDINARY_URL = _os.environ.get('CLOUDINARY_URL', '')
 
 
+def _comprimir_anexo_bytes(raw_bytes, filename_orig):
+    """Comprime arquivos PDF e Imagens para reduzir tamanho ocupado no armazenamento."""
+    if not raw_bytes:
+        return raw_bytes
+
+    ext = filename_orig.rsplit('.', 1)[-1].lower() if '.' in filename_orig else ''
+
+    # 1. Compressao de PDF via pypdf
+    if ext == 'pdf':
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(io.BytesIO(raw_bytes))
+            writer = pypdf.PdfWriter()
+            for page in reader.pages:
+                try:
+                    page.compress_content_streams()
+                except Exception:
+                    pass
+                writer.add_page(page)
+            
+            out = io.BytesIO()
+            writer.write(out)
+            compressed_bytes = out.getvalue()
+            if compressed_bytes and len(compressed_bytes) < len(raw_bytes):
+                app.logger.info(f"PDF comprimido: {len(raw_bytes)} B -> {len(compressed_bytes)} B")
+                return compressed_bytes
+        except Exception as ex_pdf:
+            app.logger.warning(f"Não foi possível comprimir PDF ({filename_orig}): {ex_pdf}")
+
+    # 2. Compressao de Imagens via PIL / Pillow
+    elif ext in ('jpg', 'jpeg', 'png', 'webp'):
+        try:
+            from PIL import Image
+            img = Image.open(io.BytesIO(raw_bytes))
+
+            if ext in ('jpg', 'jpeg') and img.mode in ('RGBA', 'P', 'LA'):
+                img = img.convert('RGB')
+
+            # Redimensiona se for maior que 1920px (preserva qualidade HD e reduz tamanho)
+            img.thumbnail((1920, 1920), Image.Resampling.LANCZOS)
+
+            out = io.BytesIO()
+            if ext in ('jpg', 'jpeg'):
+                img.save(out, format='JPEG', quality=75, optimize=True)
+            elif ext == 'png':
+                img.save(out, format='PNG', optimize=True)
+            elif ext == 'webp':
+                img.save(out, format='WEBP', quality=75, optimize=True)
+            else:
+                img.save(out, format=img.format or 'JPEG', quality=75, optimize=True)
+
+            compressed_bytes = out.getvalue()
+            if compressed_bytes and len(compressed_bytes) < len(raw_bytes):
+                app.logger.info(f"Imagem comprimida: {len(raw_bytes)} B -> {len(compressed_bytes)} B")
+                return compressed_bytes
+        except Exception as ex_img:
+            app.logger.warning(f"Não foi possível comprimir imagem ({filename_orig}): {ex_img}")
+
+    return raw_bytes
+
+
 def _upload_anexo(file_obj, pasta='visitas'):
-    """Faz upload para Cloudinary com fallback automático para armazenamento local em static/uploads/."""
+    """Comprime o anexo (PDF ou imagem) e salva no Cloudinary ou localmente em static/uploads/."""
     if not file_obj or not hasattr(file_obj, 'filename') or not file_obj.filename:
         return None, None
 
     filename_orig = file_obj.filename.strip()
     if not filename_orig:
         return None, None
+
+    try:
+        file_obj.seek(0)
+        if hasattr(file_obj, 'read'):
+            raw_bytes = file_obj.read()
+        else:
+            raw_bytes = file_obj.getvalue()
+    except Exception:
+        return None, None
+
+    if not raw_bytes:
+        return None, None
+
+    # Aplica compressao automatica (PDF / Imagem)
+    final_bytes = _comprimir_anexo_bytes(raw_bytes, filename_orig)
 
     # 1. Tenta Cloudinary primeiro se configurado
     if _CLOUDINARY_URL or (
@@ -203,9 +279,10 @@ def _upload_anexo(file_obj, pasta='visitas'):
                 api_key=_os.environ.get('CLOUDINARY_API_KEY', ''),
                 api_secret=_os.environ.get('CLOUDINARY_API_SECRET', ''),
             )
-            file_obj.seek(0)
+            file_stream = io.BytesIO(final_bytes)
+            file_stream.filename = filename_orig
             result = cloudinary.uploader.upload(
-                file_obj,
+                file_stream,
                 folder=pasta,
                 resource_type='auto',
             )
@@ -213,7 +290,7 @@ def _upload_anexo(file_obj, pasta='visitas'):
         except Exception as e:
             app.logger.error(f'Cloudinary upload error: {e}')
 
-    # 2. FALLBACK AUTOMÁTICO LOCAL: Salva em static/uploads/{pasta}/
+    # 2. FALLBACK AUTOMÁTICO LOCAL: Salva os bytes comprimidos em static/uploads/{pasta}/
     try:
         import uuid
         from werkzeug.utils import secure_filename
@@ -233,12 +310,8 @@ def _upload_anexo(file_obj, pasta='visitas'):
         os.makedirs(upload_dir, exist_ok=True)
 
         dest_path = os.path.join(upload_dir, unique_name)
-        file_obj.seek(0)
-        if hasattr(file_obj, 'save'):
-            file_obj.save(dest_path)
-        else:
-            with open(dest_path, 'wb') as f_out:
-                f_out.write(file_obj.read())
+        with open(dest_path, 'wb') as f_out:
+            f_out.write(final_bytes)
 
         relative_url = f'/static/uploads/{pasta}/{unique_name}'
         return relative_url, filename_orig
