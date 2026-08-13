@@ -147,6 +147,20 @@
 
   </div>{# /card principal #}
 
+  {# ── Documento / Anexo da Solicitação ────────────────────────────────── #}
+  {% if visita.anexo_url %}
+  <div class="card" style="border:1.5px solid #0284C7; background:#F0F9FF;">
+    <div class="card-title" style="color:#0369A1; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <span style="display:flex; align-items:center; gap:8px; font-weight:800;">
+        📎 Documento / Anexo da Solicitação de Visita
+      </span>
+      <a href="{{ visita.anexo_url }}" target="_blank" class="btn btn-primary" download="{{ visita.anexo_nome or 'anexo' }}" style="background:#0284C7; border-color:#0369A1; font-weight:700; padding:8px 18px; font-size:0.88rem;">
+        ⬇️ Visualizar / Baixar Anexo ({{ visita.anexo_nome or 'Documento Anexado' }})
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
   {# ── Parecer da Assistente Social ─────────────────────────────────────── #}
   {% if visita.parecer_tecnico_txt or visita.parecer_as_url %}
   <div class="card" style="border:1.5px solid var(--cad-verde); background:#F0FDF4;">

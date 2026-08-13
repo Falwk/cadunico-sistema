@@ -181,29 +181,69 @@ _CLOUDINARY_URL = _os.environ.get('CLOUDINARY_URL', '')
 
 
 def _upload_anexo(file_obj, pasta='visitas'):
-    """Faz upload para Cloudinary e retorna (url, nome_original) ou (None, None)."""
-    if not _CLOUDINARY_URL and not (
+    """Faz upload para Cloudinary com fallback automático para armazenamento local em static/uploads/."""
+    if not file_obj or not hasattr(file_obj, 'filename') or not file_obj.filename:
+        return None, None
+
+    filename_orig = file_obj.filename.strip()
+    if not filename_orig:
+        return None, None
+
+    # 1. Tenta Cloudinary primeiro se configurado
+    if _CLOUDINARY_URL or (
         _os.environ.get('CLOUDINARY_CLOUD_NAME') and
         _os.environ.get('CLOUDINARY_API_KEY') and
         _os.environ.get('CLOUDINARY_API_SECRET')
     ):
-        return None, None
+        try:
+            import cloudinary
+            import cloudinary.uploader
+            cloudinary.config(
+                cloud_name=_os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
+                api_key=_os.environ.get('CLOUDINARY_API_KEY', ''),
+                api_secret=_os.environ.get('CLOUDINARY_API_SECRET', ''),
+            )
+            file_obj.seek(0)
+            result = cloudinary.uploader.upload(
+                file_obj,
+                folder=pasta,
+                resource_type='auto',
+            )
+            return result['secure_url'], filename_orig
+        except Exception as e:
+            app.logger.error(f'Cloudinary upload error: {e}')
+
+    # 2. FALLBACK AUTOMÁTICO LOCAL: Salva em static/uploads/{pasta}/
     try:
-        import cloudinary
-        import cloudinary.uploader
-        cloudinary.config(
-            cloud_name=_os.environ.get('CLOUDINARY_CLOUD_NAME', ''),
-            api_key=_os.environ.get('CLOUDINARY_API_KEY', ''),
-            api_secret=_os.environ.get('CLOUDINARY_API_SECRET', ''),
-        )
-        result = cloudinary.uploader.upload(
-            file_obj,
-            folder=pasta,
-            resource_type='auto',
-        )
-        return result['secure_url'], file_obj.filename
-    except Exception as e:
-        app.logger.error(f'Cloudinary upload error: {e}')
+        import uuid
+        from werkzeug.utils import secure_filename
+
+        ext = ''
+        if '.' in filename_orig:
+            ext = '.' + filename_orig.rsplit('.', 1)[1].lower()
+        
+        raw_base = filename_orig.rsplit('.', 1)[0] if '.' in filename_orig else filename_orig
+        safe_base = secure_filename(raw_base)
+        if not safe_base:
+            safe_base = 'anexo'
+            
+        unique_name = f"{uuid.uuid4().hex[:10]}_{safe_base}{ext}"
+
+        upload_dir = os.path.join(app.root_path, 'static', 'uploads', pasta)
+        os.makedirs(upload_dir, exist_ok=True)
+
+        dest_path = os.path.join(upload_dir, unique_name)
+        file_obj.seek(0)
+        if hasattr(file_obj, 'save'):
+            file_obj.save(dest_path)
+        else:
+            with open(dest_path, 'wb') as f_out:
+                f_out.write(file_obj.read())
+
+        relative_url = f'/static/uploads/{pasta}/{unique_name}'
+        return relative_url, filename_orig
+    except Exception as ex_local:
+        app.logger.error(f'Erro no fallback local de anexo: {ex_local}')
         return None, None
 
 
