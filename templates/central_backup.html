@@ -100,6 +100,13 @@
           <textarea name="gdrive_json_txt" rows="4" placeholder='{"type": "service_account", "project_id": "...", "private_key": "..."}' style="font-family:monospace; font-size:0.82rem; padding:10px;"></textarea>
         </div>
 
+        <div class="form-group" style="margin-top:14px;">
+          <label style="font-weight:700;">E-mail de Delegação Google Workspace (Opcional):</label>
+          <input type="email" name="gdrive_delegate_email" value="{{ stats.gdrive_delegate_email or '' }}" 
+                 placeholder="ex: admin@tomeacu.pa.gov.br (para contas institucionais Workspace)" style="padding:10px;">
+          <small style="color:#64748B;">Se usar Google Workspace, insira o e-mail do usuário para imitar sua cota de armazenamento.</small>
+        </div>
+
         <div style="text-align:right; margin-top:14px;">
           <button type="submit" class="btn btn-outline" style="border-color:#047857; color:#047857; font-weight:700; background:#ECFDF5;">
             💾 Salvar Configurações do Google Drive

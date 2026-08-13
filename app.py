@@ -3001,12 +3001,20 @@ def _enviar_para_google_drive(zip_bytes, zip_filename):
         else:
             return False, "Arquivo 'credentials.json' ou a variável 'GOOGLE_CREDENTIALS_JSON' não encontrada. Cadastre as credenciais no formulário abaixo."
 
+        # Suporte a e-mail de delegação (Domain-Wide Delegation em Google Workspace)
+        delegate_email = cfg.get('gdrive_delegate_email', '').strip() or os.environ.get('GDRIVE_DELEGATE_EMAIL', '').strip()
+        if delegate_email and hasattr(creds, 'with_subject'):
+            try:
+                creds = creds.with_subject(delegate_email)
+            except Exception as ex_del:
+                app.logger.warning(f"Erro ao aplicar e-mail de delegação: {ex_del}")
+
         folder_id = cfg.get('gdrive_folder_id', '').strip() or os.environ.get('GDRIVE_FOLDER_ID', '').strip() or None
         
         if not folder_id:
             return False, (
                 "O ID da pasta do Google Drive não foi configurado. Como Contas de Serviço (Service Account) não possuem "
-                "espaço de armazenamento próprio, é obrigatório preencher o ID da pasta criada no seu Google Drive (ex: 1A2b3C4d5E...)."
+                "espaço de armazenamento próprio, é obrigatório preencher o ID da pasta criada no seu Google Drive."
             )
 
         service = build('drive', 'v3', credentials=creds)
@@ -3022,6 +3030,7 @@ def _enviar_para_google_drive(zip_bytes, zip_filename):
             body=file_metadata,
             media_body=media,
             supportsAllDrives=True,
+            supportsTeamDrives=True,
             fields='id, name, webViewLink'
         ).execute()
         
@@ -3031,10 +3040,14 @@ def _enviar_para_google_drive(zip_bytes, zip_filename):
         err_msg = str(e)
         if "storageQuotaExceeded" in err_msg or "Service Accounts do not have storage quota" in err_msg:
             return False, (
-                "Erro de Cota do Google Drive: A Conta de Serviço precisa salvar arquivos dentro da pasta compartilhada. "
-                "Por favor, verifique duas coisas:\n"
-                "1. Se o ID da pasta do Google Drive foi preenchido corretamente no campo abaixo.\n"
-                "2. Se você compartilhou a pasta 'Backup Cadastro Único' no seu Google Drive com o e-mail da Conta de Serviço dando permissão de 'Editor'."
+                "⚠️ Erro de Cota do Google Drive (storageQuotaExceeded):\n\n"
+                "As Contas de Serviço (Service Accounts) possuem cota 0 MB. Para que o Google receba o backup automaticamente, siga uma destas soluções simples:\n\n"
+                "📌 SOLUÇÃO 1 (Recomendada - Drive Compartilhado):\n"
+                "No seu Google Drive, vá em 'Drives compartilhados' ➔ 'Novo Drive Compartilhado' (ou crie a pasta dentro de um Drive de Equipe), adicione o e-mail da Conta de Serviço como membro/administrador e insira o ID da pasta abaixo.\n\n"
+                "📌 SOLUÇÃO 2 (Delegação Google Workspace):\n"
+                "Se a conta for Google Workspace da prefeitura, preencha o campo 'E-mail de Delegação' com seu e-mail institucional no formulário de configuração abaixo.\n\n"
+                "📌 SOLUÇÃO 3 (Download Direto):\n"
+                "Você pode usar a opção 'Baixar Backup Completo (.ZIP)' abaixo para baixar diretamente no computador."
             )
         return False, f"Erro ao enviar para o Google Drive: {err_msg}"
 
@@ -3129,6 +3142,7 @@ def central_backup():
             'tamanho_db_mb': round(tamanho_db_kb / 1024, 2),
             'agora_str': agora_str,
             'gdrive_folder_id': gdrive_folder_id,
+            'gdrive_delegate_email': cfg.get('gdrive_delegate_email', '').strip() or os.environ.get('GDRIVE_DELEGATE_EMAIL', '').strip(),
             'gdrive_configurado': gdrive_configurado,
             'has_credentials_file': os.path.exists(creds_path)
         }
@@ -3150,6 +3164,10 @@ def config_gdrive():
     if folder_id:
         set_config('gdrive_folder_id', folder_id)
 
+    delegate_email = request.form.get('gdrive_delegate_email', '').strip()
+    if delegate_email:
+        set_config('gdrive_delegate_email', delegate_email)
+
     file_creds = request.files.get('credentials_file')
     if file_creds and file_creds.filename:
         dest_p = os.path.join(BASE_DIR, 'credentials.json')
@@ -3167,7 +3185,7 @@ def config_gdrive():
             pass
         flash('Credenciais JSON salvas no sistema com sucesso!', 'ok')
 
-    audit('CONFIG_GOOGLE_DRIVE', f"folder_id={folder_id}")
+    audit('CONFIG_GOOGLE_DRIVE', f"folder_id={folder_id} delegate={delegate_email}")
     flash('Configurações do Google Drive atualizadas com sucesso!', 'ok')
     return redirect(url_for('central_backup'))
 
