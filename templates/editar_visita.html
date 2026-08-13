@@ -146,24 +146,7 @@
     </div>
     {% endif %}
 
-    {# ── Seção 5: Novo Anexo ─────────────────────────────────────────── #}
-    <div class="card">
-      <div class="card-title">Anexo <span class="text-muted" style="font-weight:400">(opcional)</span></div>
-      {% if visita.anexo_nome %}
-      <p style="margin-bottom:10px;font-size:.88rem">
-        Anexo atual: <a href="{{ visita.anexo_url }}" target="_blank">{{ visita.anexo_nome }}</a>
-      </p>
-      {% endif %}
-      <div class="form-group">
-        <label for="anexo">Substituir arquivo</label>
-        <input type="file" id="anexo" name="anexo"
-               accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
-               style="padding:8px 0">
-        <p class="text-muted" style="margin-top:6px;font-size:.82rem">
-          Formatos aceitos: PDF, DOC, DOCX, PNG, JPG/JPEG. Tamanho máximo: 10 MB.
-        </p>
-      </div>
-    </div>
+
 
     {# ── Seção 6: Parecer da Assistente Social ────────────────────────── #}
     <div class="card">
