@@ -164,8 +164,19 @@ def inject_logos():
         except Exception:
             pass
 
+    logo_pref_b64 = None
+    path_pref = os.path.join(LOGOS_DIR, 'prefeitura.png')
+    if os.path.exists(path_pref):
+        try:
+            with open(path_pref, 'rb') as f:
+                b64_p = base64.b64encode(f.read()).decode('utf-8')
+                logo_pref_b64 = f"data:image/png;base64,{b64_p}"
+        except Exception:
+            pass
+
     return dict(
         logo_prefeitura=_logo_url('prefeitura.png'),
+        logo_prefeitura_b64=logo_pref_b64,
         logo_setas=_logo_url('setas.png'),
         logo_cadunico=logo_25_url or _logo_url('cadunico.png'),
         logo_cadunico_25_b64=logo_25_b64,
