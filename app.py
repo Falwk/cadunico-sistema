@@ -3118,7 +3118,7 @@ _BACKUP_12H_RUNNING = False
 
 
 def _executar_backup_local_automatico():
-    """Gera o backup ZIP completo e salva localmente em backups_locais/ rotacionando cópias antigas."""
+    """Gera o backup ZIP completo e salva localmente em backups_locais/ rotacionando cópias antigas e enviando ao Google Drive se configurado."""
     try:
         buf, zip_filename = _gerar_backup_zip_bytes()
         zip_bytes = buf.getvalue()
@@ -3145,21 +3145,38 @@ def _executar_backup_local_automatico():
             except Exception:
                 pass
 
+        # Se o Google Drive estiver configurado, envia a copia automatica de 12h tambem para a nuvem!
+        gdrive_msg = ""
+        try:
+            cfg = get_config()
+            gdrive_folder_id = cfg.get('gdrive_folder_id', '').strip() or os.environ.get('GDRIVE_FOLDER_ID', '').strip()
+            creds_path = os.path.join(BASE_DIR, 'credentials.json')
+            gdrive_configurado = bool(gdrive_folder_id) or os.path.exists(creds_path) or bool(os.environ.get('GOOGLE_CREDENTIALS_JSON')) or bool(cfg.get('gdrive_credentials_json', ''))
+            
+            if gdrive_configurado:
+                ok_gd, res_gd = _enviar_para_google_drive(zip_bytes, dest_filename)
+                if ok_gd:
+                    gdrive_msg = " + Enviado ao Google Drive"
+                else:
+                    gdrive_msg = f" (Google Drive: {res_gd[:60]})"
+        except Exception as ex_gd:
+            app.logger.warning(f"Erro ao tentar enviar backup 12h para Google Drive: {ex_gd}")
+
         try:
             conn = get_db()
             _exec(conn,
                 "INSERT INTO audit_log (usuario_id, usuario_nome, acao, detalhe, criado_em) VALUES (?,?,?,?,?)",
-                (1, 'Sistema (Agendador 12h)', 'BACKUP_LOCAL_AUTOMATICO', f"arquivo={dest_filename}", datetime.now(_TZ_BELEM).isoformat())
+                (1, 'Sistema (Agendador 12h)', 'BACKUP_LOCAL_AUTOMATICO', f"arquivo={dest_filename}{gdrive_msg}", datetime.now(_TZ_BELEM).isoformat())
             )
             conn.commit()
             conn.close()
         except Exception:
             pass
 
-        app.logger.info(f"Backup local automático de 12h gerado com sucesso: {dest_filename}")
-        return True, f"Backup local gerado com sucesso: {dest_filename}"
+        app.logger.info(f"Backup 12h gerado com sucesso: {dest_filename}{gdrive_msg}")
+        return True, f"Backup gerado com sucesso: {dest_filename}{gdrive_msg}"
     except Exception as e:
-        app.logger.error(f"Erro ao gerar backup local automático de 12h: {e}")
+        app.logger.error(f"Erro ao gerar backup automático de 12h: {e}")
         return False, str(e)
 
 
