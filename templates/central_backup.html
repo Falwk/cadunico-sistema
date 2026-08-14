@@ -46,6 +46,70 @@
 
   </div>
 
+  {# ── Card Backup Local Automático 12h ──────────────────────────────── #}
+  <div class="card" style="margin-bottom:24px; border:1.5px solid #2563EB; background:#EFF6FF;">
+    <div class="card-title" style="color:#1D4ED8; font-weight:800; font-size:1.1rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <span style="display:flex; align-items:center; gap:8px;">
+        ⏰ Backup Local Automático a cada 12 Horas
+      </span>
+      <span class="tag" style="background:#DBEAFE; color:#1E40AF; border:1px solid #93C5FD; font-weight:700; font-size:0.8rem; padding:4px 10px;">
+        🟢 Agendador Ativo (A cada 12 horas)
+      </span>
+    </div>
+
+    <p style="font-size:0.9rem; color:#1E293B; line-height:1.6; margin-bottom:16px;">
+      O sistema executa automaticamente em segundo plano um backup completo local a cada 12 horas, salvando no disco do servidor e mantendo o histórico de rotação dos últimos 7 dias (14 cópias).
+    </p>
+
+    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:20px;">
+      <form method="POST" action="{{ url_for('backup_local_agora') }}" style="margin:0;">
+        <button type="submit" class="btn btn-primary" style="background:#2563EB; border-color:#1D4ED8; font-weight:800; padding:10px 20px; font-size:0.9rem; display:flex; align-items:center; gap:6px;">
+          ⚡ Executar Backup Local Agora
+        </button>
+      </form>
+    </div>
+
+    {% if stats.backups_locais_lista %}
+    <div class="table-wrap" style="background:#FFFFFF; border-radius:8px; border:1px solid #BFDBFE; overflow-x:auto;">
+      <table class="table" style="margin:0;">
+        <thead>
+          <tr style="background:#F1F5F9;">
+            <th>Arquivo de Backup (.ZIP)</th>
+            <th>Data e Hora do Backup</th>
+            <th>Tamanho</th>
+            <th style="text-align:right;">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in stats.backups_locais_lista %}
+          <tr>
+            <td>
+              <strong style="color:#1E40AF; font-size:0.88rem;">📦 {{ b.filename }}</strong>
+            </td>
+            <td style="font-size:0.85rem; color:#475569;">{{ b.criado_em }}</td>
+            <td style="font-size:0.85rem; color:#475569;">{{ b.tamanho_mb }} MB</td>
+            <td style="text-align:right;">
+              <div style="display:flex; gap:8px; justify-content:flex-end;">
+                <a href="{{ url_for('download_backup_local', filename=b.filename) }}" class="btn btn-outline btn-sm" style="border-color:#2563EB; color:#2563EB; font-weight:700; padding:4px 10px;">
+                  ⬇️ Baixar
+                </a>
+                <form method="POST" action="{{ url_for('excluir_backup_local', filename=b.filename) }}" style="margin:0;" onsubmit="return confirm('Deseja realmente excluir esta cópia de backup local?')">
+                  <button type="submit" class="btn btn-danger btn-sm" style="padding:4px 10px;">🗑️ Excluir</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div style="background:#FFFFFF; border:1px dashed #BFDBFE; border-radius:8px; padding:16px; text-align:center; color:#64748B; font-size:0.88rem;">
+        Nenhum backup local salvo até o momento. O primeiro backup será gerado automaticamente em 12 horas ou ao clicar no botão acima.
+      </div>
+    {% endif %}
+  </div>
+
   {# ── Card Integration Google Drive ──────────────────────────────────── #}
   <div class="card" style="margin-bottom:24px; border:1.5px solid #10B981; background:#F0FDF4;">
     <div class="card-title" style="color:#047857; font-weight:800; font-size:1.1rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">

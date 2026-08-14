@@ -1197,6 +1197,11 @@ def init_db():
         conn.commit()
         conn.close()
 
+    try:
+        _iniciar_scheduler_backup_12h()
+    except Exception as ex_sch:
+        app.logger.warning(f"Não foi possível iniciar o agendador de backup 12h: {ex_sch}")
+
 
 def audit(acao: str, detalhe: str = ''):
     """Registra uma ação no log de auditoria."""
@@ -3103,6 +3108,92 @@ def _gerar_backup_zip_bytes():
     return buf, zip_filename
 
 
+# ---------------------------------------------------------------------------
+# Agendador de Backup Local Automático a cada 12 Horas
+# ---------------------------------------------------------------------------
+import threading
+import time
+
+_BACKUP_12H_RUNNING = False
+
+
+def _executar_backup_local_automatico():
+    """Gera o backup ZIP completo e salva localmente em backups_locais/ rotacionando cópias antigas."""
+    try:
+        buf, zip_filename = _gerar_backup_zip_bytes()
+        zip_bytes = buf.getvalue()
+        backup_dir = os.path.join(BASE_DIR, 'backups_locais')
+        os.makedirs(backup_dir, exist_ok=True)
+
+        hoje_str = datetime.now(_TZ_BELEM).strftime('%Y-%m-%d_%H%M%S')
+        dest_filename = f"Backup_CadUnico_12H_{hoje_str}.zip"
+        dest_path = os.path.join(backup_dir, dest_filename)
+
+        with open(dest_path, 'wb') as f:
+            f.write(zip_bytes)
+
+        # Rotaciona mantendo os ultimos 14 backups (7 dias a cada 12h)
+        arquivos = sorted([
+            os.path.join(backup_dir, fn) for fn in os.listdir(backup_dir)
+            if fn.startswith('Backup_CadUnico_12H_') and fn.endswith('.zip')
+        ], key=os.path.getmtime)
+
+        while len(arquivos) > 14:
+            rem = arquivos.pop(0)
+            try:
+                os.remove(rem)
+            except Exception:
+                pass
+
+        try:
+            conn = get_db()
+            _exec(conn,
+                "INSERT INTO audit_log (usuario_id, usuario_nome, acao, detalhe, criado_em) VALUES (?,?,?,?,?)",
+                (1, 'Sistema (Agendador 12h)', 'BACKUP_LOCAL_AUTOMATICO', f"arquivo={dest_filename}", datetime.now(_TZ_BELEM).isoformat())
+            )
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+        app.logger.info(f"Backup local automático de 12h gerado com sucesso: {dest_filename}")
+        return True, f"Backup local gerado com sucesso: {dest_filename}"
+    except Exception as e:
+        app.logger.error(f"Erro ao gerar backup local automático de 12h: {e}")
+        return False, str(e)
+
+
+def _loop_backup_12h():
+    """Loop contínuo em segundo plano que executa o backup local a cada 12 horas."""
+    global _BACKUP_12H_RUNNING
+    _BACKUP_12H_RUNNING = True
+    INTERVALO_12H = 12 * 3600  # 43.200 segundos
+
+    # Executa um backup inicial se ainda não houver nenhum na pasta
+    try:
+        backup_dir = os.path.join(BASE_DIR, 'backups_locais')
+        os.makedirs(backup_dir, exist_ok=True)
+        arquivos = [fn for fn in os.listdir(backup_dir) if fn.endswith('.zip')]
+        if not arquivos:
+            _executar_backup_local_automatico()
+    except Exception:
+        pass
+
+    while True:
+        time.sleep(INTERVALO_12H)
+        try:
+            _executar_backup_local_automatico()
+        except Exception as e:
+            app.logger.error(f"Erro no loop de 12h do backup local: {e}")
+
+
+def _iniciar_scheduler_backup_12h():
+    global _BACKUP_12H_RUNNING
+    if not _BACKUP_12H_RUNNING:
+        t = threading.Thread(target=_loop_backup_12h, daemon=True)
+        t.start()
+
+
 def _enviar_para_google_drive(zip_bytes, zip_filename):
     """Envia o backup em formato ZIP para a pasta configurada no Google Drive."""
     try:
@@ -3257,6 +3348,24 @@ def central_backup():
         creds_path = os.path.join(BASE_DIR, 'credentials.json')
         gdrive_configurado = bool(gdrive_folder_id) or os.path.exists(creds_path) or bool(os.environ.get('GOOGLE_CREDENTIALS_JSON')) or bool(cfg.get('gdrive_credentials_json', ''))
 
+        # Lista backups locais salvos em backups_locais/
+        backups_locais_lista = []
+        backup_dir = os.path.join(BASE_DIR, 'backups_locais')
+        if os.path.exists(backup_dir):
+            for fn in sorted(os.listdir(backup_dir), reverse=True):
+                if fn.endswith('.zip'):
+                    fp = os.path.join(backup_dir, fn)
+                    try:
+                        sz_mb = round(os.path.getsize(fp) / (1024 * 1024), 2)
+                        dt_mod = datetime.fromtimestamp(os.path.getmtime(fp), _TZ_BELEM).strftime('%d/%m/%Y às %H:%M:%S')
+                        backups_locais_lista.append({
+                            'filename': fn,
+                            'tamanho_mb': sz_mb,
+                            'criado_em': dt_mod,
+                        })
+                    except Exception:
+                        pass
+
         stats = {
             'total_usuarios': total_usuarios,
             'total_atendimentos': total_atendimentos,
@@ -3268,7 +3377,9 @@ def central_backup():
             'gdrive_folder_id': gdrive_folder_id,
             'gdrive_delegate_email': cfg.get('gdrive_delegate_email', '').strip() or os.environ.get('GDRIVE_DELEGATE_EMAIL', '').strip(),
             'gdrive_configurado': gdrive_configurado,
-            'has_credentials_file': os.path.exists(creds_path)
+            'has_credentials_file': os.path.exists(creds_path),
+            'backups_locais_lista': backups_locais_lista,
+            'total_backups_locais': len(backups_locais_lista)
         }
 
         return render_template('central_backup.html', stats=stats, logs_historico=logs_historico)
@@ -3276,6 +3387,60 @@ def central_backup():
         app.logger.error(f"Erro ao carregar central_backup: {e}", exc_info=True)
         flash(f"Atenção ao abrir Central de Backup: {str(e)}", "erro")
         return redirect(url_for('dashboard'))
+
+
+@app.route('/admin/backup/local-agora', methods=['POST'])
+def backup_local_agora():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    sucesso, msg = _executar_backup_local_automatico()
+    if sucesso:
+        flash(f'✓ {msg}', 'ok')
+    else:
+        flash(f'Erro ao executar backup local: {msg}', 'erro')
+    return redirect(url_for('central_backup'))
+
+
+@app.route('/admin/backup/local/download/<path:filename>', methods=['GET'])
+def download_backup_local(filename):
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    filename = os.path.basename(filename)
+    backup_dir = os.path.join(BASE_DIR, 'backups_locais')
+    fp = os.path.join(backup_dir, filename)
+
+    if not os.path.exists(fp):
+        flash('Arquivo de backup local não encontrado.', 'erro')
+        return redirect(url_for('central_backup'))
+
+    return send_file(fp, mimetype='application/zip', as_attachment=True, download_name=filename)
+
+
+@app.route('/admin/backup/local/excluir/<path:filename>', methods=['POST'])
+def excluir_backup_local(filename):
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    filename = os.path.basename(filename)
+    backup_dir = os.path.join(BASE_DIR, 'backups_locais')
+    fp = os.path.join(backup_dir, filename)
+
+    if os.path.exists(fp):
+        try:
+            os.remove(fp)
+            audit('BACKUP_LOCAL_EXCLUIDO', f"arquivo={filename}")
+            flash('Backup local excluído com sucesso.', 'ok')
+        except Exception as e:
+            flash(f'Erro ao excluir arquivo: {e}', 'erro')
+    else:
+        flash('Arquivo não encontrado.', 'erro')
+
+    return redirect(url_for('central_backup'))
 
 
 @app.route('/admin/config-gdrive', methods=['POST'])
