@@ -4246,7 +4246,7 @@ def nova_visita():
             conn.close()
             audit('VISITA_CRIADA', f"cpf={cpf_rf} nome={nome_rf} id={novo_id}")
             flash('Solicitação de visita registrada com sucesso!', 'ok')
-            return redirect(url_for('painel_visitas'))
+            return redirect(url_for('detalhe_visita', visita_id=novo_id, imprimir=1))
 
         conn.close()
         return render_template('nova_visita.html', erros=erros, form=form, usuarios=usuarios)

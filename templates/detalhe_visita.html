@@ -2,6 +2,40 @@
 {% block content %}
 <div class="container" style="max-width:900px">
 
+  {# ── Banner de Impressão Imediata (quando recém-criada) ───────────────── #}
+  {% if request.args.get('imprimir') == '1' %}
+  <div class="card" style="border:2px solid #059669; background:#ECFDF5; margin-bottom:20px; box-shadow:0 4px 14px rgba(5,150,105,0.15);">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span style="font-size:1.8rem;">🎉</span>
+        <div>
+          <h3 style="margin:0; color:#047857; font-weight:800; font-size:1.1rem;">
+            Solicitação de Visita {{ visita.numero_vd or ('#' ~ visita.id) }} Criada com Sucesso!
+          </h3>
+          <p style="margin:2px 0 0 0; color:#065F46; font-size:0.88rem;">
+            A Requisição de Visita Domiciliar em PDF está pronta para ser impressa.
+          </p>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <a href="{{ url_for('pdf_visita', visita_id=visita.id) }}" target="_blank" class="btn btn-primary" style="background:#059669; border-color:#047857; font-weight:800; padding:10px 20px; font-size:0.92rem; display:flex; align-items:center; gap:6px;">
+          🖨️ Imprimir Requisição (PDF)
+        </a>
+        <a href="{{ url_for('painel_visitas') }}" class="btn btn-outline" style="border-color:#059669; color:#047857; font-weight:700;">
+          📋 Ir para o Painel
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Auto-abre o PDF em uma nova aba para impressao imediata
+    try {
+      window.open("{{ url_for('pdf_visita', visita_id=visita.id) }}", '_blank');
+    } catch(e) {}
+  </script>
+  {% endif %}
+
   {# ── Cabeçalho ────────────────────────────────────────────────────────── #}
   <div class="flex" style="margin-bottom:20px;flex-wrap:wrap;gap:10px">
     <h1 class="page-title mb-0">Detalhes da Solicitação de Visita</h1>
