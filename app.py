@@ -495,7 +495,7 @@ def _config_defaults() -> dict:
         'prazo_visita_Atualizacao Cadastral': '15',
         'prazo_visita_Inclusao Cadastral': '15',
         'visita_titulo_doc': 'SOLICITAÇÃO DE VISITA DOMICILIAR',
-        'visita_subtitulo_doc': 'Secretaria Municipal de Assistência Social - Setor do Cadastro Único / PBF',
+        'visita_subtitulo_doc': 'Secretaria Municipal de Trabalho e Assistência Social - Setor do Cadastro Único / PBF',
         'visita_orientacao_texto': (
             'A visita domiciliar é uma ação de acompanhamento cadastral e socioassistencial. '
             'O entrevistador/assistente social deve averiguar as informações declaradas, registrando o parecer '
@@ -666,7 +666,7 @@ def _build_pdf_story(visita, solicitante, responsavel, cfg: dict) -> list:
 
     # ── Título do Documento (Configurável pelo Admin) ─────────────────────────
     titulo_doc = cfg.get('visita_titulo_doc', 'SOLICITAÇÃO DE VISITA DOMICILIAR').upper()
-    subtitulo_doc = cfg.get('visita_subtitulo_doc', 'Secretaria Municipal de Assistência Social - Setor do Cadastro Único / PBF')
+    subtitulo_doc = cfg.get('visita_subtitulo_doc', 'Secretaria Municipal de Trabalho e Assistência Social - Setor do Cadastro Único / PBF')
 
     titulo_tbl = Table([
         [par(titulo_doc, size=12, bold=True, color=verde_escuro, align='CENTER')],
@@ -4852,7 +4852,7 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
     
     cfg = get_config()
     municipio = cfg.get('municipio', 'Tomé-Açu / PA')
-    setor = setor_nome or cfg.get('setor_nome', 'Secretaria Municipal de Assistência Social — SETAS')
+    setor = setor_nome or cfg.get('setor_nome', 'Secretaria Municipal de Trabalho e Assistência Social — SETAS')
     operador = operador_nome or 'Servidor Responsável'
 
     num_vd = f"VD-{agora_belem.year}-{numero_seq:06d}"
