@@ -4837,7 +4837,7 @@ def historico_familia(cpf):
 # ---------------------------------------------------------------------------
 
 def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', endereco='', numero_seq=1, operador_nome='', setor_nome=''):
-    """Gera o modelo HTML oficial de documentos do sistema com suporte a tags {{tag}}."""
+    """Gera o modelo HTML oficial de documentos do sistema com o cabeçalho institucional oficial anexado pelo usuário."""
     agora_belem = datetime.now(_TZ_BELEM)
     data_extenso = agora_belem.strftime('%d de %B de %Y').replace('January', 'janeiro').replace('February', 'fevereiro').replace('March', 'março').replace('April', 'abril').replace('May', 'maio').replace('June', 'junho').replace('July', 'julho').replace('August', 'agosto').replace('September', 'setembro').replace('October', 'outubro').replace('November', 'novembro').replace('December', 'dezembro')
     data_curta = agora_belem.strftime('%d/%m/%Y')
@@ -4849,19 +4849,22 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
 
     num_vd = f"VD-{agora_belem.year}-{numero_seq:06d}"
 
-    if tipo == 'parecer':
-        return f"""<div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #047857; padding-bottom: 12px;">
-    <h3 style="margin: 0; color: #047857; font-size: 15pt; font-weight: bold; text-transform: uppercase;">
-        PREFEITURA MUNICIPAL DE TOMÉ-AÇU
-    </h3>
-    <h4 style="margin: 3px 0 0 0; color: #334155; font-size: 11pt; font-weight: bold;">
-        SECRETARIA MUNICIPAL DE ASSISTÊNCIA SOCIAL — SETAS
-    </h4>
-    <p style="margin: 2px 0 0 0; color: #64748B; font-size: 8.5pt;">
-        Serviço Social do Cadastro Único e Programa Bolsa Família
-    </p>
-</div>
+    header_img_src = "/static/logos/cabecalho_visita.png"
+    path_cab = os.path.join(LOGOS_DIR, 'cabecalho_visita.png')
+    if os.path.exists(path_cab):
+        try:
+            with open(path_cab, 'rb') as f:
+                b64_c = base64.b64encode(f.read()).decode('utf-8')
+                header_img_src = f"data:image/png;base64,{b64_c}"
+        except Exception:
+            pass
 
+    header_banner_html = f"""<div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #047857; padding-bottom: 8px;">
+    <img src="{header_img_src}" alt="Cabeçalho Oficial Prefeitura Municipal de Tomé-Açu - SETAS - Cadastro Único - Bolsa Família" style="width: 100%; max-height: 120px; object-fit: contain;">
+</div>"""
+
+    if tipo == 'parecer':
+        return f"""{header_banner_html}
 <div style="text-align: center; margin: 20px 0;">
     <h2 style="font-size: 14pt; font-weight: bold; color: #047857; text-decoration: underline; margin: 0;">
         PARECER TÉCNICO SOCIAL — SERVIÇO SOCIAL
@@ -4910,18 +4913,7 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
 </div>"""
 
     elif tipo == 'relatorio':
-        return f"""<div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #047857; padding-bottom: 12px;">
-    <h3 style="margin: 0; color: #047857; font-size: 15pt; font-weight: bold; text-transform: uppercase;">
-        PREFEITURA MUNICIPAL DE TOMÉ-AÇU
-    </h3>
-    <h4 style="margin: 3px 0 0 0; color: #334155; font-size: 11pt; font-weight: bold;">
-        SECRETARIA MUNICIPAL DE ASSISTÊNCIA SOCIAL — SETAS
-    </h4>
-    <p style="margin: 2px 0 0 0; color: #64748B; font-size: 8.5pt;">
-        Gestão do Cadastro Único e Programa Bolsa Família
-    </p>
-</div>
-
+        return f"""{header_banner_html}
 <div style="text-align: center; margin: 15px 0;">
     <h2 style="font-size: 14pt; font-weight: bold; color: #047857; text-transform: uppercase; margin: 0;">
         RELATÓRIO MENSAL DE ATENDIMENTOS E VISITAS DOMICILIARES
@@ -4971,18 +4963,7 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
 </div>"""
 
     else: # Modelo Solicitação de Visita (default)
-        return f"""<div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #047857; padding-bottom: 12px;">
-    <h3 style="margin: 0; color: #047857; font-size: 15pt; font-weight: bold; text-transform: uppercase;">
-        PREFEITURA MUNICIPAL DE TOMÉ-AÇU
-    </h3>
-    <h4 style="margin: 3px 0 0 0; color: #334155; font-size: 11pt; font-weight: bold;">
-        SECRETARIA MUNICIPAL DE ASSISTÊNCIA SOCIAL — SETAS
-    </h4>
-    <p style="margin: 2px 0 0 0; color: #64748B; font-size: 8.5pt;">
-        Setor do Cadastro Único e Programa Bolsa Família
-    </p>
-</div>
-
+        return f"""{header_banner_html}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: #F8FAFC; border: 1px solid #CBD5E1; padding: 8px 14px; border-radius: 4px;">
     <strong style="font-size: 12pt; color: #047857;">REQUISIÇÃO DE VISITA DOMICILIAR — VD</strong>
     <span style="font-size: 11pt; font-weight: bold; color: #0F172A;">Nº {{{{numero_vd}}}}</span>
@@ -5036,11 +5017,7 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
         <strong style="font-size: 9.5pt; color: #0F172A; display: block;">{{{{responsavel_nome}}}}</strong>
         <span style="font-size: 8.5pt; color: #64748B;">Assinatura do Entrevistador / AS</span>
     </div>
-    <div style="width: 45%; border-top: 1px solid #0F172A; padding-top: 5px;">
-        <strong style="font-size: 9.5pt; color: #0F172A; display: block;">{{{{nome_rf}}}}</strong>
-        <span style="font-size: 8.5pt; color: #64748B;">Assinatura do Responsável Familiar (RF)</span>
-    </div>
-</div>"""
+    </div>"""
 
 
 @app.route('/documentos')
