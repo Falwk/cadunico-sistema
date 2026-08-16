@@ -859,17 +859,25 @@ def _build_pdf_story(visita, solicitante, responsavel, cfg: dict) -> list:
     story.append(Spacer(1, 0.6*cm))
 
     # ── Rodapé Oficial ───────────────────────────────────────────────────────
-    rodape_txt = cfg.get('visita_rodape_txt', cfg.get('rodape', ''))
-    municipio  = cfg.get('municipio', 'Tomé-Açu/PA')
-    conteudo_rodape = f"{cfg.get('setor_nome', 'Setor do Cadastro Único / PBF')}  |  {rodape_txt}  |  {municipio}"
-    
-    rodape_tbl = Table([[par(conteudo_rodape, size=7.5, color=branco, align='CENTER')]], colWidths=[17*cm])
-    rodape_tbl.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), verde_escuro),
-        ('TOPPADDING',    (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-    ]))
-    story.append(rodape_tbl)
+    img_ftr_path = os.path.join(LOGOS_DIR, 'rodape_visita.png')
+    if os.path.exists(img_ftr_path):
+        try:
+            story.append(Spacer(1, 0.4*cm))
+            story.append(RLImage(img_ftr_path, width=17*cm, height=1.6*cm))
+        except Exception:
+            pass
+    else:
+        rodape_txt = cfg.get('visita_rodape_txt', cfg.get('rodape', ''))
+        municipio  = cfg.get('municipio', 'Tomé-Açu/PA')
+        conteudo_rodape = f"{cfg.get('setor_nome', 'Setor do Cadastro Único / PBF')}  |  {rodape_txt}  |  {municipio}"
+        
+        rodape_tbl = Table([[par(conteudo_rodape, size=7.5, color=branco, align='CENTER')]], colWidths=[17*cm])
+        rodape_tbl.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), verde_escuro),
+            ('TOPPADDING',    (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        story.append(rodape_tbl)
 
     return story
 
@@ -4859,8 +4867,22 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
         except Exception:
             pass
 
-    header_banner_html = f"""<div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #047857; padding-bottom: 8px;">
-    <img src="{header_img_src}" alt="Cabeçalho Oficial Prefeitura Municipal de Tomé-Açu - SETAS - Cadastro Único - Bolsa Família" style="width: 100%; max-height: 120px; object-fit: contain;">
+    header_banner_html = f"""<div style="text-align: center; margin-top: -10px; margin-bottom: 12px; border-bottom: 2px solid #047857; padding-bottom: 6px;">
+    <img src="{header_img_src}" alt="Cabeçalho Oficial Prefeitura Municipal de Tomé-Açu - SETAS - Cadastro Único - Bolsa Família" style="width: 100%; max-height: 110px; object-fit: contain;">
+</div>"""
+
+    footer_img_src = "/static/logos/rodape_visita.png"
+    path_rod = os.path.join(LOGOS_DIR, 'rodape_visita.png')
+    if os.path.exists(path_rod):
+        try:
+            with open(path_rod, 'rb') as f:
+                b64_r = base64.b64encode(f.read()).decode('utf-8')
+                footer_img_src = f"data:image/png;base64,{b64_r}"
+        except Exception:
+            pass
+
+    footer_banner_html = f"""<div style="margin-top: 30px; text-align: center; border-top: 1px solid #CBD5E1; padding-top: 8px;">
+    <img src="{footer_img_src}" alt="Rodapé Oficial Prefeitura de Tomé-Açu - SETAS - Cadastro Único" style="width: 100%; max-height: 75px; object-fit: contain;">
 </div>"""
 
     if tipo == 'parecer':
@@ -4910,7 +4932,8 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
         <span style="font-size: 9pt; color: #64748B;">Assistente Social — CRESS Nº _________________</span><br>
         <span style="font-size: 8.5pt; color: #94A3B8;">SETAS — Prefeitura Municipal de Tomé-Açu</span>
     </div>
-</div>"""
+</div>
+{footer_banner_html}"""
 
     elif tipo == 'relatorio':
         return f"""{header_banner_html}
@@ -4960,7 +4983,8 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
         <span style="font-size: 9pt; color: #64748B;">Coordenação do Cadastro Único e Bolsa Família</span><br>
         <span style="font-size: 8.5pt; color: #94A3B8;">Prefeitura Municipal de Tomé-Açu</span>
     </div>
-</div>"""
+</div>
+{footer_banner_html}"""
 
     else: # Modelo Solicitação de Visita (default)
         return f"""{header_banner_html}
@@ -5017,7 +5041,12 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
         <strong style="font-size: 9.5pt; color: #0F172A; display: block;">{{{{responsavel_nome}}}}</strong>
         <span style="font-size: 8.5pt; color: #64748B;">Assinatura do Entrevistador / AS</span>
     </div>
-    </div>"""
+    <div style="width: 45%; border-top: 1px solid #0F172A; padding-top: 5px;">
+        <strong style="font-size: 9.5pt; color: #0F172A; display: block;">{{{{nome_rf}}}}</strong>
+        <span style="font-size: 8.5pt; color: #64748B;">Assinatura do Responsável Familiar (RF)</span>
+    </div>
+</div>
+{footer_banner_html}"""
 
 
 @app.route('/documentos')
