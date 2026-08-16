@@ -258,19 +258,17 @@
     </div>
 
     <div class="header-center">
-      <label style="font-size:0.8rem; font-weight:700; color:#64748B;">Modelo:</label>
+      <label style="font-size:0.8rem; font-weight:700; color:#64748B;">Modelo do Sistema:</label>
       <select id="modelo_select" class="select-modelo" onchange="trocarModelo(this.value)">
-        <option value="memorando" {% if doc.tipo == 'memorando' %}selected{% endif %}>Memorando Oficial</option>
-        <option value="oficio" {% if doc.tipo == 'oficio' %}selected{% endif %}>Ofício Institucional</option>
-        <option value="declaracao" {% if doc.tipo == 'declaracao' %}selected{% endif %}>Declaração de Atendimento</option>
-        <option value="encaminhamento" {% if doc.tipo == 'encaminhamento' %}selected{% endif %}>Encaminhamento Assistencial</option>
-        <option value="relatorio" {% if doc.tipo == 'relatorio' %}selected{% endif %}>Relatório de Visita Domiciliar</option>
+        <option value="visita" {% if doc.tipo == 'visita' %}selected{% endif %}>🖨️ Solicitação de Visita Domiciliar (VD)</option>
+        <option value="parecer" {% if doc.tipo == 'parecer' %}selected{% endif %}>📋 Parecer Técnico da Assistente Social</option>
+        <option value="relatorio" {% if doc.tipo == 'relatorio' %}selected{% endif %}>📊 Relatório Mensal de Atendimentos</option>
       </select>
 
       {% if atendimentos_recentes %}
       <label style="font-size:0.8rem; font-weight:700; color:#64748B; margin-left:10px;">Preencher Família:</label>
       <select id="atendimento_select" class="select-modelo" onchange="injetarAtendimento(this.value)">
-        <option value="">-- Selecionar Atendimento --</option>
+        <option value="">-- Selecionar Registro --</option>
         {% for at in atendimentos_recentes %}
         <option value="{{ at.id }}" data-cpf="{{ at.cpf }}" data-nome="{{ at.nome_rf }}">
           {{ at.nome_rf }} (CPF: {{ at.cpf }})
@@ -282,7 +280,7 @@
 
     <div class="header-actions">
       <button onclick="salvarDocumento(false)" class="btn-action btn-save">
-        💾 Salvar no Banco
+        💾 Salvar Modelo do Sistema
       </button>
 
       {% if doc.id %}
@@ -301,9 +299,20 @@
     </div>
   </header>
 
-  <!-- Toolbar de Formatação (Word Ribbon) -->
+  <!-- Toolbar de Formatação (Word Ribbon com Injeção de Tags) -->
   <div class="editor-toolbar">
     
+    <div class="tb-group" style="background:#F8FAFC; border:1px solid #CBD5E1; padding:3px 8px; border-radius:4px;">
+      <span style="font-size:0.78rem; font-weight:800; color:#047857; margin-right:4px;">🏷️ Tags Automáticas:</span>
+      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#1E40AF;" onclick="injetarTag('{{numero_vd}}')" title="Inserir Número da VD">VD</button>
+      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#1E40AF;" onclick="injetarTag('{{nome_rf}}')" title="Inserir Nome do RF">Nome RF</button>
+      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#1E40AF;" onclick="injetarTag('{{cpf_rf}}')" title="Inserir CPF do RF">CPF</button>
+      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#1E40AF;" onclick="injetarTag('{{endereco}}')" title="Inserir Endereço">Endereço</button>
+      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#1E40AF;" onclick="injetarTag('{{motivo}}')" title="Inserir Motivo da Visita">Motivo</button>
+      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#783DB2;" onclick="injetarTag('{{parecer_tecnico_txt}}')" title="Inserir Texto do Parecer Social">Parecer</button>
+      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#0284C7;" onclick="injetarTag('{{total_atendimentos}}')" title="Inserir Total Atendimentos Mês">Total Atend.</button>
+    </div>
+
     <div class="tb-group">
       <button class="tb-btn" onclick="execCmd('undo')" title="Desfazer (Ctrl+Z)">↶</button>
       <button class="tb-btn" onclick="execCmd('redo')" title="Refazer (Ctrl+Y)">↷</button>
@@ -384,6 +393,10 @@
     function execCmd(command, value = null) {
       document.execCommand(command, false, value);
       document.getElementById('pagina_a4').focus();
+    }
+
+    function injetarTag(tagStr) {
+      execCmd('insertText', tagStr);
     }
 
     function imprimirDocumento() {

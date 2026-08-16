@@ -4836,8 +4836,8 @@ def historico_familia(cpf):
 # Módulo de Editor de Documentos Oficiais ("Word Interno" A4)
 # ---------------------------------------------------------------------------
 
-def _gerar_modelo_documento_html(tipo='memorando', nome_rf='', cpf_rf='', nis='', endereco='', numero_seq=1, operador_nome='', setor_nome=''):
-    """Gera o modelo HTML de documento oficial com os dados pré-preenchidos da família e setor."""
+def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', endereco='', numero_seq=1, operador_nome='', setor_nome=''):
+    """Gera o modelo HTML oficial de documentos do sistema com suporte a tags {{tag}}."""
     agora_belem = datetime.now(_TZ_BELEM)
     data_extenso = agora_belem.strftime('%d de %B de %Y').replace('January', 'janeiro').replace('February', 'fevereiro').replace('March', 'março').replace('April', 'abril').replace('May', 'maio').replace('June', 'junho').replace('July', 'julho').replace('August', 'agosto').replace('September', 'setembro').replace('October', 'outubro').replace('November', 'novembro').replace('December', 'dezembro')
     data_curta = agora_belem.strftime('%d/%m/%Y')
@@ -4847,181 +4847,200 @@ def _gerar_modelo_documento_html(tipo='memorando', nome_rf='', cpf_rf='', nis=''
     setor = setor_nome or cfg.get('setor_nome', 'Secretaria Municipal de Assistência Social — SETAS')
     operador = operador_nome or 'Servidor Responsável'
 
-    num_doc = f"{numero_seq:03d}/{agora_belem.year}"
+    num_vd = f"VD-{agora_belem.year}-{numero_seq:06d}"
 
-    header_html = f"""
-    <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #047857; padding-bottom: 15px;">
-        <h3 style="margin: 0; color: #047857; font-family: 'Arial', sans-serif; font-size: 16pt; font-weight: bold; text-transform: uppercase;">
-            PREFEITURA MUNICIPAL DE TOMÉ-AÇU
-        </h3>
-        <h4 style="margin: 4px 0 0 0; color: #334155; font-family: 'Arial', sans-serif; font-size: 12pt; font-weight: bold;">
-            {setor}
-        </h4>
-        <p style="margin: 3px 0 0 0; color: #64748B; font-size: 9pt;">
-            Setor de Gestão do Cadastro Único e Programa Bolsa Família — {municipio}
-        </p>
+    if tipo == 'parecer':
+        return f"""<div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #047857; padding-bottom: 12px;">
+    <h3 style="margin: 0; color: #047857; font-size: 15pt; font-weight: bold; text-transform: uppercase;">
+        PREFEITURA MUNICIPAL DE TOMÉ-AÇU
+    </h3>
+    <h4 style="margin: 3px 0 0 0; color: #334155; font-size: 11pt; font-weight: bold;">
+        SECRETARIA MUNICIPAL DE ASSISTÊNCIA SOCIAL — SETAS
+    </h4>
+    <p style="margin: 2px 0 0 0; color: #64748B; font-size: 8.5pt;">
+        Serviço Social do Cadastro Único e Programa Bolsa Família
+    </p>
+</div>
+
+<div style="text-align: center; margin: 20px 0;">
+    <h2 style="font-size: 14pt; font-weight: bold; color: #047857; text-decoration: underline; margin: 0;">
+        PARECER TÉCNICO SOCIAL — SERVIÇO SOCIAL
+    </h2>
+    <span style="font-size: 9.5pt; color: #64748B;">Referência: Solicitação de Visita Domiciliar Nº {{{{numero_vd}}}}</span>
+</div>
+
+<div style="background-color: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid #047857; padding: 10px 14px; margin-bottom: 15px;">
+    <strong style="color: #047857; font-size: 10pt;">📋 IDENTIFICAÇÃO DO USUÁRIO / FAMÍLIA:</strong>
+    <table style="width: 100%; margin-top: 4px; font-size: 10pt; color: #1E293B; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 2px 0; width: 65%;"><strong>Nome do RF:</strong> {{{{nome_rf}}}}</td>
+            <td style="padding: 2px 0;"><strong>CPF:</strong> {{{{cpf_rf}}}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 2px 0;"><strong>Endereço:</strong> {{{{endereco}}}}</td>
+            <td style="padding: 2px 0;"><strong>Data Realização:</strong> {{{{data_realizada}}}}</td>
+        </tr>
+    </table>
+</div>
+
+<p style="font-size: 10.5pt; font-weight: bold; color: #047857; margin-top: 15px;">
+    1. ANÁLISE SOCIOECONÔMICA E AVALIAÇÃO TÉCNICA:
+</p>
+<div style="border: 1px solid #CBD5E1; padding: 12px; min-height: 160px; font-size: 10.5pt; line-height: 1.6; background-color: #FFFFFF; border-radius: 4px;">
+    {{{{parecer_tecnico_txt}}}}
+</div>
+
+<p style="font-size: 10.5pt; font-weight: bold; color: #047857; margin-top: 15px;">
+    2. CONCLUSÃO E ENCAMINHAMENTO TÉCNICO:
+</p>
+<p style="font-size: 10pt; line-height: 1.6; text-align: justify; text-indent: 30px;">
+    Com base na avaliação social realizada e nas diretrizes da Política Nacional de Assistência Social (PNAS) e Lei Orgânica de Assistência Social (LOAS), emitimos o parecer favorável ao acompanhamento e atualização cadastral do usuário no Sistema do Cadastro Único.
+</p>
+
+<div style="text-align: right; margin-top: 25px; font-size: 10pt; color: #334155;">
+    Tomé-Açu/PA, {data_extenso}.
+</div>
+
+<div style="margin-top: 45px; text-align: center;">
+    <div style="width: 300px; margin: 0 auto; border-top: 1px solid #0F172A; padding-top: 6px;">
+        <strong style="font-size: 10.5pt; color: #0F172A; display: block;">{{{{assistente_social_nome}}}}</strong>
+        <span style="font-size: 9pt; color: #64748B;">Assistente Social — CRESS Nº _________________</span><br>
+        <span style="font-size: 8.5pt; color: #94A3B8;">SETAS — Prefeitura Municipal de Tomé-Açu</span>
     </div>
-    """
-
-    dados_familia_html = ""
-    if nome_rf or cpf_rf or nis:
-        dados_familia_html = f"""
-        <div style="background-color: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid #047857; padding: 12px 16px; margin: 15px 0; border-radius: 4px;">
-            <strong style="color: #047857; font-size: 11pt;">📋 DADOS DO BENEFICIÁRIO / FAMÍLIA:</strong>
-            <table style="width: 100%; margin-top: 6px; font-size: 10.5pt; color: #1E293B; border-collapse: collapse;">
-                <tr>
-                    <td style="padding: 3px 0; width: 60%;"><strong>Responsável Familiar (RF):</strong> {nome_rf or '___________________________'}</td>
-                    <td style="padding: 3px 0;"><strong>CPF:</strong> {cpf_rf or '___.___.___-__'}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 3px 0;"><strong>NIS:</strong> {nis or '___________'}</td>
-                    <td style="padding: 3px 0;"><strong>Bairro/Endereço:</strong> {endereco or '___________________________'}</td>
-                </tr>
-            </table>
-        </div>
-        """
-
-    signature_html = f"""
-    <div style="margin-top: 50px; text-align: center;">
-        <div style="width: 280px; margin: 0 auto; border-top: 1px solid #1E293B; padding-top: 6px;">
-            <strong style="font-size: 11pt; color: #0F172A; display: block;">{operador}</strong>
-            <span style="font-size: 9.5pt; color: #64748B;">{setor}</span><br>
-            <span style="font-size: 9pt; color: #94A3B8;">Prefeitura Municipal de Tomé-Açu</span>
-        </div>
-    </div>
-    """
-
-    if tipo == 'oficio':
-        return f"""{header_html}
-        <div style="text-align: right; margin-bottom: 20px; font-size: 11pt; color: #334155;">
-            Tomé-Açu/PA, {data_extenso}.
-        </div>
-        <p style="font-size: 12pt; font-weight: bold; color: #047857; margin-bottom: 20px;">
-            OFÍCIO Nº {num_doc} - SETAS/CADÚNICO
-        </p>
-        <p style="font-size: 11pt; margin-bottom: 15px;">
-            <strong>Ao(À) Senhor(a):</strong> __________________________________________________<br>
-            <strong>Cargo/Função:</strong> __________________________________________________<br>
-            <strong>Órgão/Instituição:</strong> ______________________________________________
-        </p>
-        <p style="font-size: 11pt; margin-bottom: 20px;">
-            <strong>Assunto:</strong> Solicitação / Informações de Atendimento Social
-        </p>
-        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 30px;">
-            Cumprimentando-o(a) cordialmente, vimos por meio deste solicitar a Vossa Senhoria as providências necessárias referente ao acompanhamento da família abaixo identificada cadastrada no Sistema do Cadastro Único para Programas Sociais do Governo Federal:
-        </p>
-        {dados_familia_html}
-        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 30px;">
-            Solicitamos o apoio deste respeitável órgão para a viabilização do atendimento e retorno a este setor de assistência social.
-        </p>
-        <p style="font-size: 11pt; margin-top: 30px;">
-            Sem mais para o momento, renovamos nossos votos de estima e consideração.
-        </p>
-        <p style="font-size: 11pt; text-align: center; margin-top: 20px;">
-            Atenciosamente,
-        </p>
-        {signature_html}
-        """
-
-    elif tipo == 'declaracao':
-        return f"""{header_html}
-        <div style="text-align: center; margin: 30px 0 25px 0;">
-            <h2 style="font-size: 16pt; font-weight: bold; color: #047857; text-decoration: underline; margin: 0;">
-                DECLARAÇÃO DE ATENDIMENTO
-            </h2>
-        </div>
-        <p style="font-size: 12pt; line-height: 1.8; text-align: justify; text-indent: 40px; margin-bottom: 25px;">
-            Declaramos para os devidos fins de direito e comprovação que o(a) Sr(a). <strong>{nome_rf or '________________________________________'}</strong>, portador(a) do CPF nº <strong>{cpf_rf or '___.___.___-__'}</strong> e NIS nº <strong>{nis or '___________'}</strong>, esteve presente neste Setor do Cadastro Único / Programa Bolsa Família na data de hoje, <strong>{data_curta}</strong>, para atendimento cadastral e atualização de dados socioeconômicos.
-        </p>
-        {dados_familia_html}
-        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 40px; margin-bottom: 30px;">
-            Por ser verdade, firmamos a presente declaração para que produza seus efeitos legais.
-        </p>
-        <div style="text-align: right; margin-bottom: 40px; font-size: 11pt; color: #334155;">
-            Tomé-Açu/PA, {data_extenso}.
-        </div>
-        {signature_html}
-        """
-
-    elif tipo == 'encaminhamento':
-        return f"""{header_html}
-        <div style="text-align: center; margin: 20px 0 20px 0;">
-            <h3 style="font-size: 14pt; font-weight: bold; color: #047857; margin: 0; text-transform: uppercase;">
-                ENCAMINHAMENTO DA REDE DE ASSISTÊNCIA SOCIAL
-            </h3>
-            <span style="font-size: 10pt; color: #64748B;">Documento Interno de Articulação de Serviços</span>
-        </div>
-        <p style="font-size: 11pt; margin-bottom: 15px;">
-            <strong>DESTINO:</strong> ( &nbsp; ) CRAS &nbsp;&nbsp;&nbsp; ( &nbsp; ) CREAS &nbsp;&nbsp;&nbsp; ( &nbsp; ) Saúde / Posto &nbsp;&nbsp;&nbsp; ( &nbsp; ) Educação &nbsp;&nbsp;&nbsp; ( &nbsp; ) Outro: ___________________
-        </p>
-        {dados_familia_html}
-        <p style="font-size: 11pt; font-weight: bold; color: #047857; margin-top: 20px;">
-            MOTIVO DO ENCAMINHAMENTO / SOLICITAÇÃO DE ACOMPANHAMENTO:
-        </p>
-        <div style="border: 1px solid #CBD5E1; padding: 12px; min-height: 120px; font-size: 11pt; line-height: 1.6; background-color: #FAFAFA;">
-            Encaminhamos a família acima identificada para avaliação e inserção nos acompanhamentos socioassistenciais pertinentes, tendo em vista a necessidade detectada durante atendimento presencial no setor de Cadastro Único.
-        </div>
-        <div style="text-align: right; margin-top: 30px; font-size: 11pt; color: #334155;">
-            Tomé-Açu/PA, {data_extenso}.
-        </div>
-        {signature_html}
-        """
+</div>"""
 
     elif tipo == 'relatorio':
-        return f"""{header_html}
-        <div style="text-align: center; margin: 20px 0 20px 0;">
-            <h3 style="font-size: 14pt; font-weight: bold; color: #047857; margin: 0; text-transform: uppercase;">
-                RELATÓRIO TÉCNICO DE VISITA DOMICILIAR / ATENDIMENTO
-            </h3>
-        </div>
-        {dados_familia_html}
-        <p style="font-size: 11pt; font-weight: bold; color: #047857; margin-top: 15px;">
-            1. OBJETIVO DA VISITA / ATENDIMENTO:
-        </p>
-        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 20px;">
-            Verificação da composição familiar e condições de habitabilidade para atualização cadastral no CadÚnico.
-        </p>
-        <p style="font-size: 11pt; font-weight: bold; color: #047857; margin-top: 15px;">
-            2. PARECER E OBSERVAÇÕES TÉCNICAS:
-        </p>
-        <div style="border: 1px solid #CBD5E1; padding: 12px; min-height: 140px; font-size: 11pt; line-height: 1.6; background-color: #FAFAFA;">
-            Durante a visita presencial constatou-se que a família reside em imóvel com condições socioeconômicas compatíveis com o perfil do Programa Bolsa Família.
-        </div>
-        <p style="font-size: 11pt; font-weight: bold; color: #047857; margin-top: 15px;">
-            3. ENCAMINHAMENTOS RECOMENDADOS:
-        </p>
-        <p style="font-size: 11pt; line-height: 1.6;">
-            ( &nbsp; ) Atualização do Cadastro Único &nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp; ) Inclusão em Benefício &nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp; ) Encaminhamento CRAS
-        </p>
-        <div style="text-align: right; margin-top: 30px; font-size: 11pt; color: #334155;">
-            Tomé-Açu/PA, {data_extenso}.
-        </div>
-        {signature_html}
-        """
+        return f"""<div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #047857; padding-bottom: 12px;">
+    <h3 style="margin: 0; color: #047857; font-size: 15pt; font-weight: bold; text-transform: uppercase;">
+        PREFEITURA MUNICIPAL DE TOMÉ-AÇU
+    </h3>
+    <h4 style="margin: 3px 0 0 0; color: #334155; font-size: 11pt; font-weight: bold;">
+        SECRETARIA MUNICIPAL DE ASSISTÊNCIA SOCIAL — SETAS
+    </h4>
+    <p style="margin: 2px 0 0 0; color: #64748B; font-size: 8.5pt;">
+        Gestão do Cadastro Único e Programa Bolsa Família
+    </p>
+</div>
 
-    else:
-        return f"""{header_html}
-        <div style="text-align: right; margin-bottom: 20px; font-size: 11pt; color: #334155;">
-            Tomé-Açu/PA, {data_extenso}.
-        </div>
-        <p style="font-size: 12pt; font-weight: bold; color: #047857; margin-bottom: 20px;">
-            MEMORANDO Nº {num_doc} - SETAS/CADÚNICO
-        </p>
-        <p style="font-size: 11pt; margin-bottom: 15px;">
-            <strong>PARA:</strong> Coordenação do Cadastro Único<br>
-            <strong>DE:</strong> Setor de Atendimento / Entrevistadores<br>
-            <strong>ASSUNTO:</strong> Solicitação de providências em cadastro familiar
-        </p>
-        <hr style="border: 0; border-top: 1px solid #CBD5E1; margin: 15px 0;">
-        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 30px;">
-            Encaminhamos a Vossa Senhoria o relatório de atendimento da família abaixo cadastrada no sistema, para análise e tomada de providências pertinentes:
-        </p>
-        {dados_familia_html}
-        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 30px;">
-            Solicitamos a gentileza de proceder com as atualizações e verificações necessárias nos sistemas operacionais oficiais.
-        </p>
-        {signature_html}
-        """
+<div style="text-align: center; margin: 15px 0;">
+    <h2 style="font-size: 14pt; font-weight: bold; color: #047857; text-transform: uppercase; margin: 0;">
+        RELATÓRIO MENSAL DE ATENDIMENTOS E VISITAS DOMICILIARES
+    </h2>
+    <span style="font-size: 10pt; font-weight: bold; color: #64748B;">MÊS DE REFERÊNCIA: {{{{mes_ano}}}}</span>
+</div>
+
+<div style="display: flex; gap: 10px; margin-bottom: 15px;">
+    <div style="flex: 1; border: 1px solid #047857; background: #F0FDF4; padding: 10px; border-radius: 4px; text-align: center;">
+        <span style="font-size: 8.5pt; font-weight: bold; color: #047857; text-transform: uppercase;">Total de Atendimentos</span>
+        <div style="font-size: 18pt; font-weight: 800; color: #047857;">{{{{total_atendimentos}}}}</div>
+    </div>
+    <div style="flex: 1; border: 1px solid #783DB2; background: #F3E8FF; padding: 10px; border-radius: 4px; text-align: center;">
+        <span style="font-size: 8.5pt; font-weight: bold; color: #783DB2; text-transform: uppercase;">Solicitações de Visita</span>
+        <div style="font-size: 18pt; font-weight: 800; color: #783DB2;">{{{{total_visitas}}}}</div>
+    </div>
+    <div style="flex: 1; border: 1px solid #0284C7; background: #E0F2FE; padding: 10px; border-radius: 4px; text-align: center;">
+        <span style="font-size: 8.5pt; font-weight: bold; color: #0284C7; text-transform: uppercase;">Visitas Realizadas</span>
+        <div style="font-size: 18pt; font-weight: 800; color: #0284C7;">{{{{visitas_realizadas}}}}</div>
+    </div>
+</div>
+
+<p style="font-size: 10.5pt; font-weight: bold; color: #047857; margin-top: 15px;">
+    1. SÍNTESE EXECUTIVA DO PERÍODO:
+</p>
+<p style="font-size: 10pt; line-height: 1.6; text-align: justify; text-indent: 30px;">
+    Apresentamos o relatório consolidado dos atendimentos prestados à população do município de Tomé-Açu referente ao mês de {{{{mes_ano}}}}, englobando novos cadastramentos, atualizações cadastrais do Cadastro Único e visitas domiciliares acompanhadas.
+</p>
+
+<p style="font-size: 10.5pt; font-weight: bold; color: #047857; margin-top: 15px;">
+    2. OBSERVAÇÕES E CONSIDERAÇÕES DA GESTÃO:
+</p>
+<div style="border: 1px solid #CBD5E1; padding: 12px; min-height: 100px; font-size: 10pt; line-height: 1.6; background-color: #FFFFFF; border-radius: 4px;">
+    Todas as metas de atendimento presencial e averiguação cadastral foram cumpridas conforme o calendário do Ministério do Desenvolvimento Social.
+</div>
+
+<div style="text-align: right; margin-top: 25px; font-size: 10pt; color: #334155;">
+    Tomé-Açu/PA, {data_extenso}.
+</div>
+
+<div style="margin-top: 40px; text-align: center;">
+    <div style="width: 300px; margin: 0 auto; border-top: 1px solid #0F172A; padding-top: 6px;">
+        <strong style="font-size: 10.5pt; color: #0F172A; display: block;">{operador}</strong>
+        <span style="font-size: 9pt; color: #64748B;">Coordenação do Cadastro Único e Bolsa Família</span><br>
+        <span style="font-size: 8.5pt; color: #94A3B8;">Prefeitura Municipal de Tomé-Açu</span>
+    </div>
+</div>"""
+
+    else: # Modelo Solicitação de Visita (default)
+        return f"""<div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #047857; padding-bottom: 12px;">
+    <h3 style="margin: 0; color: #047857; font-size: 15pt; font-weight: bold; text-transform: uppercase;">
+        PREFEITURA MUNICIPAL DE TOMÉ-AÇU
+    </h3>
+    <h4 style="margin: 3px 0 0 0; color: #334155; font-size: 11pt; font-weight: bold;">
+        SECRETARIA MUNICIPAL DE ASSISTÊNCIA SOCIAL — SETAS
+    </h4>
+    <p style="margin: 2px 0 0 0; color: #64748B; font-size: 8.5pt;">
+        Setor do Cadastro Único e Programa Bolsa Família
+    </p>
+</div>
+
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: #F8FAFC; border: 1px solid #CBD5E1; padding: 8px 14px; border-radius: 4px;">
+    <strong style="font-size: 12pt; color: #047857;">REQUISIÇÃO DE VISITA DOMICILIAR — VD</strong>
+    <span style="font-size: 11pt; font-weight: bold; color: #0F172A;">Nº {{{{numero_vd}}}}</span>
+</div>
+
+<div style="border: 1px solid #CBD5E1; padding: 12px; margin-bottom: 15px; background-color: #FFFFFF; border-radius: 4px;">
+    <h5 style="margin: 0 0 8px 0; color: #047857; font-size: 10pt; text-transform: uppercase; border-bottom: 1px solid #E2E8F0; padding-bottom: 4px;">
+        1. DADOS DA FAMÍLIA / BENEFICIÁRIO
+    </h5>
+    <table style="width: 100%; font-size: 10pt; color: #1E293B; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 4px 0; width: 60%;"><strong>Responsável Familiar (RF):</strong> {{{{nome_rf}}}}</td>
+            <td style="padding: 4px 0;"><strong>CPF:</strong> {{{{cpf_rf}}}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 4px 0;"><strong>Endereço / Logradouro:</strong> {{{{endereco}}}}</td>
+            <td style="padding: 4px 0;"><strong>Bairro/Zona:</strong> {{{{bairro}}}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 4px 0;"><strong>Ponto de Referência:</strong> {{{{referencia}}}}</td>
+            <td style="padding: 4px 0;"><strong>Telefones de Contato:</strong> {{{{telefone1}}}} / {{{{telefone2}}}}</td>
+        </tr>
+    </table>
+</div>
+
+<div style="border: 1px solid #CBD5E1; padding: 12px; margin-bottom: 15px; background-color: #FFFFFF; border-radius: 4px;">
+    <h5 style="margin: 0 0 8px 0; color: #047857; font-size: 10pt; text-transform: uppercase; border-bottom: 1px solid #E2E8F0; padding-bottom: 4px;">
+        2. DADOS DA SOLICITAÇÃO DE VISITA
+    </h5>
+    <table style="width: 100%; font-size: 10pt; color: #1E293B; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 4px 0; width: 60%;"><strong>Motivo da Visita:</strong> {{{{motivo}}}}</td>
+            <td style="padding: 4px 0;"><strong>Data da Solicitação:</strong> {{{{data_solicitacao}}}}</td>
+        </tr>
+        <tr>
+            <td style="padding: 4px 0;"><strong>Solicitante do Registro:</strong> {{{{solicitante_nome}}}}</td>
+            <td style="padding: 4px 0;"><strong>Entrevistador / AS Responsável:</strong> {{{{responsavel_nome}}}}</td>
+        </tr>
+    </table>
+</div>
+
+<div style="border: 1px solid #CBD5E1; border-left: 4px solid #783DB2; padding: 10px 14px; margin-bottom: 20px; background-color: #F8FAFC;">
+    <strong style="color: #783DB2; font-size: 9.5pt;">ORIENTAÇÕES INSTITUCIONAIS PARA A VISITA DOMICILIAR:</strong>
+    <p style="margin: 4px 0 0 0; font-size: 9pt; color: #475569; line-height: 1.5;">
+        O entrevistador/assistente social deve verificar in loco a composição familiar, infraestrutura do domicílio e renda declarada, respeitando os direitos fundamentais do cidadão de acordo com as diretrizes do MDS.
+    </p>
+</div>
+
+<div style="margin-top: 40px; display: flex; justify-content: space-between; text-align: center;">
+    <div style="width: 45%; border-top: 1px solid #0F172A; padding-top: 5px;">
+        <strong style="font-size: 9.5pt; color: #0F172A; display: block;">{{{{responsavel_nome}}}}</strong>
+        <span style="font-size: 8.5pt; color: #64748B;">Assinatura do Entrevistador / AS</span>
+    </div>
+    <div style="width: 45%; border-top: 1px solid #0F172A; padding-top: 5px;">
+        <strong style="font-size: 9.5pt; color: #0F172A; display: block;">{{{{nome_rf}}}}</strong>
+        <span style="font-size: 8.5pt; color: #64748B;">Assinatura do Responsável Familiar (RF)</span>
+    </div>
+</div>"""
 
 
 @app.route('/documentos')

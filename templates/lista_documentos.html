@@ -4,80 +4,81 @@
   
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
     <div>
-      <h1 class="page-title mb-0">📄 Documentos Oficiais ("Word Interno")</h1>
+      <h1 class="page-title mb-0">⚙️ Editor de Modelos de Documentos do Sistema</h1>
       <p style="margin:4px 0 0 0; color:var(--text-muted); font-size:0.9rem;">
-        Crie, edite e exporte Memorandos, Ofícios, Declarações e Relatórios em formato A4.
+        Edite visualmente em formato A4 os modelos oficiais de <strong>Solicitação de Visita</strong>, <strong>Parecer da Assistente Social</strong> e <strong>Relatório Mensal</strong>.
       </p>
     </div>
     <div style="display:flex; gap:10px;">
-      <a href="{{ url_for('novo_documento') }}" class="btn btn-primary" style="background:#059669; border-color:#047857; font-weight:800; padding:10px 18px;">
-        ✏️ + Novo Documento A4
+      <a href="{{ url_for('novo_documento', modelo='visita') }}" class="btn btn-primary" style="background:#059669; border-color:#047857; font-weight:800; padding:10px 18px;">
+        ✏️ + Editar Modelo do Sistema
       </a>
     </div>
   </div>
 
-  <!-- Cards de Atalho Rápido para Novos Modelos -->
-  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:24px;">
-    <a href="{{ url_for('novo_documento', modelo='memorando') }}" style="text-decoration:none;">
-      <div class="card" style="padding:14px; border-left:4px solid #059669; background:#FFFFFF; transition:transform 0.15s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-        <div style="font-weight:800; color:#059669; font-size:0.95rem;">📑 Memorando Oficial</div>
-        <div style="font-size:0.78rem; color:#64748B; margin-top:2px;">Comunicação interna setor</div>
+  <!-- Cards de Acesso Direto aos 3 Modelos Principais do Sistema -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:20px; margin-bottom:28px;">
+    
+    <!-- Modelo 1: Solicitação de Visita -->
+    <div class="card" style="padding:20px; border-top:4px solid #059669; background:#FFFFFF; display:flex; flex-direction:column; justify-content:space-between;">
+      <div>
+        <div style="font-size:1.1rem; font-weight:800; color:#059669; display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+          🖨️ Modelo de Solicitação de Visita Domiciliar (VD)
+        </div>
+        <p style="font-size:0.85rem; color:#64748B; line-height:1.5; margin-bottom:16px;">
+          Personalize o layout visual, cabeçalho, orientações institucionais, bloco de assinaturas e requisição impressa para VD.
+        </p>
       </div>
-    </a>
+      <a href="{{ url_for('novo_documento', modelo='visita') }}" class="btn btn-primary" style="background:#059669; border-color:#047857; font-weight:700; width:100%; text-align:center; padding:10px;">
+        ✏️ Abrir Editor A4 (Solicitação de Visita)
+      </a>
+    </div>
 
-    <a href="{{ url_for('novo_documento', modelo='oficio') }}" style="text-decoration:none;">
-      <div class="card" style="padding:14px; border-left:4px solid #2563EB; background:#FFFFFF; transition:transform 0.15s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-        <div style="font-weight:800; color:#2563EB; font-size:0.95rem;">✉️ Ofício Institucional</div>
-        <div style="font-size:0.78rem; color:#64748B; margin-top:2px;">Solicitações externas</div>
+    <!-- Modelo 2: Parecer Técnico da Assistente Social -->
+    <div class="card" style="padding:20px; border-top:4px solid #783DB2; background:#FFFFFF; display:flex; flex-direction:column; justify-content:space-between;">
+      <div>
+        <div style="font-size:1.1rem; font-weight:800; color:#783DB2; display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+          📋 Modelo de Parecer da Assistente Social
+        </div>
+        <p style="font-size:0.85rem; color:#64748B; line-height:1.5; margin-bottom:16px;">
+          Edite a estrutura do parecer técnico social, campos de avaliação socioeconômica, embasamento legal PNAS/LOAS e assinaturas.
+        </p>
       </div>
-    </a>
+      <a href="{{ url_for('novo_documento', modelo='parecer') }}" class="btn btn-primary" style="background:#783DB2; border-color:#5B21B6; font-weight:700; width:100%; text-align:center; padding:10px;">
+        ✏️ Abrir Editor A4 (Parecer Social)
+      </a>
+    </div>
 
-    <a href="{{ url_for('novo_documento', modelo='declaracao') }}" style="text-decoration:none;">
-      <div class="card" style="padding:14px; border-left:4px solid #783DB2; background:#FFFFFF; transition:transform 0.15s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-        <div style="font-weight:800; color:#783DB2; font-size:0.95rem;">📜 Declaração de Atendimento</div>
-        <div style="font-size:0.78rem; color:#64748B; margin-top:2px;">Comprovação presenciais</div>
+    <!-- Modelo 3: Relatório Mensal do Sistema -->
+    <div class="card" style="padding:20px; border-top:4px solid #0284C7; background:#FFFFFF; display:flex; flex-direction:column; justify-content:space-between;">
+      <div>
+        <div style="font-size:1.1rem; font-weight:800; color:#0284C7; display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+          📊 Modelo do Relatório Mensal do Sistema
+        </div>
+        <p style="font-size:0.85rem; color:#64748B; line-height:1.5; margin-bottom:16px;">
+          Personalize a introdução, quadro de métricas consolidadas, observações da gestão e cabeçalho do Relatório Mensal SETAS.
+        </p>
       </div>
-    </a>
+      <a href="{{ url_for('novo_documento', modelo='relatorio') }}" class="btn btn-primary" style="background:#0284C7; border-color:#0369A1; font-weight:700; width:100%; text-align:center; padding:10px;">
+        ✏️ Abrir Editor A4 (Relatório Mensal)
+      </a>
+    </div>
 
-    <a href="{{ url_for('novo_documento', modelo='encaminhamento') }}" style="text-decoration:none;">
-      <div class="card" style="padding:14px; border-left:4px solid #D97706; background:#FFFFFF; transition:transform 0.15s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'">
-        <div style="font-weight:800; color:#D97706; font-size:0.95rem;">🔀 Encaminhamento Rede</div>
-        <div style="font-size:0.78rem; color:#64748B; margin-top:2px;">CRAS / CREAS / Saúde</div>
-      </div>
-    </a>
   </div>
 
-  <!-- Filtros -->
-  <div class="card" style="margin-bottom:20px; padding:16px;">
-    <form method="GET" action="{{ url_for('listar_documentos') }}" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-      <input type="text" name="busca" value="{{ busca }}" placeholder="Buscar por título, nome ou CPF..." style="padding:8px 12px; border:1px solid #CBD5E1; border-radius:6px; flex:1; min-width:240px;">
-      
-      <select name="tipo" style="padding:8px 12px; border:1px solid #CBD5E1; border-radius:6px; background:#FFFFFF;">
-        <option value="">-- Todos os Tipos --</option>
-        <option value="memorando" {% if tipo == 'memorando' %}selected{% endif %}>Memorandos</option>
-        <option value="oficio" {% if tipo == 'oficio' %}selected{% endif %}>Ofícios</option>
-        <option value="declaracao" {% if tipo == 'declaracao' %}selected{% endif %}>Declarações</option>
-        <option value="encaminhamento" {% if tipo == 'encaminhamento' %}selected{% endif %}>Encaminhamentos</option>
-        <option value="relatorio" {% if tipo == 'relatorio' %}selected{% endif %}>Relatórios</option>
-      </select>
-
-      <button type="submit" class="btn btn-primary" style="padding:8px 16px;">🔍 Buscar</button>
-      {% if busca or tipo %}
-      <a href="{{ url_for('listar_documentos') }}" class="btn btn-outline" style="padding:8px 12px;">Limpar</a>
-      {% endif %}
-    </form>
-  </div>
-
-  <!-- Tabela de Documentos -->
+  <!-- Tabela de Documentos / Modelos Salvos -->
   <div class="card" style="padding:0; overflow:hidden;">
+    <div style="padding:14px 20px; background:#F8FAFC; border-bottom:1px solid #E2E8F0; font-weight:700; color:#1E293B;">
+      📑 Modelos e Documentos Salvos no Banco de Dados
+    </div>
     {% if documentos %}
     <div class="table-wrap">
       <table class="table" style="margin:0;">
         <thead>
           <tr>
             <th>Título do Documento</th>
-            <th>Tipo</th>
-            <th>Beneficiário / RF</th>
+            <th>Tipo de Modelo</th>
+            <th>Beneficiário / Referência</th>
             <th>Criado Por</th>
             <th>Última Atualização</th>
             <th style="text-align:right;">Ações</th>
@@ -101,7 +102,7 @@
                 <strong style="color:#0F172A;">{{ d.nome_rf }}</strong><br>
                 <span style="font-size:0.78rem; color:#64748B;">CPF: {{ d.cpf_rf or 'N/I' }}</span>
               {% else %}
-                <span style="color:#94A3B8;">Geral / Institucional</span>
+                <span style="color:#94A3B8;">Modelo Mestre do Sistema</span>
               {% endif %}
             </td>
             <td style="font-size:0.85rem; color:#475569;">{{ d.criador_nome or 'Sistema' }}</td>
@@ -109,12 +110,12 @@
             <td style="text-align:right;">
               <div style="display:flex; gap:6px; justify-content:flex-end;">
                 <a href="{{ url_for('editar_documento', doc_id=d.id) }}" class="btn btn-primary btn-sm" style="background:#059669; padding:4px 10px;" title="Editar no Word Interno">
-                  ✏️ Editar
+                  ✏️ Editar no A4
                 </a>
                 <a href="{{ url_for('exportar_documento_docx', doc_id=d.id) }}" class="btn btn-outline btn-sm" style="border-color:#2563EB; color:#2563EB; padding:4px 8px;" title="Baixar Word Microsoft (.docx)">
                   📑 Word
                 </a>
-                <form method="POST" action="{{ url_for('excluir_documento', doc_id=d.id) }}" style="margin:0;" onsubmit="return confirm('Deseja excluir este documento?')">
+                <form method="POST" action="{{ url_for('excluir_documento', doc_id=d.id) }}" style="margin:0;" onsubmit="return confirm('Deseja excluir este modelo do banco?')">
                   <button type="submit" class="btn btn-danger btn-sm" style="padding:4px 8px;">🗑️</button>
                 </form>
               </div>
@@ -127,8 +128,8 @@
     {% else %}
     <div style="padding:40px; text-align:center; color:#64748B;">
       <div style="font-size:2.5rem; margin-bottom:8px;">📄</div>
-      <p style="font-size:0.95rem; font-weight:600;">Nenhum documento salvo até o momento.</p>
-      <p style="font-size:0.85rem; color:#94A3B8; margin-top:4px;">Clique no botão acima para criar seu primeiro documento A4 no Word interno.</p>
+      <p style="font-size:0.95rem; font-weight:600;">Nenhum modelo personalizado salvo até o momento.</p>
+      <p style="font-size:0.85rem; color:#94A3B8; margin-top:4px;">Clique em um dos cards acima para abrir e personalizar qualquer modelo do sistema no Editor A4.</p>
     </div>
     {% endif %}
   </div>
