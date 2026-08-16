@@ -1019,6 +1019,19 @@ def init_db():
             nome_arquivo    TEXT NOT NULL,
             criado_em       TEXT NOT NULL
         )''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS documentos_editaveis (
+            id                      SERIAL PRIMARY KEY,
+            titulo                  TEXT NOT NULL,
+            tipo                    TEXT NOT NULL DEFAULT 'memorando',
+            conteudo_html           TEXT NOT NULL,
+            atendimento_id          INTEGER,
+            visita_id               INTEGER,
+            cpf_rf                  TEXT,
+            nome_rf                 TEXT,
+            criador_id              INTEGER REFERENCES usuarios(id),
+            criado_em               TEXT NOT NULL,
+            atualizado_em           TEXT NOT NULL
+        )''')
         # Migrações seguras para PostgreSQL — cada uma em savepoint individual
         migracoes = [
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
@@ -1154,6 +1167,19 @@ def init_db():
             url             TEXT NOT NULL,
             nome_arquivo    TEXT NOT NULL,
             criado_em       TEXT NOT NULL
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS documentos_editaveis (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            titulo                  TEXT NOT NULL,
+            tipo                    TEXT NOT NULL DEFAULT 'memorando',
+            conteudo_html           TEXT NOT NULL,
+            atendimento_id          INTEGER,
+            visita_id               INTEGER,
+            cpf_rf                  TEXT,
+            nome_rf                 TEXT,
+            criador_id              INTEGER REFERENCES usuarios(id),
+            criado_em               TEXT NOT NULL,
+            atualizado_em           TEXT NOT NULL
         )''')
         for col_sql in [
             "ALTER TABLE usuarios ADD COLUMN unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
@@ -4803,6 +4829,448 @@ def historico_familia(cpf):
     return render_template('historico_familia.html',
                            visitas=visitas, cpf=cpf_digits,
                            nome_rf=nome_rf, erro=None)
+
+
+
+# ---------------------------------------------------------------------------
+# Módulo de Editor de Documentos Oficiais ("Word Interno" A4)
+# ---------------------------------------------------------------------------
+
+def _gerar_modelo_documento_html(tipo='memorando', nome_rf='', cpf_rf='', nis='', endereco='', numero_seq=1, operador_nome='', setor_nome=''):
+    """Gera o modelo HTML de documento oficial com os dados pré-preenchidos da família e setor."""
+    agora_belem = datetime.now(_TZ_BELEM)
+    data_extenso = agora_belem.strftime('%d de %B de %Y').replace('January', 'janeiro').replace('February', 'fevereiro').replace('March', 'março').replace('April', 'abril').replace('May', 'maio').replace('June', 'junho').replace('July', 'julho').replace('August', 'agosto').replace('September', 'setembro').replace('October', 'outubro').replace('November', 'novembro').replace('December', 'dezembro')
+    data_curta = agora_belem.strftime('%d/%m/%Y')
+    
+    cfg = get_config()
+    municipio = cfg.get('municipio', 'Tomé-Açu / PA')
+    setor = setor_nome or cfg.get('setor_nome', 'Secretaria Municipal de Assistência Social — SETAS')
+    operador = operador_nome or 'Servidor Responsável'
+
+    num_doc = f"{numero_seq:03d}/{agora_belem.year}"
+
+    header_html = f"""
+    <div style="text-align: center; margin-bottom: 25px; border-bottom: 2px solid #047857; padding-bottom: 15px;">
+        <h3 style="margin: 0; color: #047857; font-family: 'Arial', sans-serif; font-size: 16pt; font-weight: bold; text-transform: uppercase;">
+            PREFEITURA MUNICIPAL DE TOMÉ-AÇU
+        </h3>
+        <h4 style="margin: 4px 0 0 0; color: #334155; font-family: 'Arial', sans-serif; font-size: 12pt; font-weight: bold;">
+            {setor}
+        </h4>
+        <p style="margin: 3px 0 0 0; color: #64748B; font-size: 9pt;">
+            Setor de Gestão do Cadastro Único e Programa Bolsa Família — {municipio}
+        </p>
+    </div>
+    """
+
+    dados_familia_html = ""
+    if nome_rf or cpf_rf or nis:
+        dados_familia_html = f"""
+        <div style="background-color: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid #047857; padding: 12px 16px; margin: 15px 0; border-radius: 4px;">
+            <strong style="color: #047857; font-size: 11pt;">📋 DADOS DO BENEFICIÁRIO / FAMÍLIA:</strong>
+            <table style="width: 100%; margin-top: 6px; font-size: 10.5pt; color: #1E293B; border-collapse: collapse;">
+                <tr>
+                    <td style="padding: 3px 0; width: 60%;"><strong>Responsável Familiar (RF):</strong> {nome_rf or '___________________________'}</td>
+                    <td style="padding: 3px 0;"><strong>CPF:</strong> {cpf_rf or '___.___.___-__'}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 3px 0;"><strong>NIS:</strong> {nis or '___________'}</td>
+                    <td style="padding: 3px 0;"><strong>Bairro/Endereço:</strong> {endereco or '___________________________'}</td>
+                </tr>
+            </table>
+        </div>
+        """
+
+    signature_html = f"""
+    <div style="margin-top: 50px; text-align: center;">
+        <div style="width: 280px; margin: 0 auto; border-top: 1px solid #1E293B; padding-top: 6px;">
+            <strong style="font-size: 11pt; color: #0F172A; display: block;">{operador}</strong>
+            <span style="font-size: 9.5pt; color: #64748B;">{setor}</span><br>
+            <span style="font-size: 9pt; color: #94A3B8;">Prefeitura Municipal de Tomé-Açu</span>
+        </div>
+    </div>
+    """
+
+    if tipo == 'oficio':
+        return f"""{header_html}
+        <div style="text-align: right; margin-bottom: 20px; font-size: 11pt; color: #334155;">
+            Tomé-Açu/PA, {data_extenso}.
+        </div>
+        <p style="font-size: 12pt; font-weight: bold; color: #047857; margin-bottom: 20px;">
+            OFÍCIO Nº {num_doc} - SETAS/CADÚNICO
+        </p>
+        <p style="font-size: 11pt; margin-bottom: 15px;">
+            <strong>Ao(À) Senhor(a):</strong> __________________________________________________<br>
+            <strong>Cargo/Função:</strong> __________________________________________________<br>
+            <strong>Órgão/Instituição:</strong> ______________________________________________
+        </p>
+        <p style="font-size: 11pt; margin-bottom: 20px;">
+            <strong>Assunto:</strong> Solicitação / Informações de Atendimento Social
+        </p>
+        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 30px;">
+            Cumprimentando-o(a) cordialmente, vimos por meio deste solicitar a Vossa Senhoria as providências necessárias referente ao acompanhamento da família abaixo identificada cadastrada no Sistema do Cadastro Único para Programas Sociais do Governo Federal:
+        </p>
+        {dados_familia_html}
+        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 30px;">
+            Solicitamos o apoio deste respeitável órgão para a viabilização do atendimento e retorno a este setor de assistência social.
+        </p>
+        <p style="font-size: 11pt; margin-top: 30px;">
+            Sem mais para o momento, renovamos nossos votos de estima e consideração.
+        </p>
+        <p style="font-size: 11pt; text-align: center; margin-top: 20px;">
+            Atenciosamente,
+        </p>
+        {signature_html}
+        """
+
+    elif tipo == 'declaracao':
+        return f"""{header_html}
+        <div style="text-align: center; margin: 30px 0 25px 0;">
+            <h2 style="font-size: 16pt; font-weight: bold; color: #047857; text-decoration: underline; margin: 0;">
+                DECLARAÇÃO DE ATENDIMENTO
+            </h2>
+        </div>
+        <p style="font-size: 12pt; line-height: 1.8; text-align: justify; text-indent: 40px; margin-bottom: 25px;">
+            Declaramos para os devidos fins de direito e comprovação que o(a) Sr(a). <strong>{nome_rf or '________________________________________'}</strong>, portador(a) do CPF nº <strong>{cpf_rf or '___.___.___-__'}</strong> e NIS nº <strong>{nis or '___________'}</strong>, esteve presente neste Setor do Cadastro Único / Programa Bolsa Família na data de hoje, <strong>{data_curta}</strong>, para atendimento cadastral e atualização de dados socioeconômicos.
+        </p>
+        {dados_familia_html}
+        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 40px; margin-bottom: 30px;">
+            Por ser verdade, firmamos a presente declaração para que produza seus efeitos legais.
+        </p>
+        <div style="text-align: right; margin-bottom: 40px; font-size: 11pt; color: #334155;">
+            Tomé-Açu/PA, {data_extenso}.
+        </div>
+        {signature_html}
+        """
+
+    elif tipo == 'encaminhamento':
+        return f"""{header_html}
+        <div style="text-align: center; margin: 20px 0 20px 0;">
+            <h3 style="font-size: 14pt; font-weight: bold; color: #047857; margin: 0; text-transform: uppercase;">
+                ENCAMINHAMENTO DA REDE DE ASSISTÊNCIA SOCIAL
+            </h3>
+            <span style="font-size: 10pt; color: #64748B;">Documento Interno de Articulação de Serviços</span>
+        </div>
+        <p style="font-size: 11pt; margin-bottom: 15px;">
+            <strong>DESTINO:</strong> ( &nbsp; ) CRAS &nbsp;&nbsp;&nbsp; ( &nbsp; ) CREAS &nbsp;&nbsp;&nbsp; ( &nbsp; ) Saúde / Posto &nbsp;&nbsp;&nbsp; ( &nbsp; ) Educação &nbsp;&nbsp;&nbsp; ( &nbsp; ) Outro: ___________________
+        </p>
+        {dados_familia_html}
+        <p style="font-size: 11pt; font-weight: bold; color: #047857; margin-top: 20px;">
+            MOTIVO DO ENCAMINHAMENTO / SOLICITAÇÃO DE ACOMPANHAMENTO:
+        </p>
+        <div style="border: 1px solid #CBD5E1; padding: 12px; min-height: 120px; font-size: 11pt; line-height: 1.6; background-color: #FAFAFA;">
+            Encaminhamos a família acima identificada para avaliação e inserção nos acompanhamentos socioassistenciais pertinentes, tendo em vista a necessidade detectada durante atendimento presencial no setor de Cadastro Único.
+        </div>
+        <div style="text-align: right; margin-top: 30px; font-size: 11pt; color: #334155;">
+            Tomé-Açu/PA, {data_extenso}.
+        </div>
+        {signature_html}
+        """
+
+    elif tipo == 'relatorio':
+        return f"""{header_html}
+        <div style="text-align: center; margin: 20px 0 20px 0;">
+            <h3 style="font-size: 14pt; font-weight: bold; color: #047857; margin: 0; text-transform: uppercase;">
+                RELATÓRIO TÉCNICO DE VISITA DOMICILIAR / ATENDIMENTO
+            </h3>
+        </div>
+        {dados_familia_html}
+        <p style="font-size: 11pt; font-weight: bold; color: #047857; margin-top: 15px;">
+            1. OBJETIVO DA VISITA / ATENDIMENTO:
+        </p>
+        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 20px;">
+            Verificação da composição familiar e condições de habitabilidade para atualização cadastral no CadÚnico.
+        </p>
+        <p style="font-size: 11pt; font-weight: bold; color: #047857; margin-top: 15px;">
+            2. PARECER E OBSERVAÇÕES TÉCNICAS:
+        </p>
+        <div style="border: 1px solid #CBD5E1; padding: 12px; min-height: 140px; font-size: 11pt; line-height: 1.6; background-color: #FAFAFA;">
+            Durante a visita presencial constatou-se que a família reside em imóvel com condições socioeconômicas compatíveis com o perfil do Programa Bolsa Família.
+        </div>
+        <p style="font-size: 11pt; font-weight: bold; color: #047857; margin-top: 15px;">
+            3. ENCAMINHAMENTOS RECOMENDADOS:
+        </p>
+        <p style="font-size: 11pt; line-height: 1.6;">
+            ( &nbsp; ) Atualização do Cadastro Único &nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp; ) Inclusão em Benefício &nbsp;&nbsp;&nbsp;&nbsp; ( &nbsp; ) Encaminhamento CRAS
+        </p>
+        <div style="text-align: right; margin-top: 30px; font-size: 11pt; color: #334155;">
+            Tomé-Açu/PA, {data_extenso}.
+        </div>
+        {signature_html}
+        """
+
+    else:
+        return f"""{header_html}
+        <div style="text-align: right; margin-bottom: 20px; font-size: 11pt; color: #334155;">
+            Tomé-Açu/PA, {data_extenso}.
+        </div>
+        <p style="font-size: 12pt; font-weight: bold; color: #047857; margin-bottom: 20px;">
+            MEMORANDO Nº {num_doc} - SETAS/CADÚNICO
+        </p>
+        <p style="font-size: 11pt; margin-bottom: 15px;">
+            <strong>PARA:</strong> Coordenação do Cadastro Único<br>
+            <strong>DE:</strong> Setor de Atendimento / Entrevistadores<br>
+            <strong>ASSUNTO:</strong> Solicitação de providências em cadastro familiar
+        </p>
+        <hr style="border: 0; border-top: 1px solid #CBD5E1; margin: 15px 0;">
+        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 30px;">
+            Encaminhamos a Vossa Senhoria o relatório de atendimento da família abaixo cadastrada no sistema, para análise e tomada de providências pertinentes:
+        </p>
+        {dados_familia_html}
+        <p style="font-size: 11pt; line-height: 1.6; text-align: justify; text-indent: 30px;">
+            Solicitamos a gentileza de proceder com as atualizações e verificações necessárias nos sistemas operacionais oficiais.
+        </p>
+        {signature_html}
+        """
+
+
+@app.route('/documentos')
+def listar_documentos():
+    if _requer_login():
+        return redirect(url_for('login'))
+
+    conn = get_db()
+    busca = request.args.get('busca', '').strip()
+    tipo = request.args.get('tipo', '').strip()
+
+    sql = "SELECT d.*, u.nome as criador_nome FROM documentos_editaveis d LEFT JOIN usuarios u ON u.id = d.criador_id WHERE 1=1"
+    params = []
+
+    if busca:
+        sql += " AND (d.titulo LIKE ? OR d.nome_rf LIKE ? OR d.cpf_rf LIKE ?)"
+        params.extend([f"%{busca}%", f"%{busca}%", f"%{busca}%"])
+
+    if tipo:
+        sql += " AND d.tipo = ?"
+        params.append(tipo)
+
+    sql += " ORDER BY d.atualizado_em DESC"
+    documentos = _fetchall(conn, sql, tuple(params))
+    conn.close()
+
+    return render_template('lista_documentos.html', documentos=documentos, busca=busca, tipo=tipo)
+
+
+@app.route('/documentos/novo')
+def novo_documento():
+    if _requer_login():
+        return redirect(url_for('login'))
+
+    modelo_tipo = request.args.get('modelo', 'memorando')
+    atendimento_id = request.args.get('atendimento_id', type=int)
+    visita_id = request.args.get('visita_id', type=int)
+    cpf_rf = request.args.get('cpf', '').strip()
+
+    conn = get_db()
+    nome_rf, nis, endereco = '', '', ''
+
+    if atendimento_id:
+        at = _fetchone(conn, "SELECT * FROM atendimentos WHERE id=?", (atendimento_id,))
+        if at:
+            cpf_rf = at['cpf']
+            nome_rf = at['nome_rf']
+    elif visita_id:
+        v = _fetchone(conn, "SELECT * FROM solicitacoes_visita WHERE id=?", (visita_id,))
+        if v:
+            cpf_rf = v['cpf_rf']
+            nome_rf = v['nome_rf']
+            endereco = f"{v.get('logradouro','')}, {v.get('numero','')}, {v.get('bairro','')}"
+
+    atendimentos_recentes = _fetchall(conn, "SELECT id, cpf, nome_rf FROM atendimentos ORDER BY id DESC LIMIT 50")
+    conn.close()
+
+    operador_nome = session.get('usuario_nome', 'Servidor Responsável')
+
+    conteudo_inicial = _gerar_modelo_documento_html(
+        tipo=modelo_tipo,
+        nome_rf=nome_rf,
+        cpf_rf=cpf_rf,
+        nis=nis,
+        endereco=endereco,
+        numero_seq=1,
+        operador_nome=operador_nome
+    )
+
+    doc_fake = {
+        'id': None,
+        'titulo': f"{modelo_tipo.capitalize()} Oficial - {nome_rf or 'Novo Documento'}",
+        'tipo': modelo_tipo,
+        'conteudo_html': conteudo_inicial,
+        'atendimento_id': atendimento_id,
+        'visita_id': visita_id,
+        'cpf_rf': cpf_rf,
+        'nome_rf': nome_rf
+    }
+
+    return render_template('editor_documentos.html', doc=doc_fake, atendimentos_recentes=atendimentos_recentes)
+
+
+@app.route('/documentos/<int:doc_id>/editar')
+def editar_documento(doc_id):
+    if _requer_login():
+        return redirect(url_for('login'))
+
+    conn = get_db()
+    doc = _fetchone(conn, "SELECT * FROM documentos_editaveis WHERE id=?", (doc_id,))
+    atendimentos_recentes = _fetchall(conn, "SELECT id, cpf, nome_rf FROM atendimentos ORDER BY id DESC LIMIT 50")
+    conn.close()
+
+    if not doc:
+        flash('Documento não encontrado.', 'erro')
+        return redirect(url_for('listar_documentos'))
+
+    return render_template('editor_documentos.html', doc=dict(doc), atendimentos_recentes=atendimentos_recentes)
+
+
+@app.route('/documentos/salvar', methods=['POST'])
+def salvar_documento():
+    if _requer_login():
+        return jsonify({'sucesso': False, 'erro': 'Sessão expirada. Faça login novamente.'}), 401
+
+    dados = request.get_json() or {}
+    doc_id = dados.get('id')
+    titulo = dados.get('titulo', 'Documento Sem Título').strip()
+    tipo = dados.get('tipo', 'memorando').strip()
+    conteudo_html = dados.get('conteudo_html', '').strip()
+    atendimento_id = dados.get('atendimento_id')
+    visita_id = dados.get('visita_id')
+    cpf_rf = dados.get('cpf_rf', '').strip()
+    nome_rf = dados.get('nome_rf', '').strip()
+
+    if not titulo:
+        titulo = "Documento Sem Título"
+
+    conn = get_db()
+    agora_iso = datetime.now(_TZ_BELEM).isoformat()
+    uid = session['usuario_id']
+
+    if doc_id:
+        _exec(conn, """
+            UPDATE documentos_editaveis
+            SET titulo=?, tipo=?, conteudo_html=?, atendimento_id=?, visita_id=?, cpf_rf=?, nome_rf=?, atualizado_em=?
+            WHERE id=?
+        """, (titulo, tipo, conteudo_html, atendimento_id, visita_id, cpf_rf, nome_rf, agora_iso, doc_id))
+        conn.commit()
+        nuevo_id = doc_id
+        audit('DOCUMENTO_EDITADO', f"id={doc_id}, titulo={titulo}")
+    else:
+        if _is_pg():
+            row = _fetchone(conn, """
+                INSERT INTO documentos_editaveis (titulo, tipo, conteudo_html, atendimento_id, visita_id, cpf_rf, nome_rf, criador_id, criado_em, atualizado_em)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id
+            """, (titulo, tipo, conteudo_html, atendimento_id, visita_id, cpf_rf, nome_rf, uid, agora_iso, agora_iso))
+            nuevo_id = row['id']
+        else:
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO documentos_editaveis (titulo, tipo, conteudo_html, atendimento_id, visita_id, cpf_rf, nome_rf, criador_id, criado_em, atualizado_em)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+            """, (titulo, tipo, conteudo_html, atendimento_id, visita_id, cpf_rf, nome_rf, uid, agora_iso, agora_iso))
+            nuevo_id = cur.lastrowid
+        conn.commit()
+        audit('DOCUMENTO_CRIADO', f"id={nuevo_id}, titulo={titulo}")
+
+    conn.close()
+    return jsonify({
+        'sucesso': True,
+        'id': nuevo_id,
+        'mensagem': 'Documento salvo com sucesso no banco de dados.'
+    })
+
+
+@app.route('/documentos/<int:doc_id>/excluir', methods=['POST'])
+def excluir_documento(doc_id):
+    if _requer_login():
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('login'))
+
+    conn = get_db()
+    doc = _fetchone(conn, "SELECT titulo FROM documentos_editaveis WHERE id=?", (doc_id,))
+    if doc:
+        _exec(conn, "DELETE FROM documentos_editaveis WHERE id=?", (doc_id,))
+        conn.commit()
+        audit('DOCUMENTO_EXCLUIDO', f"id={doc_id}, titulo={doc['titulo']}")
+        flash('Documento excluído com sucesso.', 'ok')
+    else:
+        flash('Documento não encontrado.', 'erro')
+
+    conn.close()
+    return redirect(url_for('listar_documentos'))
+
+
+@app.route('/documentos/<int:doc_id>/docx')
+def exportar_documento_docx(doc_id):
+    """Gera um arquivo real do Microsoft Word (.DOCX) contendo o texto formatado do documento."""
+    if _requer_login():
+        return redirect(url_for('login'))
+
+    conn = get_db()
+    doc = _fetchone(conn, "SELECT * FROM documentos_editaveis WHERE id=?", (doc_id,))
+    conn.close()
+
+    if not doc:
+        flash('Documento não encontrado.', 'erro')
+        return redirect(url_for('listar_documentos'))
+
+    import docx
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    import re
+
+    document = docx.Document()
+    
+    for section in document.sections:
+        section.top_margin = Inches(1.0)
+        section.bottom_margin = Inches(1.0)
+        section.left_margin = Inches(1.0)
+        section.right_margin = Inches(1.0)
+
+    raw_html = doc['conteudo_html']
+    clean_text = re.sub(r'<h[1-6][^>]*>(.*?)</h[1-6]>', r'\n\1\n', raw_html, flags=re.IGNORECASE)
+    clean_text = re.sub(r'<p[^>]*>(.*?)</p>', r'\1\n', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'<br\s*/?>', r'\n', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'<tr[^>]*>(.*?)</tr>', r'\1\n', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'<td[^>]*>(.*?)</td>', r' | \1 ', clean_text, flags=re.IGNORECASE)
+    clean_text = re.sub(r'<[^>]+>', '', clean_text)
+    
+    p_title = document.add_paragraph()
+    p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_t = p_title.add_run(doc['titulo'])
+    run_t.bold = True
+    run_t.font.size = Pt(14)
+    run_t.font.color.rgb = RGBColor(4, 120, 87)
+
+    document.add_paragraph()
+
+    lines = [line.strip() for line in clean_text.split('\n') if line.strip()]
+    for line in lines:
+        p = document.add_paragraph()
+        run = p.add_run(line)
+        run.font.size = Pt(11)
+        run.font.name = 'Arial'
+
+    buf = io.BytesIO()
+    document.save(buf)
+    buf.seek(0)
+
+    fn_docx = f"{doc['titulo'].replace(' ', '_')}.docx"
+    return send_file(buf, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document', as_attachment=True, download_name=fn_docx)
+
+
+@app.route('/documentos/<int:doc_id>/pdf')
+def exportar_documento_pdf(doc_id):
+    if _requer_login():
+        return redirect(url_for('login'))
+
+    conn = get_db()
+    doc = _fetchone(conn, "SELECT * FROM documentos_editaveis WHERE id=?", (doc_id,))
+    conn.close()
+
+    if not doc:
+        flash('Documento não encontrado.', 'erro')
+        return redirect(url_for('listar_documentos'))
+
+    return render_template('pdf_documento_editavel.html', doc=dict(doc))
 
 
 # ---------------------------------------------------------------------------

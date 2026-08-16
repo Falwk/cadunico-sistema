@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ doc.titulo or 'Editor de Documentos' }} — CadÚnico SETAS</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Roboto+Mono&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --primary: #047857;
+      --primary-dark: #00542A;
+      --bg-workspace: #E2E8F0;
+      --toolbar-bg: #FFFFFF;
+      --text-main: #1E293B;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background-color: var(--bg-workspace);
+      color: var(--text-main);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Top Header ──────────────────────────────────────────────────────── */
+    .editor-header {
+      background: #FFFFFF;
+      border-bottom: 1px solid #CBD5E1;
+      height: 56px;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      z-index: 100;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .doc-icon {
+      font-size: 1.4rem;
+    }
+
+    .doc-title-input {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0F172A;
+      border: 1px solid transparent;
+      border-radius: 6px;
+      padding: 6px 10px;
+      width: 340px;
+      background: transparent;
+      transition: all 0.2s;
+    }
+
+    .doc-title-input:hover, .doc-title-input:focus {
+      border-color: #94A3B8;
+      background: #F8FAFC;
+      outline: none;
+    }
+
+    .header-center {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .select-modelo {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid #CBD5E1;
+      background: #F8FAFC;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: #334155;
+      cursor: pointer;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      border: 1px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+
+    .btn-save { background: #059669; color: #FFFFFF; }
+    .btn-save:hover { background: #047857; }
+
+    .btn-docx { background: #2563EB; color: #FFFFFF; }
+    .btn-docx:hover { background: #1D4ED8; }
+
+    .btn-print { background: #475569; color: #FFFFFF; }
+    .btn-print:hover { background: #334155; }
+
+    .btn-close { background: #F1F5F9; color: #64748B; border-color: #CBD5E1; }
+    .btn-close:hover { background: #E2E8F0; color: #0F172A; }
+
+    /* ── Toolbar de Formatação (Word Ribbon) ──────────────────────────────── */
+    .editor-toolbar {
+      background: var(--toolbar-bg);
+      border-bottom: 1px solid #CBD5E1;
+      padding: 6px 20px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+      z-index: 90;
+    }
+
+    .tb-group {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      border-right: 1px solid #E2E8F0;
+      padding-right: 8px;
+      margin-right: 4px;
+    }
+
+    .tb-btn {
+      width: 32px;
+      height: 32px;
+      border: 1px solid transparent;
+      background: transparent;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #334155;
+      transition: background 0.15s;
+    }
+
+    .tb-btn:hover { background: #F1F5F9; border-color: #CBD5E1; }
+    .tb-btn.active { background: #E0F2FE; color: #0284C7; border-color: #38BDF8; }
+
+    .tb-select {
+      padding: 4px 8px;
+      border: 1px solid #CBD5E1;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: #334155;
+      background: #FFFFFF;
+      cursor: pointer;
+    }
+
+    .color-picker-input {
+      width: 28px;
+      height: 28px;
+      padding: 0;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      background: transparent;
+    }
+
+    .status-save {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #059669;
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ── Area de Trabalho A4 (Workspace) ─────────────────────────────────── */
+    .workspace {
+      flex: 1;
+      overflow-y: auto;
+      padding: 40px 20px 80px 20px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      background: #CBD5E1;
+    }
+
+    /* Standard A4 Sheet Dimensions */
+    .a4-page {
+      width: 210mm;
+      min-height: 297mm;
+      padding: 25mm 20mm;
+      background: #FFFFFF;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+      border-radius: 2px;
+      color: #0F172A;
+      font-family: 'Arial', sans-serif;
+      font-size: 11pt;
+      line-height: 1.6;
+      outline: none;
+      word-wrap: break-word;
+      position: relative;
+    }
+
+    .a4-page:focus {
+      box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.25), 0 8px 30px rgba(0,0,0,0.15);
+    }
+
+    /* Tables in A4 Page */
+    .a4-page table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+    }
+
+    .a4-page td, .a4-page th {
+      border: 1px solid #94A3B8;
+      padding: 8px 10px;
+      text-align: left;
+    }
+
+    /* ── IMPRESSÃO ──────────────────────────────────────────────────────── */
+    @media print {
+      body { background: #FFFFFF; height: auto; overflow: visible; }
+      .editor-header, .editor-toolbar, .status-save { display: none !important; }
+      .workspace { padding: 0; background: transparent; overflow: visible; }
+      .a4-page {
+        box-shadow: none !important;
+        width: 100% !important;
+        min-height: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header Bar -->
+  <header class="editor-header">
+    <div class="header-left">
+      <span class="doc-icon">📄</span>
+      <input type="text" id="titulo_input" class="doc-title-input" value="{{ doc.titulo or 'Memorando Oficial' }}" placeholder="Título do Documento...">
+    </div>
+
+    <div class="header-center">
+      <label style="font-size:0.8rem; font-weight:700; color:#64748B;">Modelo:</label>
+      <select id="modelo_select" class="select-modelo" onchange="trocarModelo(this.value)">
+        <option value="memorando" {% if doc.tipo == 'memorando' %}selected{% endif %}>Memorando Oficial</option>
+        <option value="oficio" {% if doc.tipo == 'oficio' %}selected{% endif %}>Ofício Institucional</option>
+        <option value="declaracao" {% if doc.tipo == 'declaracao' %}selected{% endif %}>Declaração de Atendimento</option>
+        <option value="encaminhamento" {% if doc.tipo == 'encaminhamento' %}selected{% endif %}>Encaminhamento Assistencial</option>
+        <option value="relatorio" {% if doc.tipo == 'relatorio' %}selected{% endif %}>Relatório de Visita Domiciliar</option>
+      </select>
+
+      {% if atendimentos_recentes %}
+      <label style="font-size:0.8rem; font-weight:700; color:#64748B; margin-left:10px;">Preencher Família:</label>
+      <select id="atendimento_select" class="select-modelo" onchange="injetarAtendimento(this.value)">
+        <option value="">-- Selecionar Atendimento --</option>
+        {% for at in atendimentos_recentes %}
+        <option value="{{ at.id }}" data-cpf="{{ at.cpf }}" data-nome="{{ at.nome_rf }}">
+          {{ at.nome_rf }} (CPF: {{ at.cpf }})
+        </option>
+        {% endfor %}
+      </select>
+      {% endif %}
+    </div>
+
+    <div class="header-actions">
+      <button onclick="salvarDocumento(false)" class="btn-action btn-save">
+        💾 Salvar no Banco
+      </button>
+
+      {% if doc.id %}
+      <a href="{{ url_for('exportar_documento_docx', doc_id=doc.id) }}" class="btn-action btn-docx" title="Baixar no formato Word Microsoft (.docx)">
+        📑 Baixar Word (.docx)
+      </a>
+      {% endif %}
+
+      <button onclick="imprimirDocumento()" class="btn-action btn-print" title="Imprimir em formato A4">
+        🖨️ Imprimir
+      </button>
+
+      <a href="{{ url_for('listar_documentos') }}" class="btn-action btn-close">
+        ✖ Voltar
+      </a>
+    </div>
+  </header>
+
+  <!-- Toolbar de Formatação (Word Ribbon) -->
+  <div class="editor-toolbar">
+    
+    <div class="tb-group">
+      <button class="tb-btn" onclick="execCmd('undo')" title="Desfazer (Ctrl+Z)">↶</button>
+      <button class="tb-btn" onclick="execCmd('redo')" title="Refazer (Ctrl+Y)">↷</button>
+    </div>
+
+    <div class="tb-group">
+      <select class="tb-select" onchange="execCmd('fontName', this.value)" title="Fonte">
+        <option value="Arial">Arial</option>
+        <option value="Times New Roman">Times New Roman</option>
+        <option value="Calibri">Calibri</option>
+        <option value="Georgia">Georgia</option>
+        <option value="Courier New">Courier New</option>
+      </select>
+
+      <select class="tb-select" onchange="execCmd('fontSize', this.value)" title="Tamanho">
+        <option value="2">10pt</option>
+        <option value="3" selected>11pt</option>
+        <option value="4">12pt</option>
+        <option value="5">14pt</option>
+        <option value="6">18pt</option>
+        <option value="7">24pt</option>
+      </select>
+    </div>
+
+    <div class="tb-group">
+      <button class="tb-btn" onclick="execCmd('bold')" title="Negrito (B)"><b>B</b></button>
+      <button class="tb-btn" onclick="execCmd('italic')" title="Itálico (I)"><i>I</i></button>
+      <button class="tb-btn" onclick="execCmd('underline')" title="Sublinhado (U)"><u>U</u></button>
+      <button class="tb-btn" onclick="execCmd('strikeThrough')" title="Tachado"><s>S</s></button>
+    </div>
+
+    <div class="tb-group">
+      <label title="Cor do Texto" style="display:flex; align-items:center; gap:3px; cursor:pointer;">
+        <span style="font-weight:700; font-size:0.85rem;">A</span>
+        <input type="color" class="color-picker-input" onchange="execCmd('foreColor', this.value)" value="#0F172A">
+      </label>
+      <label title="Cor do Destaque (Fundo)" style="display:flex; align-items:center; gap:3px; cursor:pointer; margin-left:6px;">
+        <span style="font-weight:700; font-size:0.85rem; background:#FEF08A; padding:0 3px;">A</span>
+        <input type="color" class="color-picker-input" onchange="execCmd('hiliteColor', this.value)" value="#FFFFFF">
+      </label>
+    </div>
+
+    <div class="tb-group">
+      <button class="tb-btn" onclick="execCmd('justifyLeft')" title="Alinhar à Esquerda">⇐</button>
+      <button class="tb-btn" onclick="execCmd('justifyCenter')" title="Centralizar">⇔</button>
+      <button class="tb-btn" onclick="execCmd('justifyRight')" title="Alinhar à Direita">⇒</button>
+      <button class="tb-btn" onclick="execCmd('justifyFull')" title="Justificar">≡</button>
+    </div>
+
+    <div class="tb-group">
+      <button class="tb-btn" onclick="execCmd('insertUnorderedList')" title="Lista com Marcadores">• List</button>
+      <button class="tb-btn" onclick="execCmd('insertOrderedList')" title="Lista Numerada">1. List</button>
+    </div>
+
+    <div class="tb-group">
+      <button class="tb-btn" onclick="inserirTabela()" title="Inserir Tabela">📊 Tabela</button>
+      <button class="tb-btn" onclick="inserirAssinatura()" title="Inserir Assinatura Oficial">✍️ Assinatura</button>
+    </div>
+
+    <div id="save_status" class="status-save">
+      <span>✓ Pronto</span>
+    </div>
+  </div>
+
+  <!-- Area de Trabalho A4 -->
+  <main class="workspace">
+    <div id="pagina_a4" class="a4-page" contenteditable="true" spellcheck="true">
+      {{ doc.conteudo_html|safe }}
+    </div>
+  </main>
+
+  <script>
+    let currentDocId = {{ doc.id or 'null' }};
+    let currentAtendimentoId = {{ doc.atendimento_id or 'null' }};
+    let currentCpfRf = "{{ doc.cpf_rf or '' }}";
+    let currentNomeRf = "{{ doc.nome_rf or '' }}";
+
+    function execCmd(command, value = null) {
+      document.execCommand(command, false, value);
+      document.getElementById('pagina_a4').focus();
+    }
+
+    function imprimirDocumento() {
+      window.print();
+    }
+
+    function inserirTabela() {
+      const htmlTabela = `
+        <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
+          <thead>
+            <tr style="background-color: #F1F5F9;">
+              <th style="border: 1px solid #CBD5E1; padding: 8px;">Item / Descrição</th>
+              <th style="border: 1px solid #CBD5E1; padding: 8px;">Quantidade</th>
+              <th style="border: 1px solid #CBD5E1; padding: 8px;">Observações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="border: 1px solid #CBD5E1; padding: 8px;">Digite aqui...</td>
+              <td style="border: 1px solid #CBD5E1; padding: 8px;">1</td>
+              <td style="border: 1px solid #CBD5E1; padding: 8px;">Sem pendências</td>
+            </tr>
+          </tbody>
+        </table><p></p>
+      `;
+      execCmd('insertHTML', htmlTabela);
+    }
+
+    function inserirAssinatura() {
+      const htmlAssinatura = `
+        <div style="margin-top: 40px; text-align: center;">
+          <div style="width: 280px; margin: 0 auto; border-top: 1px solid #0F172A; padding-top: 6px;">
+            <strong style="font-size: 11pt; color: #0F172A; display: block;">{{ session.usuario_nome or 'Servidor Responsável' }}</strong>
+            <span style="font-size: 9.5pt; color: #64748B;">Secretaria Municipal de Assistência Social — SETAS</span>
+          </div>
+        </div><p></p>
+      `;
+      execCmd('insertHTML', htmlAssinatura);
+    }
+
+    function salvarDocumento(silencioso = false) {
+      const titulo = document.getElementById('titulo_input').value.trim();
+      const tipo = document.getElementById('modelo_select').value;
+      const conteudo_html = document.getElementById('pagina_a4').innerHTML;
+      const statusEl = document.getElementById('save_status');
+
+      if (!silencioso) {
+        statusEl.innerHTML = '⏳ Salvando no banco...';
+      }
+
+      fetch('/documentos/salvar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: currentDocId,
+          titulo: titulo,
+          tipo: tipo,
+          conteudo_html: conteudo_html,
+          atendimento_id: currentAtendimentoId,
+          cpf_rf: currentCpfRf,
+          nome_rf: currentNomeRf
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.sucesso) {
+          currentDocId = data.id;
+          statusEl.innerHTML = '✓ Salvo no Banco';
+          if (!silencioso) {
+            alert('✓ Documento salvo com sucesso!');
+          }
+        } else {
+          statusEl.innerHTML = '❌ Erro ao salvar';
+          alert('Erro ao salvar documento: ' + (data.erro || 'Desconhecido'));
+        }
+      })
+      .catch(err => {
+        statusEl.innerHTML = '❌ Erro ao salvar';
+        console.error(err);
+      });
+    }
+
+    function injetarAtendimento(atId) {
+      if (!atId) return;
+      const opt = document.querySelector(`#atendimento_select option[value="${atId}"]`);
+      if (opt) {
+        currentAtendimentoId = atId;
+        currentCpfRf = opt.dataset.cpf;
+        currentNomeRf = opt.dataset.nome;
+
+        const tipo = document.getElementById('modelo_select').value;
+        window.location.href = `/documentos/novo?modelo=${tipo}&atendimento_id=${atId}`;
+      }
+    }
+
+    function trocarModelo(novoModelo) {
+      if (confirm('Deseja recarregar o modelo selecionado? Alterações não salvas serão substituídas pelo novo modelo.')) {
+        window.location.href = `/documentos/novo?modelo=${novoModelo}&atendimento_id=${currentAtendimentoId || ''}`;
+      }
+    }
+
+    // Auto-save a cada 45 segundos
+    setInterval(() => {
+      if (currentDocId) {
+        salvarDocumento(true);
+      }
+    }, 45000);
+  </script>
+</body>
+</html>
