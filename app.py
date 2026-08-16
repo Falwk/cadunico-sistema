@@ -5045,8 +5045,9 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
 
 @app.route('/documentos')
 def listar_documentos():
-    if _requer_login():
-        return redirect(url_for('login'))
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso restrito ao Administrador.', 'erro')
+        return redirect(url_for('dashboard'))
 
     conn = get_db()
     busca = request.args.get('busca', '').strip()
@@ -5072,8 +5073,9 @@ def listar_documentos():
 
 @app.route('/documentos/novo')
 def novo_documento():
-    if _requer_login():
-        return redirect(url_for('login'))
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso restrito ao Administrador.', 'erro')
+        return redirect(url_for('dashboard'))
 
     modelo_tipo = request.args.get('modelo', 'memorando')
     atendimento_id = request.args.get('atendimento_id', type=int)
@@ -5126,8 +5128,9 @@ def novo_documento():
 
 @app.route('/documentos/<int:doc_id>/editar')
 def editar_documento(doc_id):
-    if _requer_login():
-        return redirect(url_for('login'))
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso restrito ao Administrador.', 'erro')
+        return redirect(url_for('dashboard'))
 
     conn = get_db()
     doc = _fetchone(conn, "SELECT * FROM documentos_editaveis WHERE id=?", (doc_id,))
@@ -5143,8 +5146,8 @@ def editar_documento(doc_id):
 
 @app.route('/documentos/salvar', methods=['POST'])
 def salvar_documento():
-    if _requer_login():
-        return jsonify({'sucesso': False, 'erro': 'Sessão expirada. Faça login novamente.'}), 401
+    if _requer_login() or session.get('perfil') != 'admin':
+        return jsonify({'sucesso': False, 'erro': 'Acesso restrito ao Administrador.'}), 403
 
     dados = request.get_json() or {}
     doc_id = dados.get('id')
@@ -5199,9 +5202,9 @@ def salvar_documento():
 
 @app.route('/documentos/<int:doc_id>/excluir', methods=['POST'])
 def excluir_documento(doc_id):
-    if _requer_login():
+    if _requer_login() or session.get('perfil') != 'admin':
         flash('Acesso negado.', 'erro')
-        return redirect(url_for('login'))
+        return redirect(url_for('dashboard'))
 
     conn = get_db()
     doc = _fetchone(conn, "SELECT titulo FROM documentos_editaveis WHERE id=?", (doc_id,))
@@ -5220,8 +5223,9 @@ def excluir_documento(doc_id):
 @app.route('/documentos/<int:doc_id>/docx')
 def exportar_documento_docx(doc_id):
     """Gera um arquivo real do Microsoft Word (.DOCX) contendo o texto formatado do documento."""
-    if _requer_login():
-        return redirect(url_for('login'))
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso restrito ao Administrador.', 'erro')
+        return redirect(url_for('dashboard'))
 
     conn = get_db()
     doc = _fetchone(conn, "SELECT * FROM documentos_editaveis WHERE id=?", (doc_id,))
@@ -5278,8 +5282,9 @@ def exportar_documento_docx(doc_id):
 
 @app.route('/documentos/<int:doc_id>/pdf')
 def exportar_documento_pdf(doc_id):
-    if _requer_login():
-        return redirect(url_for('login'))
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso restrito ao Administrador.', 'erro')
+        return redirect(url_for('dashboard'))
 
     conn = get_db()
     doc = _fetchone(conn, "SELECT * FROM documentos_editaveis WHERE id=?", (doc_id,))
