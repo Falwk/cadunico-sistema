@@ -3,224 +3,312 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ doc.titulo or 'Editor de Documentos' }} — CadÚnico SETAS</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Roboto+Mono&display=swap" rel="stylesheet">
+  <title>{{ doc.titulo or 'Documento1.docx' }} — Microsoft Word</title>
+  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;500;600;700&family=Calibri&display=swap" rel="stylesheet">
 
   <style>
     :root {
-      --primary: #047857;
-      --primary-dark: #00542A;
-      --bg-workspace: #E2E8F0;
-      --toolbar-bg: #FFFFFF;
-      --text-main: #1E293B;
+      --word-blue: #185ABD;
+      --word-blue-dark: #104A9B;
+      --word-blue-light: #2B579A;
+      --ribbon-bg: #F3F3F3;
+      --ribbon-border: #D1D1D1;
+      --workspace-bg: #E6E6E6;
+      --status-bar-bg: #185ABD;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Inter', system-ui, sans-serif;
-      background-color: var(--bg-workspace);
-      color: var(--text-main);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: var(--workspace-bg);
+      color: #333333;
       height: 100vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
     }
 
-    /* ── Top Header ──────────────────────────────────────────────────────── */
-    .editor-header {
-      background: #FFFFFF;
-      border-bottom: 1px solid #CBD5E1;
-      height: 56px;
-      padding: 0 20px;
+    /* ── 1. WORD TOP TITLE BAR ───────────────────────────────────────────── */
+    .word-top-bar {
+      background: var(--word-blue);
+      color: #FFFFFF;
+      height: 40px;
+      padding: 0 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      user-select: none;
       z-index: 100;
     }
 
-    .header-left {
+    .top-left-quick {
       display: flex;
       align-items: center;
       gap: 12px;
     }
 
-    .doc-icon {
-      font-size: 1.4rem;
-    }
-
-    .doc-title-input {
-      font-size: 1.05rem;
-      font-weight: 700;
-      color: #0F172A;
-      border: 1px solid transparent;
-      border-radius: 6px;
-      padding: 6px 10px;
-      width: 340px;
-      background: transparent;
-      transition: all 0.2s;
-    }
-
-    .doc-title-input:hover, .doc-title-input:focus {
-      border-color: #94A3B8;
-      background: #F8FAFC;
-      outline: none;
-    }
-
-    .header-center {
+    .word-app-logo {
+      background: #FFFFFF;
+      color: var(--word-blue);
+      font-weight: 900;
+      font-size: 1.1rem;
+      width: 26px;
+      height: 26px;
+      border-radius: 4px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: center;
+      font-family: 'Segoe UI', sans-serif;
     }
 
-    .select-modelo {
-      padding: 6px 12px;
-      border-radius: 6px;
-      border: 1px solid #CBD5E1;
-      background: #F8FAFC;
-      font-weight: 600;
-      font-size: 0.85rem;
-      color: #334155;
+    .quick-btn {
+      background: transparent;
+      border: none;
+      color: #FFFFFF;
+      font-size: 1rem;
       cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 3px;
+      opacity: 0.9;
     }
 
-    .header-actions {
+    .quick-btn:hover {
+      background: rgba(255,255,255,0.2);
+      opacity: 1;
+    }
+
+    .top-center-title {
       display: flex;
       align-items: center;
       gap: 8px;
     }
 
-    .btn-action {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 14px;
-      border-radius: 6px;
-      font-weight: 700;
-      font-size: 0.85rem;
-      border: 1px solid transparent;
-      cursor: pointer;
-      text-decoration: none;
-      transition: all 0.15s;
-    }
-
-    .btn-save { background: #059669; color: #FFFFFF; }
-    .btn-save:hover { background: #047857; }
-
-    .btn-docx { background: #2563EB; color: #FFFFFF; }
-    .btn-docx:hover { background: #1D4ED8; }
-
-    .btn-print { background: #475569; color: #FFFFFF; }
-    .btn-print:hover { background: #334155; }
-
-    .btn-close { background: #F1F5F9; color: #64748B; border-color: #CBD5E1; }
-    .btn-close:hover { background: #E2E8F0; color: #0F172A; }
-
-    /* ── Toolbar de Formatação (Word Ribbon) ──────────────────────────────── */
-    .editor-toolbar {
-      background: var(--toolbar-bg);
-      border-bottom: 1px solid #CBD5E1;
-      padding: 6px 20px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      flex-wrap: wrap;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-      z-index: 90;
-    }
-
-    .tb-group {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      border-right: 1px solid #E2E8F0;
-      padding-right: 8px;
-      margin-right: 4px;
-    }
-
-    .tb-btn {
-      width: 32px;
-      height: 32px;
-      border: 1px solid transparent;
+    .doc-name-input {
       background: transparent;
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      font-weight: 700;
+      border: 1px solid transparent;
+      color: #FFFFFF;
       font-size: 0.95rem;
-      color: #334155;
-      transition: background 0.15s;
-    }
-
-    .tb-btn:hover { background: #F1F5F9; border-color: #CBD5E1; }
-    .tb-btn.active { background: #E0F2FE; color: #0284C7; border-color: #38BDF8; }
-
-    .tb-select {
-      padding: 4px 8px;
-      border: 1px solid #CBD5E1;
-      border-radius: 4px;
-      font-size: 0.85rem;
-      color: #334155;
-      background: #FFFFFF;
-      cursor: pointer;
-    }
-
-    .color-picker-input {
-      width: 28px;
-      height: 28px;
-      padding: 0;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      background: transparent;
-    }
-
-    .status-save {
-      font-size: 0.8rem;
       font-weight: 600;
-      color: #059669;
-      margin-left: auto;
+      padding: 2px 8px;
+      border-radius: 3px;
+      text-align: center;
+      width: 280px;
+    }
+
+    .doc-name-input:hover, .doc-name-input:focus {
+      background: rgba(255,255,255,0.15);
+      border-color: rgba(255,255,255,0.4);
+      outline: none;
+    }
+
+    .top-right-user {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.85rem;
+    }
+
+    .user-pill {
+      background: rgba(255,255,255,0.15);
+      padding: 3px 10px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── 2. WORD RIBBON MENU TABS ────────────────────────────────────────── */
+    .word-ribbon-tabs {
+      background: var(--word-blue);
+      padding-left: 12px;
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 32px;
+    }
+
+    .ribbon-tab {
+      background: transparent;
+      border: none;
+      color: #FFFFFF;
+      padding: 6px 14px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      border-radius: 4px 4px 0 0;
+      font-weight: 500;
+    }
+
+    .ribbon-tab:hover {
+      background: rgba(255,255,255,0.15);
+    }
+
+    .ribbon-tab.active {
+      background: var(--ribbon-bg);
+      color: #000000;
+      font-weight: 600;
+    }
+
+    .tab-file {
+      background: var(--word-blue-dark);
+      font-weight: 700;
+    }
+
+    /* ── 3. WORD RIBBON TOOLBAR (Faixa de Opções) ────────────────────────── */
+    .word-ribbon-panel {
+      background: var(--ribbon-bg);
+      border-bottom: 1px solid var(--ribbon-border);
+      padding: 6px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+      z-index: 90;
+      overflow-x: auto;
+    }
+
+    .ribbon-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      border-right: 1px solid #D1D1D1;
+      padding-right: 12px;
+      height: 72px;
+    }
+
+    .ribbon-group-controls {
       display: flex;
       align-items: center;
       gap: 4px;
+      flex: 1;
     }
 
-    /* ── Area de Trabalho A4 (Workspace) ─────────────────────────────────── */
-    .workspace {
+    .ribbon-group-label {
+      font-size: 0.7rem;
+      color: #666666;
+      margin-top: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .r-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      padding: 4px 6px;
+      border-radius: 3px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 0.85rem;
+      color: #333333;
+      font-weight: 600;
+    }
+
+    .r-btn:hover {
+      background: #E5E5E5;
+      border-color: #C6C6C6;
+    }
+
+    .r-btn.active {
+      background: #CDE6F7;
+      border-color: #92C5E9;
+    }
+
+    .r-btn-big {
+      flex-direction: column;
+      padding: 6px 10px;
+      font-size: 0.75rem;
+    }
+
+    .r-btn-big span {
+      margin-top: 2px;
+    }
+
+    .r-select {
+      border: 1px solid #C6C6C6;
+      border-radius: 3px;
+      padding: 3px 6px;
+      font-size: 0.85rem;
+      background: #FFFFFF;
+      color: #333333;
+      cursor: pointer;
+    }
+
+    .r-color {
+      width: 24px;
+      height: 24px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    /* ── 4. WORD RULER (Régua Graduada) ─────────────────────────────────── */
+    .word-ruler-container {
+      background: #F3F3F3;
+      border-bottom: 1px solid #D1D1D1;
+      height: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      user-select: none;
+    }
+
+    .ruler-marks {
+      width: 210mm;
+      height: 100%;
+      background: #FFFFFF;
+      border-left: 1px solid #D1D1D1;
+      border-right: 1px solid #D1D1D1;
+      display: flex;
+      justify-content: space-between;
+      padding: 0 20mm;
+      font-size: 0.65rem;
+      color: #666666;
+      align-items: flex-end;
+    }
+
+    /* ── 5. A4 WORKSPACE & PAGE ─────────────────────────────────────────── */
+    .word-workspace {
       flex: 1;
       overflow-y: auto;
-      padding: 40px 20px 80px 20px;
+      padding: 30px 20px 60px 20px;
       display: flex;
       justify-content: center;
       align-items: flex-start;
-      background: #CBD5E1;
+      background: #E6E6E6;
     }
 
-    /* Standard A4 Sheet Dimensions */
+    /* Authentic Microsoft Word A4 Page */
     .a4-page {
       width: 210mm;
       min-height: 297mm;
       padding: 25mm 20mm;
       background: #FFFFFF;
-      box-shadow: 0 8px 30px rgba(0,0,0,0.15);
-      border-radius: 2px;
-      color: #0F172A;
-      font-family: 'Arial', sans-serif;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.05);
+      color: #000000;
+      font-family: 'Calibri', 'Segoe UI', Arial, sans-serif;
       font-size: 11pt;
-      line-height: 1.6;
+      line-height: 1.5;
       outline: none;
       word-wrap: break-word;
       position: relative;
     }
 
-    .a4-page:focus {
-      box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.25), 0 8px 30px rgba(0,0,0,0.15);
+    /* Crop Marks / Margins Visual Markers */
+    .a4-page::before {
+      content: '';
+      position: absolute;
+      top: 20mm;
+      left: 20mm;
+      right: 20mm;
+      bottom: 20mm;
+      border: 1px dashed rgba(0,0,0,0.06);
+      pointer-events: none;
     }
 
-    /* Tables in A4 Page */
     .a4-page table {
       width: 100%;
       border-collapse: collapse;
@@ -228,161 +316,236 @@
     }
 
     .a4-page td, .a4-page th {
-      border: 1px solid #94A3B8;
-      padding: 8px 10px;
-      text-align: left;
+      border: 1px solid #A6A6A6;
+      padding: 6px 8px;
     }
 
-    /* ── IMPRESSÃO ──────────────────────────────────────────────────────── */
+    /* ── 6. WORD BOTTOM STATUS BAR ───────────────────────────────────────── */
+    .word-status-bar {
+      background: var(--status-bar-bg);
+      color: #FFFFFF;
+      height: 26px;
+      padding: 0 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      user-select: none;
+      z-index: 100;
+    }
+
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .zoom-slider {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* PRINT STYLES */
     @media print {
       body { background: #FFFFFF; height: auto; overflow: visible; }
-      .editor-header, .editor-toolbar, .status-save { display: none !important; }
-      .workspace { padding: 0; background: transparent; overflow: visible; }
-      .a4-page {
-        box-shadow: none !important;
-        width: 100% !important;
-        min-height: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
-      }
+      .word-top-bar, .word-ribbon-tabs, .word-ribbon-panel, .word-ruler-container, .word-status-bar { display: none !important; }
+      .word-workspace { padding: 0; background: transparent; overflow: visible; }
+      .a4-page { box-shadow: none !important; width: 100% !important; padding: 0 !important; margin: 0 !important; }
+      .a4-page::before { display: none !important; }
     }
   </style>
 </head>
 <body>
 
-  <!-- Top Header Bar -->
-  <header class="editor-header">
-    <div class="header-left">
-      <span class="doc-icon">📄</span>
-      <input type="text" id="titulo_input" class="doc-title-input" value="{{ doc.titulo or 'Memorando Oficial' }}" placeholder="Título do Documento...">
+  <!-- 1. Word Top Title Bar -->
+  <header class="word-top-bar">
+    <div class="top-left-quick">
+      <div class="word-app-logo" title="Microsoft Word">W</div>
+      <button class="quick-btn" onclick="salvarDocumento(false)" title="Salvar (Ctrl+S)">💾</button>
+      <button class="quick-btn" onclick="execCmd('undo')" title="Desfazer (Ctrl+Z)">↶</button>
+      <button class="quick-btn" onclick="execCmd('redo')" title="Refazer (Ctrl+Y)">↷</button>
+      <button class="quick-btn" onclick="imprimirDocumento()" title="Imprimir (Ctrl+P)">🖨️</button>
     </div>
 
-    <div class="header-center">
-      <label style="font-size:0.8rem; font-weight:700; color:#64748B;">Modelo do Sistema:</label>
-      <select id="modelo_select" class="select-modelo" onchange="trocarModelo(this.value)">
-        <option value="visita" {% if doc.tipo == 'visita' %}selected{% endif %}>🖨️ Solicitação de Visita Domiciliar (VD)</option>
-        <option value="parecer" {% if doc.tipo == 'parecer' %}selected{% endif %}>📋 Parecer Técnico da Assistente Social</option>
-        <option value="relatorio" {% if doc.tipo == 'relatorio' %}selected{% endif %}>📊 Relatório Mensal de Atendimentos</option>
-      </select>
-
-      {% if atendimentos_recentes %}
-      <label style="font-size:0.8rem; font-weight:700; color:#64748B; margin-left:10px;">Preencher Família:</label>
-      <select id="atendimento_select" class="select-modelo" onchange="injetarAtendimento(this.value)">
-        <option value="">-- Selecionar Registro --</option>
-        {% for at in atendimentos_recentes %}
-        <option value="{{ at.id }}" data-cpf="{{ at.cpf }}" data-nome="{{ at.nome_rf }}">
-          {{ at.nome_rf }} (CPF: {{ at.cpf }})
-        </option>
-        {% endfor %}
-      </select>
-      {% endif %}
+    <div class="top-center-title">
+      <input type="text" id="titulo_input" class="doc-name-input" value="{{ doc.titulo or 'Documento1.docx' }}" placeholder="Nome do Documento...">
+      <span style="font-size:0.75rem; background:rgba(255,255,255,0.2); padding:1px 6px; border-radius:3px;" id="save_badge">Salvo no Banco ✓</span>
     </div>
 
-    <div class="header-actions">
-      <button onclick="salvarDocumento(false)" class="btn-action btn-save">
-        💾 Salvar Modelo do Sistema
-      </button>
-
-      {% if doc.id %}
-      <a href="{{ url_for('exportar_documento_docx', doc_id=doc.id) }}" class="btn-action btn-docx" title="Baixar no formato Word Microsoft (.docx)">
-        📑 Baixar Word (.docx)
-      </a>
-      {% endif %}
-
-      <button onclick="imprimirDocumento()" class="btn-action btn-print" title="Imprimir em formato A4">
-        🖨️ Imprimir
-      </button>
-
-      <a href="{{ url_for('listar_documentos') }}" class="btn-action btn-close">
-        ✖ Voltar
-      </a>
+    <div class="top-right-user">
+      <div class="user-pill">
+        <span>👤 {{ session.usuario_nome or 'Jefferson' }}</span>
+      </div>
+      <a href="{{ url_for('listar_documentos') }}" class="quick-btn" style="text-decoration:none;" title="Fechar Editor">✕</a>
     </div>
   </header>
 
-  <!-- Toolbar de Formatação (Word Ribbon com Injeção de Tags) -->
-  <div class="editor-toolbar">
-    
-    <div class="tb-group" style="background:#F8FAFC; border:1px solid #CBD5E1; padding:3px 8px; border-radius:4px;">
-      <span style="font-size:0.78rem; font-weight:800; color:#047857; margin-right:4px;">🏷️ Tags Automáticas:</span>
-      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#1E40AF;" onclick="injetarTag('{{numero_vd}}')" title="Inserir Número da VD">VD</button>
-      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#1E40AF;" onclick="injetarTag('{{nome_rf}}')" title="Inserir Nome do RF">Nome RF</button>
-      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#1E40AF;" onclick="injetarTag('{{cpf_rf}}')" title="Inserir CPF do RF">CPF</button>
-      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#1E40AF;" onclick="injetarTag('{{endereco}}')" title="Inserir Endereço">Endereço</button>
-      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#1E40AF;" onclick="injetarTag('{{motivo}}')" title="Inserir Motivo da Visita">Motivo</button>
-      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#783DB2;" onclick="injetarTag('{{parecer_tecnico_txt}}')" title="Inserir Texto do Parecer Social">Parecer</button>
-      <button type="button" class="tb-btn" style="width:auto; padding:0 6px; font-size:0.78rem; font-weight:700; color:#0284C7;" onclick="injetarTag('{{total_atendimentos}}')" title="Inserir Total Atendimentos Mês">Total Atend.</button>
+  <!-- 2. Word Ribbon Menu Tabs -->
+  <nav class="word-ribbon-tabs">
+    <button class="ribbon-tab tab-file" onclick="window.location.href='{{ url_for('listar_documentos') }}'">Arquivo</button>
+    <button class="ribbon-tab active">Página Inicial</button>
+    <button class="ribbon-tab" onclick="alert('Use a barra de botões abaixo para Inserir Tabelas, Imagens e Assinaturas!')">Inserir</button>
+    <button class="ribbon-tab" onclick="alert('Formato A4 Margens Padrão 25mm configuradas!')">Layout da Página</button>
+    <button class="ribbon-tab" onclick="imprimirDocumento()">Exibir / PDF</button>
+  </nav>
+
+  <!-- 3. Word Ribbon Toolbar (Faixa de Opções) -->
+  <div class="word-ribbon-panel">
+
+    <!-- Grupo: Modelo do Sistema -->
+    <div class="ribbon-group">
+      <div class="ribbon-group-controls">
+        <select id="modelo_select" class="r-select" style="font-weight:700; color:#185ABD;" onchange="trocarModelo(this.value)">
+          <option value="visita" {% if doc.tipo == 'visita' %}selected{% endif %}>🖨️ Requisição de Visita (VD)</option>
+          <option value="parecer" {% if doc.tipo == 'parecer' %}selected{% endif %}>📋 Parecer da Assistente Social</option>
+          <option value="relatorio" {% if doc.tipo == 'relatorio' %}selected{% endif %}>📊 Relatório Mensal SETAS</option>
+        </select>
+      </div>
+      <span class="ribbon-group-label">Modelo de Documento</span>
     </div>
 
-    <div class="tb-group">
-      <button class="tb-btn" onclick="execCmd('undo')" title="Desfazer (Ctrl+Z)">↶</button>
-      <button class="tb-btn" onclick="execCmd('redo')" title="Refazer (Ctrl+Y)">↷</button>
+    <!-- Grupo: Tags Automáticas do Sistema -->
+    <div class="ribbon-group">
+      <div class="ribbon-group-controls" style="gap:2px;">
+        <button class="r-btn" onclick="injetarTag('{{numero_vd}}')" title="Inserir {{numero_vd}}">VD</button>
+        <button class="r-btn" onclick="injetarTag('{{nome_rf}}')" title="Inserir {{nome_rf}}">Nome RF</button>
+        <button class="r-btn" onclick="injetarTag('{{cpf_rf}}')" title="Inserir {{cpf_rf}}">CPF</button>
+        <button class="r-btn" onclick="injetarTag('{{endereco}}')" title="Inserir {{endereco}}">Endereço</button>
+        <button class="r-btn" onclick="injetarTag('{{motivo}}')" title="Inserir {{motivo}}">Motivo</button>
+        <button class="r-btn" onclick="injetarTag('{{parecer_tecnico_txt}}')" title="Inserir {{parecer_tecnico_txt}}">Parecer</button>
+      </div>
+      <span class="ribbon-group-label">Tags Automáticas</span>
     </div>
 
-    <div class="tb-group">
-      <select class="tb-select" onchange="execCmd('fontName', this.value)" title="Fonte">
-        <option value="Arial">Arial</option>
-        <option value="Times New Roman">Times New Roman</option>
-        <option value="Calibri">Calibri</option>
-        <option value="Georgia">Georgia</option>
-        <option value="Courier New">Courier New</option>
-      </select>
+    <!-- Grupo: Fonte -->
+    <div class="ribbon-group">
+      <div class="ribbon-group-controls">
+        <select class="r-select" onchange="execCmd('fontName', this.value)" title="Fonte">
+          <option value="Calibri" selected>Calibri</option>
+          <option value="Arial">Arial</option>
+          <option value="Times New Roman">Times New Roman</option>
+          <option value="Segoe UI">Segoe UI</option>
+          <option value="Georgia">Georgia</option>
+        </select>
 
-      <select class="tb-select" onchange="execCmd('fontSize', this.value)" title="Tamanho">
-        <option value="2">10pt</option>
-        <option value="3" selected>11pt</option>
-        <option value="4">12pt</option>
-        <option value="5">14pt</option>
-        <option value="6">18pt</option>
-        <option value="7">24pt</option>
-      </select>
+        <select class="r-select" onchange="execCmd('fontSize', this.value)" title="Tamanho da Fonte">
+          <option value="2">10</option>
+          <option value="3" selected>11</option>
+          <option value="4">12</option>
+          <option value="5">14</option>
+          <option value="6">18</option>
+          <option value="7">24</option>
+        </select>
+
+        <button class="r-btn" onclick="execCmd('bold')" title="Negrito (Ctrl+N)"><b>N</b></button>
+        <button class="r-btn" onclick="execCmd('italic')" title="Itálico (Ctrl+I)"><i>I</i></button>
+        <button class="r-btn" onclick="execCmd('underline')" title="Sublinhado (Ctrl+S)"><u>S</u></button>
+        <button class="r-btn" onclick="execCmd('strikeThrough')" title="Tachado"><s>abc</s></button>
+
+        <label title="Cor da Fonte" style="display:flex; align-items:center; cursor:pointer;">
+          <span style="font-weight:700; color:#C00000; font-size:0.9rem;">A</span>
+          <input type="color" class="r-color" onchange="execCmd('foreColor', this.value)" value="#000000">
+        </label>
+        <label title="Cor de Realce do Texto" style="display:flex; align-items:center; cursor:pointer;">
+          <span style="font-weight:700; background:#FFFF00; padding:0 2px; font-size:0.8rem;">ab</span>
+          <input type="color" class="r-color" onchange="execCmd('hiliteColor', this.value)" value="#FFFFFF">
+        </label>
+      </div>
+      <span class="ribbon-group-label">Fonte</span>
     </div>
 
-    <div class="tb-group">
-      <button class="tb-btn" onclick="execCmd('bold')" title="Negrito (B)"><b>B</b></button>
-      <button class="tb-btn" onclick="execCmd('italic')" title="Itálico (I)"><i>I</i></button>
-      <button class="tb-btn" onclick="execCmd('underline')" title="Sublinhado (U)"><u>U</u></button>
-      <button class="tb-btn" onclick="execCmd('strikeThrough')" title="Tachado"><s>S</s></button>
+    <!-- Grupo: Parágrafo -->
+    <div class="ribbon-group">
+      <div class="ribbon-group-controls">
+        <button class="r-btn" onclick="execCmd('justifyLeft')" title="Alinhar à Esquerda">≡</button>
+        <button class="r-btn" onclick="execCmd('justifyCenter')" title="Centralizar">☴</button>
+        <button class="r-btn" onclick="execCmd('justifyRight')" title="Alinhar à Direita">≡</button>
+        <button class="r-btn" onclick="execCmd('justifyFull')" title="Justificar">☰</button>
+        <button class="r-btn" onclick="execCmd('insertUnorderedList')" title="Marcadores">• List</button>
+        <button class="r-btn" onclick="execCmd('insertOrderedList')" title="Numeração">1. List</button>
+      </div>
+      <span class="ribbon-group-label">Parágrafo</span>
     </div>
 
-    <div class="tb-group">
-      <label title="Cor do Texto" style="display:flex; align-items:center; gap:3px; cursor:pointer;">
-        <span style="font-weight:700; font-size:0.85rem;">A</span>
-        <input type="color" class="color-picker-input" onchange="execCmd('foreColor', this.value)" value="#0F172A">
-      </label>
-      <label title="Cor do Destaque (Fundo)" style="display:flex; align-items:center; gap:3px; cursor:pointer; margin-left:6px;">
-        <span style="font-weight:700; font-size:0.85rem; background:#FEF08A; padding:0 3px;">A</span>
-        <input type="color" class="color-picker-input" onchange="execCmd('hiliteColor', this.value)" value="#FFFFFF">
-      </label>
+    <!-- Grupo: Inserir -->
+    <div class="ribbon-group">
+      <div class="ribbon-group-controls">
+        <button class="r-btn r-btn-big" onclick="inserirTabela()">
+          <span>📊</span>
+          <span>Tabela</span>
+        </button>
+        <button class="r-btn r-btn-big" onclick="inserirAssinatura()">
+          <span>✍️</span>
+          <span>Assinatura</span>
+        </button>
+      </div>
+      <span class="ribbon-group-label">Inserir</span>
     </div>
 
-    <div class="tb-group">
-      <button class="tb-btn" onclick="execCmd('justifyLeft')" title="Alinhar à Esquerda">⇐</button>
-      <button class="tb-btn" onclick="execCmd('justifyCenter')" title="Centralizar">⇔</button>
-      <button class="tb-btn" onclick="execCmd('justifyRight')" title="Alinhar à Direita">⇒</button>
-      <button class="tb-btn" onclick="execCmd('justifyFull')" title="Justificar">≡</button>
+    <!-- Grupo: Ações / Exportação -->
+    <div class="ribbon-group" style="border:none;">
+      <div class="ribbon-group-controls">
+        <button class="r-btn r-btn-big" style="background:#107C41; color:#FFF;" onclick="salvarDocumento(false)">
+          <span>💾</span>
+          <span>Salvar</span>
+        </button>
+        {% if doc.id %}
+        <a href="{{ url_for('exportar_documento_docx', doc_id=doc.id) }}" class="r-btn r-btn-big" style="background:#185ABD; color:#FFF; text-decoration:none;">
+          <span>📑</span>
+          <span>Baixar Word</span>
+        </a>
+        {% endif %}
+        <button class="r-btn r-btn-big" style="background:#5C5C5C; color:#FFF;" onclick="imprimirDocumento()">
+          <span>🖨️</span>
+          <span>Imprimir</span>
+        </button>
+      </div>
+      <span class="ribbon-group-label">Ações do Documento</span>
     </div>
 
-    <div class="tb-group">
-      <button class="tb-btn" onclick="execCmd('insertUnorderedList')" title="Lista com Marcadores">• List</button>
-      <button class="tb-btn" onclick="execCmd('insertOrderedList')" title="Lista Numerada">1. List</button>
-    </div>
+  </div>
 
-    <div class="tb-group">
-      <button class="tb-btn" onclick="inserirTabela()" title="Inserir Tabela">📊 Tabela</button>
-      <button class="tb-btn" onclick="inserirAssinatura()" title="Inserir Assinatura Oficial">✍️ Assinatura</button>
-    </div>
-
-    <div id="save_status" class="status-save">
-      <span>✓ Pronto</span>
+  <!-- 4. Word Ruler (Régua Graduada) -->
+  <div class="word-ruler-container">
+    <div class="ruler-marks">
+      <span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>10</span><span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span>16</span><span>17</span><span>18</span><span>19</span><span>20</span><span>21</span>
     </div>
   </div>
 
-  <!-- Area de Trabalho A4 -->
-  <main class="workspace">
-    <div id="pagina_a4" class="a4-page" contenteditable="true" spellcheck="true">
+  <!-- 5. A4 Workspace & Page -->
+  <main class="word-workspace">
+    <div id="pagina_a4" class="a4-page" contenteditable="true" spellcheck="true" oninput="atualizarContadores()">
       {{ doc.conteudo_html|safe }}
     </div>
   </main>
+
+  <!-- 6. Word Bottom Status Bar -->
+  <footer class="word-status-bar">
+    <div class="status-left">
+      <span>Página 1 de 1</span>
+      <span id="word_count">0 palavras</span>
+      <span>Português (Brasil)</span>
+      <span>Acessibilidade: Investigar</span>
+    </div>
+
+    <div class="status-right">
+      <span id="auto_save_status">☁️ Salvo no Banco de Dados</span>
+      <div class="zoom-slider">
+        <span>Layout de Impressão</span>
+        <span>-</span>
+        <input type="range" min="50" max="150" value="100" style="width:70px;" onchange="ajustarZoom(this.value)">
+        <span id="zoom_val">100%</span>
+        <span>+</span>
+      </div>
+    </div>
+  </footer>
 
   <script>
     let currentDocId = {{ doc.id or 'null' }};
@@ -393,6 +556,7 @@
     function execCmd(command, value = null) {
       document.execCommand(command, false, value);
       document.getElementById('pagina_a4').focus();
+      atualizarContadores();
     }
 
     function injetarTag(tagStr) {
@@ -403,21 +567,33 @@
       window.print();
     }
 
+    function ajustarZoom(val) {
+      document.getElementById('pagina_a4').style.transform = `scale(${val / 100})`;
+      document.getElementById('pagina_a4').style.transformOrigin = 'top center';
+      document.getElementById('zoom_val').innerText = `${val}%`;
+    }
+
+    function atualizarContadores() {
+      const text = document.getElementById('pagina_a4').innerText || '';
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      document.getElementById('word_count').innerText = `${words} palavras`;
+    }
+
     function inserirTabela() {
       const htmlTabela = `
         <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
           <thead>
-            <tr style="background-color: #F1F5F9;">
-              <th style="border: 1px solid #CBD5E1; padding: 8px;">Item / Descrição</th>
-              <th style="border: 1px solid #CBD5E1; padding: 8px;">Quantidade</th>
-              <th style="border: 1px solid #CBD5E1; padding: 8px;">Observações</th>
+            <tr style="background-color: #F3F3F3;">
+              <th style="border: 1px solid #A6A6A6; padding: 6px;">Descrição / Item</th>
+              <th style="border: 1px solid #A6A6A6; padding: 6px;">Quantidade</th>
+              <th style="border: 1px solid #A6A6A6; padding: 6px;">Situação</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td style="border: 1px solid #CBD5E1; padding: 8px;">Digite aqui...</td>
-              <td style="border: 1px solid #CBD5E1; padding: 8px;">1</td>
-              <td style="border: 1px solid #CBD5E1; padding: 8px;">Sem pendências</td>
+              <td style="border: 1px solid #A6A6A6; padding: 6px;">Item 1...</td>
+              <td style="border: 1px solid #A6A6A6; padding: 6px;">1</td>
+              <td style="border: 1px solid #A6A6A6; padding: 6px;">Regular</td>
             </tr>
           </tbody>
         </table><p></p>
@@ -428,9 +604,9 @@
     function inserirAssinatura() {
       const htmlAssinatura = `
         <div style="margin-top: 40px; text-align: center;">
-          <div style="width: 280px; margin: 0 auto; border-top: 1px solid #0F172A; padding-top: 6px;">
-            <strong style="font-size: 11pt; color: #0F172A; display: block;">{{ session.usuario_nome or 'Servidor Responsável' }}</strong>
-            <span style="font-size: 9.5pt; color: #64748B;">Secretaria Municipal de Assistência Social — SETAS</span>
+          <div style="width: 280px; margin: 0 auto; border-top: 1px solid #000000; padding-top: 5px;">
+            <strong style="font-size: 10.5pt; color: #000000; display: block;">{{ session.usuario_nome or 'Servidor Responsável' }}</strong>
+            <span style="font-size: 9pt; color: #555555;">Secretaria Municipal de Assistência Social — SETAS</span>
           </div>
         </div><p></p>
       `;
@@ -441,7 +617,8 @@
       const titulo = document.getElementById('titulo_input').value.trim();
       const tipo = document.getElementById('modelo_select').value;
       const conteudo_html = document.getElementById('pagina_a4').innerHTML;
-      const statusEl = document.getElementById('save_status');
+      const statusEl = document.getElementById('auto_save_status');
+      const badgeEl = document.getElementById('save_badge');
 
       if (!silencioso) {
         statusEl.innerHTML = '⏳ Salvando no banco...';
@@ -464,12 +641,14 @@
       .then(data => {
         if (data.sucesso) {
           currentDocId = data.id;
-          statusEl.innerHTML = '✓ Salvo no Banco';
+          statusEl.innerHTML = '☁️ Salvo no Banco de Dados';
+          badgeEl.innerHTML = 'Salvo no Banco ✓';
           if (!silencioso) {
             alert('✓ Documento salvo com sucesso!');
           }
         } else {
           statusEl.innerHTML = '❌ Erro ao salvar';
+          badgeEl.innerHTML = 'Erro no Salvamento!';
           alert('Erro ao salvar documento: ' + (data.erro || 'Desconhecido'));
         }
       })
@@ -479,24 +658,14 @@
       });
     }
 
-    function injetarAtendimento(atId) {
-      if (!atId) return;
-      const opt = document.querySelector(`#atendimento_select option[value="${atId}"]`);
-      if (opt) {
-        currentAtendimentoId = atId;
-        currentCpfRf = opt.dataset.cpf;
-        currentNomeRf = opt.dataset.nome;
-
-        const tipo = document.getElementById('modelo_select').value;
-        window.location.href = `/documentos/novo?modelo=${tipo}&atendimento_id=${atId}`;
-      }
-    }
-
     function trocarModelo(novoModelo) {
-      if (confirm('Deseja recarregar o modelo selecionado? Alterações não salvas serão substituídas pelo novo modelo.')) {
+      if (confirm('Deseja carregar o modelo selecionado? Alterações não salvas serão substituídas pelo novo modelo.')) {
         window.location.href = `/documentos/novo?modelo=${novoModelo}&atendimento_id=${currentAtendimentoId || ''}`;
       }
     }
+
+    // Inicialização
+    atualizarContadores();
 
     // Auto-save a cada 45 segundos
     setInterval(() => {
