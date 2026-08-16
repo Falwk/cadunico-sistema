@@ -3109,43 +3109,50 @@ def _gerar_backup_zip_bytes():
 
 
 # ---------------------------------------------------------------------------
-# Agendador de Backup Local Automático a cada 12 Horas
+# Agendador de Backup Automático a cada 1 Hora (com Fechamento Diário às 14h)
 # ---------------------------------------------------------------------------
 import threading
 import time
 
-_BACKUP_12H_RUNNING = False
+_BACKUP_HORARIO_RUNNING = False
 
 
 def _executar_backup_local_automatico():
-    """Gera o backup ZIP completo e salva localmente em backups_locais/ rotacionando cópias antigas e enviando ao Google Drive se configurado."""
+    """Gera o backup ZIP completo a cada 1 hora, salva localmente em backups_locais/ e envia ao Google Drive se configurado."""
     try:
+        agora = datetime.now(_TZ_BELEM)
         buf, zip_filename = _gerar_backup_zip_bytes()
         zip_bytes = buf.getvalue()
         backup_dir = os.path.join(BASE_DIR, 'backups_locais')
         os.makedirs(backup_dir, exist_ok=True)
 
-        hoje_str = datetime.now(_TZ_BELEM).strftime('%Y-%m-%d_%H%M%S')
-        dest_filename = f"Backup_CadUnico_12H_{hoje_str}.zip"
+        hoje_str = agora.strftime('%Y-%m-%d_%H%M%S')
+        is_fechamento_14h = (agora.hour == 14)
+
+        if is_fechamento_14h:
+            dest_filename = f"Backup_CadUnico_Diario_14H_{agora.strftime('%Y-%m-%d_%H%M%S')}.zip"
+        else:
+            dest_filename = f"Backup_CadUnico_1H_{hoje_str}.zip"
+
         dest_path = os.path.join(backup_dir, dest_filename)
 
         with open(dest_path, 'wb') as f:
             f.write(zip_bytes)
 
-        # Rotaciona mantendo os ultimos 14 backups (7 dias a cada 12h)
-        arquivos = sorted([
+        # Rotaciona backups horários mantendo as ultimas 24 horas (preservando backups diarios de 14h)
+        arquivos_horarios = sorted([
             os.path.join(backup_dir, fn) for fn in os.listdir(backup_dir)
-            if fn.startswith('Backup_CadUnico_12H_') and fn.endswith('.zip')
+            if (fn.startswith('Backup_CadUnico_1H_') or fn.startswith('Backup_CadUnico_12H_')) and fn.endswith('.zip')
         ], key=os.path.getmtime)
 
-        while len(arquivos) > 14:
-            rem = arquivos.pop(0)
+        while len(arquivos_horarios) > 24:
+            rem = arquivos_horarios.pop(0)
             try:
                 os.remove(rem)
             except Exception:
                 pass
 
-        # Se o Google Drive estiver configurado, envia a copia automatica de 12h tambem para a nuvem!
+        # Se o Google Drive estiver configurado, envia a copia automatica de 1h tambem para a nuvem!
         gdrive_msg = ""
         try:
             cfg = get_config()
@@ -3160,31 +3167,32 @@ def _executar_backup_local_automatico():
                 else:
                     gdrive_msg = f" (Google Drive: {res_gd[:60]})"
         except Exception as ex_gd:
-            app.logger.warning(f"Erro ao tentar enviar backup 12h para Google Drive: {ex_gd}")
+            app.logger.warning(f"Erro ao tentar enviar backup 1h para Google Drive: {ex_gd}")
 
         try:
             conn = get_db()
+            acao_log = 'BACKUP_DIARIO_14H' if is_fechamento_14h else 'BACKUP_HORARIO_AUTOMATICO'
             _exec(conn,
                 "INSERT INTO audit_log (usuario_id, usuario_nome, acao, detalhe, criado_em) VALUES (?,?,?,?,?)",
-                (1, 'Sistema (Agendador 12h)', 'BACKUP_LOCAL_AUTOMATICO', f"arquivo={dest_filename}{gdrive_msg}", datetime.now(_TZ_BELEM).isoformat())
+                (1, 'Sistema (Agendador 1h)', acao_log, f"arquivo={dest_filename}{gdrive_msg}", agora.isoformat())
             )
             conn.commit()
             conn.close()
         except Exception:
             pass
 
-        app.logger.info(f"Backup 12h gerado com sucesso: {dest_filename}{gdrive_msg}")
+        app.logger.info(f"Backup automático gerado com sucesso: {dest_filename}{gdrive_msg}")
         return True, f"Backup gerado com sucesso: {dest_filename}{gdrive_msg}"
     except Exception as e:
-        app.logger.error(f"Erro ao gerar backup automático de 12h: {e}")
+        app.logger.error(f"Erro ao gerar backup automático de 1h: {e}")
         return False, str(e)
 
 
-def _loop_backup_12h():
-    """Loop contínuo em segundo plano que executa o backup local a cada 12 horas."""
-    global _BACKUP_12H_RUNNING
-    _BACKUP_12H_RUNNING = True
-    INTERVALO_12H = 12 * 3600  # 43.200 segundos
+def _loop_backup_horario():
+    """Loop contínuo em segundo plano que executa o backup local a cada 1 hora (3.600s)."""
+    global _BACKUP_HORARIO_RUNNING
+    _BACKUP_HORARIO_RUNNING = True
+    INTERVALO_1H = 3600  # 1 hora (3.600 segundos)
 
     # Executa um backup inicial se ainda não houver nenhum na pasta
     try:
@@ -3197,17 +3205,17 @@ def _loop_backup_12h():
         pass
 
     while True:
-        time.sleep(INTERVALO_12H)
+        time.sleep(INTERVALO_1H)
         try:
             _executar_backup_local_automatico()
         except Exception as e:
-            app.logger.error(f"Erro no loop de 12h do backup local: {e}")
+            app.logger.error(f"Erro no loop horário do backup local: {e}")
 
 
 def _iniciar_scheduler_backup_12h():
-    global _BACKUP_12H_RUNNING
-    if not _BACKUP_12H_RUNNING:
-        t = threading.Thread(target=_loop_backup_12h, daemon=True)
+    global _BACKUP_HORARIO_RUNNING
+    if not _BACKUP_HORARIO_RUNNING:
+        t = threading.Thread(target=_loop_backup_horario, daemon=True)
         t.start()
 
 
