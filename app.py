@@ -992,6 +992,7 @@ def init_db():
             data TEXT NOT NULL,
             cpf TEXT NOT NULL,
             nome_rf TEXT NOT NULL,
+            bairro TEXT,
             origem TEXT NOT NULL,
             tipos TEXT NOT NULL,
             usuario_id INTEGER NOT NULL,
@@ -1088,6 +1089,7 @@ def init_db():
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS motivo_encaminhamento TEXT",
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS obs_encaminhamento TEXT",
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS situacao_encaminhamento TEXT DEFAULT 'Atendido'",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS bairro TEXT",
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tentativas_login INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_tecnico_txt TEXT",
         ]
