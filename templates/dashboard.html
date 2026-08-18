@@ -95,7 +95,12 @@
             <td style="white-space:nowrap;">
               <a href="{{ url_for('historico_cpf', cpf=at.cpf) }}" class="cpf-link" style="color:var(--cad-verde-escuro); font-weight:700; text-decoration:none;">{{ at.cpf }}</a>
             </td>
-            <td style="font-weight:600; color:var(--text-primary);">{{ at.nome_rf }}</td>
+            <td style="font-weight:600; color:var(--text-primary);">
+              {{ at.nome_rf }}
+              {% if at.bairro %}
+                <span style="display:block; font-size:0.75rem; color:#64748B; font-weight:500; margin-top:2px;">📍 {{ at.bairro }}</span>
+              {% endif %}
+            </td>
             <td>
               {% if at.origem == 'Demanda Espontânea' %}
                 <span style="display:inline-block; padding:5px 12px; border-radius:20px; font-size:0.76rem; font-weight:700; background:#FFFBEB; color:#B45309; border:1px solid #FDE68A;">

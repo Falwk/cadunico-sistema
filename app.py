@@ -181,6 +181,7 @@ def inject_logos():
         logo_cadunico=logo_25_url or _logo_url('cadunico.png'),
         logo_cadunico_25_b64=logo_25_b64,
         logo_bolsafamilia=_logo_url('bolsafamilia.png'),
+        bairros_list=BAIRROS_TOME_ACU,
     )
 
 # ---------------------------------------------------------------------------
@@ -428,6 +429,22 @@ MOTIVOS_ENCAMINHAMENTO = [
 ]
 
 SITUACES_ENCAMINHAMENTO = ["Atendido", "Pendente", "Cancelado", "Não localizado"]
+
+BAIRROS_TOME_ACU = [
+    "Campina",
+    "Centro (Sede)",
+    "Quatro Bocas (Centro)",
+    "Bairro Novo",
+    "Fátima",
+    "São Francisco",
+    "São José",
+    "Porto de Formosa",
+    "Vila Forquilha",
+    "Vila Jupiranga",
+    "Vila Nova",
+    "Zona Rural",
+    "Outro"
+]
 
 
 # ---------------------------------------------------------------------------
@@ -1209,6 +1226,7 @@ def init_db():
             "ALTER TABLE atendimentos ADD COLUMN motivo_encaminhamento TEXT",
             "ALTER TABLE atendimentos ADD COLUMN obs_encaminhamento TEXT",
             "ALTER TABLE atendimentos ADD COLUMN situacao_encaminhamento TEXT DEFAULT 'Atendido'",
+            "ALTER TABLE atendimentos ADD COLUMN bairro TEXT",
         ]:
             try:
                 c.execute(col_sql)
@@ -1761,8 +1779,8 @@ def dashboard():
 
     filtro_busca = ""
     if busca:
-        filtro_busca = f"AND (a.cpf LIKE {PH} OR a.nome_rf LIKE {PH})"
-        params_base += [f"%{busca}%", f"%{busca}%"]
+        filtro_busca = f"AND (a.cpf LIKE {PH} OR a.nome_rf LIKE {PH} OR a.bairro LIKE {PH})"
+        params_base += [f"%{busca}%", f"%{busca}%", f"%{busca}%"]
 
     base_where = f"WHERE a.data LIKE {PH} {filtro_usuario} {filtro_busca}"
     total_filtrado = _fetchone(conn,
@@ -1831,6 +1849,7 @@ def dashboard():
 # ---------------------------------------------------------------------------
 
 def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_id=None,
+                        bairro=None,
                         orgao_encaminhador=None, orgao_outro=None, numero_oficio=None,
                         data_encaminhamento=None, servidor_encaminhador=None,
                         motivo_encaminhamento=None, obs_encaminhamento=None,
@@ -1854,22 +1873,22 @@ def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_
     tipos_str = '|'.join(tipos)
     if at_id:
         _exec(conn,
-            """UPDATE atendimentos SET data=?,cpf=?,nome_rf=?,origem=?,tipos=?,
+            """UPDATE atendimentos SET data=?,cpf=?,nome_rf=?,bairro=?,origem=?,tipos=?,
                orgao_encaminhador=?,orgao_outro=?,numero_oficio=?,data_encaminhamento=?,
                servidor_encaminhador=?,motivo_encaminhamento=?,obs_encaminhamento=?,situacao_encaminhamento=?
                WHERE id=?""",
-            (data, cpf, nome_rf, origem, tipos_str,
+            (data, cpf, nome_rf, bairro, origem, tipos_str,
              orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
              servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento,
              at_id)
         )
     else:
         _exec(conn,
-            """INSERT INTO atendimentos (data,cpf,nome_rf,origem,tipos,usuario_id,criado_em,
+            """INSERT INTO atendimentos (data,cpf,nome_rf,bairro,origem,tipos,usuario_id,criado_em,
                orgao_encaminhador,orgao_outro,numero_oficio,data_encaminhamento,
                servidor_encaminhador,motivo_encaminhamento,obs_encaminhamento,situacao_encaminhamento)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (data, cpf, nome_rf, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat(),
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (data, cpf, nome_rf, bairro, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat(),
              orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
              servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento)
         )
@@ -1885,6 +1904,7 @@ def registrar():
         data = request.form.get('data', '').strip()
         cpf = request.form.get('cpf', '').strip()
         nome_rf = request.form.get('nome_rf', '').strip()
+        bairro = request.form.get('bairro', '').strip() or None
         origem = request.form.get('origem', '').strip()
         tipos = request.form.getlist('tipos')
         orgao_encaminhador = request.form.get('orgao_encaminhador', '').strip() or None
@@ -1903,7 +1923,7 @@ def registrar():
             tipos = [t for t in tipos if t not in TIPOS_ASSISTENTE_SOCIAL]
         conn = get_db()
         erros = _salvar_atendimento(
-            conn, data, cpf, nome_rf, origem, tipos, session['usuario_id'],
+            conn, data, cpf, nome_rf, origem, tipos, session['usuario_id'], bairro=bairro,
             orgao_encaminhador=orgao_encaminhador, orgao_outro=orgao_outro,
             numero_oficio=numero_oficio, data_encaminhamento=data_encaminhamento,
             servidor_encaminhador=servidor_encaminhador, motivo_encaminhamento=motivo_encaminhamento,
@@ -1916,7 +1936,7 @@ def registrar():
                                    origens=ORIGENS, orgaos_enc=ORGAOS_ENCAMINHADORES,
                                    motivos_enc=MOTIVOS_ENCAMINHAMENTO, situacoes_enc=SITUACES_ENCAMINHAMENTO,
                                    acesso_sibec=session.get('acesso_sibec'), perfil=session.get('perfil'), form=request.form)
-        audit('REGISTRAR_ATENDIMENTO', f"cpf={cpf} nome={nome_rf} origem={origem}")
+        audit('REGISTRAR_ATENDIMENTO', f"cpf={cpf} nome={nome_rf} bairro={bairro} origem={origem}")
         flash('Atendimento registrado com sucesso!', 'ok')
         return redirect(url_for('dashboard'))
     return render_template('registrar.html', erros=[], tipos=TIPOS_ATENDIMENTO,
@@ -1939,6 +1959,7 @@ def editar_atendimento(at_id):
         data = request.form.get('data', '').strip()
         cpf = request.form.get('cpf', '').strip()
         nome_rf = request.form.get('nome_rf', '').strip()
+        bairro = request.form.get('bairro', '').strip() or None
         origem = request.form.get('origem', '').strip()
         tipos = request.form.getlist('tipos')
         orgao_encaminhador = request.form.get('orgao_encaminhador', '').strip() or None
@@ -1955,7 +1976,7 @@ def editar_atendimento(at_id):
         if session.get('perfil') not in ('assistente_social', 'admin'):
             tipos = [t for t in tipos if t not in TIPOS_ASSISTENTE_SOCIAL]
         erros = _salvar_atendimento(
-            conn, data, cpf, nome_rf, origem, tipos, at['usuario_id'], at_id=at_id,
+            conn, data, cpf, nome_rf, origem, tipos, at['usuario_id'], at_id=at_id, bairro=bairro,
             orgao_encaminhador=orgao_encaminhador, orgao_outro=orgao_outro,
             numero_oficio=numero_oficio, data_encaminhamento=data_encaminhamento,
             servidor_encaminhador=servidor_encaminhador, motivo_encaminhamento=motivo_encaminhamento,
