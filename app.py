@@ -1816,17 +1816,23 @@ def dashboard():
     total_visitas_pendentes = len(visitas_pendentes_list)
     _, total_visitas_atrasadas = _processar_sla_visitas(visitas_pendentes_list, cfg)
 
-    # Gráfico por Bairro / Comunidade para o Dashboard
-    bairros_quant = {}
-    rows_v = _fetchall(conn, "SELECT bairro FROM solicitacoes_visita WHERE criado_em LIKE ? AND bairro IS NOT NULL AND TRIM(bairro) != ''", (mes + '%',))
-    for r in rows_v:
-        b = r['bairro'].strip().title()
-        bairros_quant[b] = bairros_quant.get(b, 0) + 1
+    # Gráfico por Bairro / Comunidade para o Dashboard (Exclusivo Administrador)
+    grafico_bairros = []
+    if session.get('perfil') == 'admin':
+        bairros_quant = {}
+        rows_at = _fetchall(conn, f"SELECT bairro FROM atendimentos WHERE data LIKE {PH} AND bairro IS NOT NULL AND TRIM(bairro) != ''", (mes + '%',))
+        for r in rows_at:
+            b = r['bairro'].strip().title()
+            bairros_quant[b] = bairros_quant.get(b, 0) + 1
+        rows_v = _fetchall(conn, f"SELECT bairro FROM solicitacoes_visita WHERE criado_em LIKE {PH} AND bairro IS NOT NULL AND TRIM(bairro) != ''", (mes + '%',))
+        for r in rows_v:
+            b = r['bairro'].strip().title()
+            bairros_quant[b] = bairros_quant.get(b, 0) + 1
 
-    grafico_bairros = sorted(
-        [{'nome': b, 'total': t} for b, t in bairros_quant.items()],
-        key=lambda x: x['total'], reverse=True
-    )[:6]
+        grafico_bairros = sorted(
+            [{'nome': b, 'total': t} for b, t in bairros_quant.items()],
+            key=lambda x: x['total'], reverse=True
+        )[:8]
 
     conn.close()
 
