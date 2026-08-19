@@ -27,8 +27,26 @@
         </div>
         <div class="form-group">
           <label for="bairro">Bairro / Comunidade</label>
-          <input type="text" id="bairro" name="bairro" placeholder="Digite o bairro ou comunidade..."
+          <input type="text" id="bairro" name="bairro" placeholder="Digite o bairro..."
                  value="{{ form.get('bairro', '') }}" autocomplete="off">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.2fr 0.8fr 1fr;gap:16px;margin-top:12px;">
+        <div class="form-group">
+          <label for="codigo_familiar">Código Familiar (CadÚnico)</label>
+          <input type="text" id="codigo_familiar" name="codigo_familiar" placeholder="Ex: 01234567890"
+                 value="{{ form.get('codigo_familiar', '') }}" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="qtd_membros">Qtd. Membros</label>
+          <input type="number" id="qtd_membros" name="qtd_membros" min="1" max="30" placeholder="Ex: 4"
+                 value="{{ form.get('qtd_membros', '') }}">
+        </div>
+        <div class="form-group">
+          <label for="renda_per_capita">Renda Per Capita</label>
+          <input type="text" id="renda_per_capita" name="renda_per_capita" placeholder="Ex: R$ 218,00"
+                 value="{{ form.get('renda_per_capita', '') }}" autocomplete="off">
         </div>
       </div>
     </div>
@@ -304,6 +322,10 @@ cpfInput.addEventListener('input', function(e) {
           nomeInput.title = 'Preenchido automaticamente pelo histórico';
           setTimeout(() => nomeInput.style.background = '', 2000);
         }
+        if (data.bairro && !document.getElementById('bairro').value) document.getElementById('bairro').value = data.bairro;
+        if (data.codigo_familiar && !document.getElementById('codigo_familiar').value) document.getElementById('codigo_familiar').value = data.codigo_familiar;
+        if (data.qtd_membros && !document.getElementById('qtd_membros').value) document.getElementById('qtd_membros').value = data.qtd_membros;
+        if (data.renda_per_capita && !document.getElementById('renda_per_capita').value) document.getElementById('renda_per_capita').value = data.renda_per_capita;
       })
       .catch(() => {});
   }

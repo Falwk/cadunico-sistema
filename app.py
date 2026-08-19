@@ -1090,6 +1090,9 @@ def init_db():
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS obs_encaminhamento TEXT",
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS situacao_encaminhamento TEXT DEFAULT 'Atendido'",
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS bairro TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS codigo_familiar TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS qtd_membros INTEGER",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS renda_per_capita TEXT",
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tentativas_login INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_tecnico_txt TEXT",
         ]
@@ -1229,6 +1232,9 @@ def init_db():
             "ALTER TABLE atendimentos ADD COLUMN obs_encaminhamento TEXT",
             "ALTER TABLE atendimentos ADD COLUMN situacao_encaminhamento TEXT DEFAULT 'Atendido'",
             "ALTER TABLE atendimentos ADD COLUMN bairro TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN codigo_familiar TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN qtd_membros INTEGER",
+            "ALTER TABLE atendimentos ADD COLUMN renda_per_capita TEXT",
         ]:
             try:
                 c.execute(col_sql)
@@ -1857,7 +1863,7 @@ def dashboard():
 # ---------------------------------------------------------------------------
 
 def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_id=None,
-                        bairro=None,
+                        bairro=None, codigo_familiar=None, qtd_membros=None, renda_per_capita=None,
                         orgao_encaminhador=None, orgao_outro=None, numero_oficio=None,
                         data_encaminhamento=None, servidor_encaminhador=None,
                         motivo_encaminhamento=None, obs_encaminhamento=None,
@@ -1881,22 +1887,22 @@ def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_
     tipos_str = '|'.join(tipos)
     if at_id:
         _exec(conn,
-            """UPDATE atendimentos SET data=?,cpf=?,nome_rf=?,bairro=?,origem=?,tipos=?,
+            """UPDATE atendimentos SET data=?,cpf=?,nome_rf=?,bairro=?,codigo_familiar=?,qtd_membros=?,renda_per_capita=?,origem=?,tipos=?,
                orgao_encaminhador=?,orgao_outro=?,numero_oficio=?,data_encaminhamento=?,
                servidor_encaminhador=?,motivo_encaminhamento=?,obs_encaminhamento=?,situacao_encaminhamento=?
                WHERE id=?""",
-            (data, cpf, nome_rf, bairro, origem, tipos_str,
+            (data, cpf, nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita, origem, tipos_str,
              orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
              servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento,
              at_id)
         )
     else:
         _exec(conn,
-            """INSERT INTO atendimentos (data,cpf,nome_rf,bairro,origem,tipos,usuario_id,criado_em,
+            """INSERT INTO atendimentos (data,cpf,nome_rf,bairro,codigo_familiar,qtd_membros,renda_per_capita,origem,tipos,usuario_id,criado_em,
                orgao_encaminhador,orgao_outro,numero_oficio,data_encaminhamento,
                servidor_encaminhador,motivo_encaminhamento,obs_encaminhamento,situacao_encaminhamento)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (data, cpf, nome_rf, bairro, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat(),
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (data, cpf, nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat(),
              orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
              servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento)
         )
@@ -1913,6 +1919,9 @@ def registrar():
         cpf = request.form.get('cpf', '').strip()
         nome_rf = request.form.get('nome_rf', '').strip()
         bairro = request.form.get('bairro', '').strip() or None
+        codigo_familiar = request.form.get('codigo_familiar', '').strip() or None
+        qtd_membros = request.form.get('qtd_membros', '').strip() or None
+        renda_per_capita = request.form.get('renda_per_capita', '').strip() or None
         origem = request.form.get('origem', '').strip()
         tipos = request.form.getlist('tipos')
         orgao_encaminhador = request.form.get('orgao_encaminhador', '').strip() or None
@@ -1932,6 +1941,7 @@ def registrar():
         conn = get_db()
         erros = _salvar_atendimento(
             conn, data, cpf, nome_rf, origem, tipos, session['usuario_id'], bairro=bairro,
+            codigo_familiar=codigo_familiar, qtd_membros=qtd_membros, renda_per_capita=renda_per_capita,
             orgao_encaminhador=orgao_encaminhador, orgao_outro=orgao_outro,
             numero_oficio=numero_oficio, data_encaminhamento=data_encaminhamento,
             servidor_encaminhador=servidor_encaminhador, motivo_encaminhamento=motivo_encaminhamento,
@@ -1944,7 +1954,7 @@ def registrar():
                                    origens=ORIGENS, orgaos_enc=ORGAOS_ENCAMINHADORES,
                                    motivos_enc=MOTIVOS_ENCAMINHAMENTO, situacoes_enc=SITUACES_ENCAMINHAMENTO,
                                    acesso_sibec=session.get('acesso_sibec'), perfil=session.get('perfil'), form=request.form)
-        audit('REGISTRAR_ATENDIMENTO', f"cpf={cpf} nome={nome_rf} bairro={bairro} origem={origem}")
+        audit('REGISTRAR_ATENDIMENTO', f"cpf={cpf} nome={nome_rf} cod_fam={codigo_familiar}")
         flash('Atendimento registrado com sucesso!', 'ok')
         return redirect(url_for('dashboard'))
     return render_template('registrar.html', erros=[], tipos=TIPOS_ATENDIMENTO,
@@ -1968,6 +1978,9 @@ def editar_atendimento(at_id):
         cpf = request.form.get('cpf', '').strip()
         nome_rf = request.form.get('nome_rf', '').strip()
         bairro = request.form.get('bairro', '').strip() or None
+        codigo_familiar = request.form.get('codigo_familiar', '').strip() or None
+        qtd_membros = request.form.get('qtd_membros', '').strip() or None
+        renda_per_capita = request.form.get('renda_per_capita', '').strip() or None
         origem = request.form.get('origem', '').strip()
         tipos = request.form.getlist('tipos')
         orgao_encaminhador = request.form.get('orgao_encaminhador', '').strip() or None
@@ -1985,6 +1998,7 @@ def editar_atendimento(at_id):
             tipos = [t for t in tipos if t not in TIPOS_ASSISTENTE_SOCIAL]
         erros = _salvar_atendimento(
             conn, data, cpf, nome_rf, origem, tipos, at['usuario_id'], at_id=at_id, bairro=bairro,
+            codigo_familiar=codigo_familiar, qtd_membros=qtd_membros, renda_per_capita=renda_per_capita,
             orgao_encaminhador=orgao_encaminhador, orgao_outro=orgao_outro,
             numero_oficio=numero_oficio, data_encaminhamento=data_encaminhamento,
             servidor_encaminhador=servidor_encaminhador, motivo_encaminhamento=motivo_encaminhamento,
@@ -2034,12 +2048,18 @@ def api_cpf(cpf):
         return jsonify({}), 401
     conn = get_db()
     row = _fetchone(conn,
-        "SELECT nome_rf FROM atendimentos WHERE cpf=? ORDER BY criado_em DESC LIMIT 1",
+        "SELECT nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita FROM atendimentos WHERE cpf=? ORDER BY criado_em DESC LIMIT 1",
         (cpf,)
     )
     conn.close()
     if row:
-        return jsonify({'nome_rf': row['nome_rf']})
+        return jsonify({
+            'nome_rf': row['nome_rf'],
+            'bairro': row.get('bairro') or '',
+            'codigo_familiar': row.get('codigo_familiar') or '',
+            'qtd_membros': row.get('qtd_membros') or '',
+            'renda_per_capita': row.get('renda_per_capita') or ''
+        })
     return jsonify({})
 
 

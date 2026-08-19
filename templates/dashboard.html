@@ -142,10 +142,13 @@
               <a href="{{ url_for('historico_cpf', cpf=at.cpf) }}" class="cpf-link" style="color:var(--cad-verde-escuro); font-weight:700; text-decoration:none;">{{ at.cpf }}</a>
             </td>
             <td style="font-weight:600; color:var(--text-primary);">
-              {{ at.nome_rf }}
-              {% if at.bairro %}
-                <span style="display:block; font-size:0.75rem; color:#64748B; font-weight:500; margin-top:2px;">📍 {{ at.bairro }}</span>
-              {% endif %}
+              <div>{{ at.nome_rf }}</div>
+              <div style="font-size:0.75rem; color:#64748B; font-weight:500; margin-top:2px; display:flex; flex-wrap:wrap; gap:8px;">
+                {% if at.bairro %}<span>📍 {{ at.bairro }}</span>{% endif %}
+                {% if at.codigo_familiar %}<span>🆔 Cód: <strong>{{ at.codigo_familiar }}</strong></span>{% endif %}
+                {% if at.qtd_membros %}<span>👨‍👩‍👧‍👦 {{ at.qtd_membros }} memb.</span>{% endif %}
+                {% if at.renda_per_capita %}<span>💵 Rpc: <strong>{{ at.renda_per_capita }}</strong></span>{% endif %}
+              </div>
             </td>
             <td>
               {% if at.origem == 'Demanda Espontânea' %}

@@ -29,8 +29,26 @@
         </div>
         <div class="form-group">
           <label for="bairro">Bairro / Comunidade</label>
-          <input type="text" id="bairro" name="bairro" placeholder="Digite o bairro ou comunidade..."
+          <input type="text" id="bairro" name="bairro" placeholder="Digite o bairro..."
                  value="{% if form.get %}{{ form.get('bairro', at.bairro or '') }}{% else %}{{ at.bairro or '' }}{% endif %}" autocomplete="off">
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1.2fr 0.8fr 1fr;gap:16px;margin-top:12px;">
+        <div class="form-group">
+          <label for="codigo_familiar">Código Familiar (CadÚnico)</label>
+          <input type="text" id="codigo_familiar" name="codigo_familiar" placeholder="Ex: 01234567890"
+                 value="{% if form.get %}{{ form.get('codigo_familiar', at.codigo_familiar or '') }}{% else %}{{ at.codigo_familiar or '' }}{% endif %}" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label for="qtd_membros">Qtd. Membros</label>
+          <input type="number" id="qtd_membros" name="qtd_membros" min="1" max="30" placeholder="Ex: 4"
+                 value="{% if form.get %}{{ form.get('qtd_membros', at.qtd_membros or '') }}{% else %}{{ at.qtd_membros or '' }}{% endif %}">
+        </div>
+        <div class="form-group">
+          <label for="renda_per_capita">Renda Per Capita</label>
+          <input type="text" id="renda_per_capita" name="renda_per_capita" placeholder="Ex: R$ 218,00"
+                 value="{% if form.get %}{{ form.get('renda_per_capita', at.renda_per_capita or '') }}{% else %}{{ at.renda_per_capita or '' }}{% endif %}" autocomplete="off">
         </div>
       </div>
     </div>
