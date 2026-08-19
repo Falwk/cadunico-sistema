@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container" style="max-width:1050px">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+    <div>
+      <h1 class="page-title" style="color:var(--cad-verde-escuro); margin-bottom:4px;">🌐 Portal da API Pública & Integração REST</h1>
+      <p style="color:var(--text-muted); font-size:0.9rem; margin:0;">
+        Documentação técnica, especificações OpenAPI 3.0 e integração com o Sistema de Benefícios Eventuais SETAS
+      </p>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <a href="{{ url_for('api_openapi_json') }}" target="_blank" class="btn btn-outline btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Download OpenAPI 3.0 (JSON)</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Token Card (Exclusivo Admin) -->
+  <div class="card" style="border-left:4px solid var(--cad-verde-escuro); background:#F0FDF4; margin-bottom:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+      <div>
+        <strong style="color:var(--cad-verde-escuro); font-size:0.95rem; display:block; margin-bottom:4px;">🔑 Token Secreto de Autenticação da API SETAS:</strong>
+        <div style="display:flex; align-items:center; gap:10px; font-family:monospace; background:#FFFFFF; border:1px solid #A7F3D0; padding:8px 14px; border-radius:8px; width:fit-content; font-size:0.95rem; color:#065F46;">
+          <span id="api-token-val">{{ api_token }}</span>
+          <button type="button" class="btn btn-sm btn-outline" onclick="copiarToken()" style="padding:2px 8px; font-size:0.75rem;">📋 Copiar Token</button>
+        </div>
+      </div>
+      <div style="font-size:0.82rem; color:#047857; max-width:380px;">
+        Use este token no Header HTTP <code>X-SETAS-API-TOKEN: {{ api_token }}</code> ou no parâmetro da URL <code>?token={{ api_token }}</code> para requisições externas.
+      </div>
+    </div>
+  </div>
+
+  <!-- Endpoints Lista -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-title" style="margin-bottom:16px;">📌 Endpoints da API Disponíveis</div>
+
+    <!-- Endpoint 1: Public Check -->
+    <div style="border:1px solid #E2E8F0; border-radius:10px; padding:16px; margin-bottom:16px; background:#FFFFFF;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
+        <span style="background:#0284C7; color:#FFF; font-weight:800; font-size:0.75rem; padding:4px 8px; border-radius:6px;">GET</span>
+        <code style="font-size:0.95rem; color:#0F172A; font-weight:700;">/api/v1/public/consultar/&lt;cpf&gt;</code>
+        <span style="background:#E0F2FE; color:#0369A1; font-size:0.72rem; font-weight:700; padding:3px 8px; border-radius:12px; margin-left:auto;">Pública / Sem Autenticação</span>
+      </div>
+      <p style="font-size:0.86rem; color:#475569; margin:4px 0 10px 0;">
+        Verifica a existência do cidadão no banco de dados do Cadastro Único com máscara LGPD no nome.
+      </p>
+      <div style="background:#0F172A; color:#F8FAFC; padding:12px 16px; border-radius:8px; font-family:monospace; font-size:0.82rem; overflow-x:auto;">
+        curl -X GET "{{ request.host_url }}api/v1/public/consultar/12345678909"
+      </div>
+    </div>
+
+    <!-- Endpoint 2: Consultar Familia Completa -->
+    <div style="border:1px solid #E2E8F0; border-radius:10px; padding:16px; margin-bottom:16px; background:#FFFFFF;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
+        <span style="background:#0284C7; color:#FFF; font-weight:800; font-size:0.75rem; padding:4px 8px; border-radius:6px;">GET</span>
+        <code style="font-size:0.95rem; color:#0F172A; font-weight:700;">/api/v1/integracao/beneficios/consultar/&lt;cpf_ou_codfam&gt;</code>
+        <span style="background:#DCFCE7; color:#15803D; font-size:0.72rem; font-weight:700; padding:3px 8px; border-radius:12px; margin-left:auto;">Requer Token</span>
+      </div>
+      <p style="font-size:0.86rem; color:#475569; margin:4px 0 10px 0;">
+        Retorna a ficha familiar completa (Nome, CPF, Bairro, Código Familiar, Qtd. Membros, Renda Per Capita e Histórico de Atendimentos/Visitas).
+      </p>
+      <div style="background:#0F172A; color:#F8FAFC; padding:12px 16px; border-radius:8px; font-family:monospace; font-size:0.82rem; overflow-x:auto;">
+        curl -X GET "{{ request.host_url }}api/v1/integracao/beneficios/consultar/12345678909" \<br>
+        &nbsp;&nbsp;-H "X-SETAS-API-TOKEN: {{ api_token }}"
+      </div>
+    </div>
+
+    <!-- Endpoint 3: Registrar Concessão de Benefício -->
+    <div style="border:1px solid #E2E8F0; border-radius:10px; padding:16px; margin-bottom:16px; background:#FFFFFF;">
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap;">
+        <span style="background:#16A34A; color:#FFF; font-weight:800; font-size:0.75rem; padding:4px 8px; border-radius:6px;">POST</span>
+        <code style="font-size:0.95rem; color:#0F172A; font-weight:700;">/api/v1/integracao/beneficios/conceder</code>
+        <span style="background:#DCFCE7; color:#15803D; font-size:0.72rem; font-weight:700; padding:3px 8px; border-radius:12px; margin-left:auto;">Requer Token</span>
+      </div>
+      <p style="font-size:0.86rem; color:#475569; margin:4px 0 10px 0;">
+        Registra a concessão de um benefício eventual (cesta básica, auxílio funeral, etc.) diretamente na ficha da família no CadÚnico.
+      </p>
+      <div style="background:#0F172A; color:#F8FAFC; padding:12px 16px; border-radius:8px; font-family:monospace; font-size:0.82rem; overflow-x:auto;">
+        curl -X POST "{{ request.host_url }}api/v1/integracao/beneficios/conceder" \<br>
+        &nbsp;&nbsp;-H "X-SETAS-API-TOKEN: {{ api_token }}" \<br>
+        &nbsp;&nbsp;-H "Content-Type: application/json" \<br>
+        &nbsp;&nbsp;-d '{"cpf": "12345678909", "tipo_beneficio": "Cesta Básica Emergencial", "observacao": "Concessão emergencial"}'
+      </div>
+    </div>
+  </div>
+
+  <!-- Console Interativo -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:16px;">🧪 Testar API em Tempo Real (Console Interativo)</div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+      <div class="form-group">
+        <label for="test_cpf">CPF ou Código Familiar:</label>
+        <input type="text" id="test_cpf" placeholder="Digite o CPF (ex: 123.456.789-09)..." value="12345678909">
+      </div>
+      <div class="form-group">
+        <label for="test_endpoint">Selecione o Endpoint:</label>
+        <select id="test_endpoint">
+          <option value="/api/v1/public/consultar/">GET Consulta Pública (/api/v1/public/consultar/)</option>
+          <option value="/api/v1/integracao/beneficios/consultar/">GET Ficha Completa (/api/v1/integracao/beneficios/consultar/)</option>
+        </select>
+      </div>
+    </div>
+    <button type="button" class="btn btn-primary" onclick="executarTesteAPI()">🚀 Executar Requisição</button>
+
+    <div style="margin-top:16px;">
+      <label style="font-weight:700; font-size:0.85rem; color:#475569; display:block; margin-bottom:6px;">Resposta JSON HTTP:</label>
+      <pre id="api-response-out" style="background:#0F172A; color:#38BDF8; padding:16px; border-radius:10px; font-family:monospace; font-size:0.84rem; max-height:300px; overflow-y:auto; margin:0;">// Clique em Executar Requisição para ver o retorno JSON em tempo real...</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+function copiarToken() {
+  const token = document.getElementById('api-token-val').innerText;
+  navigator.clipboard.writeText(token).then(() => {
+    alert('Token de API copiado para a área de transferência!');
+  });
+}
+
+function executarTesteAPI() {
+  const termo = document.getElementById('test_cpf').value.trim();
+  const endpointBase = document.getElementById('test_endpoint').value;
+  const out = document.getElementById('api-response-out');
+  
+  if (!termo) {
+    alert('Digite um CPF ou Código Familiar para testar.');
+    return;
+  }
+  
+  out.innerText = "Executando requisição HTTP GET...";
+  const url = endpointBase + encodeURIComponent(termo);
+  
+  fetch(url, {
+    headers: {
+      'X-SETAS-API-TOKEN': '{{ api_token }}'
+    }
+  })
+  .then(r => r.json().then(data => ({ status: r.status, body: data })))
+  .then(res => {
+    out.innerText = `HTTP Status: ${res.status}
+
+` + JSON.stringify(res.body, null, 2);
+  })
+  .catch(err => {
+    out.innerText = "Erro ao executar requisição: " + err;
+  });
+}
+</script>
+{% endblock %}

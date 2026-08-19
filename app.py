@@ -2248,6 +2248,120 @@ def api_beneficios_conceder():
     })
 
 
+@app.route('/api/v1/public/consultar/<cpf>', methods=['GET'])
+def api_publica_consultar_cpf(cpf):
+    """Endpoint público sem autenticação para verificação LGPD de cadastro do cidadão no Cadastro Único."""
+    cpf_limpo = ''.join(c for c in cpf if c.isdigit())
+    if not cpf_limpo or len(cpf_limpo) != 11 or not validar_cpf(cpf_limpo):
+        return jsonify({'sucesso': False, 'mensagem': 'CPF inválido.'}), 400
+
+    conn = get_db()
+    at_row = _fetchone(conn, f"SELECT nome_rf, bairro, data FROM atendimentos WHERE cpf={PH} ORDER BY criado_em DESC LIMIT 1", (cpf_limpo,))
+    conn.close()
+
+    if not at_row:
+        return jsonify({
+            'sucesso': False,
+            'cadastrado': False,
+            'mensagem': 'Cidadão/CPF não encontrado na base de atendimentos do Cadastro Único de Tomé-Açu.'
+        }), 404
+
+    at = dict(at_row)
+    partes = at['nome_rf'].split()
+    if len(partes) > 1:
+        nome_mascarado = partes[0] + ' ' + ' '.join([p[0] + '.' for p in partes[1:-1]]) + ' ' + partes[-1][0] + '***'
+    else:
+        nome_mascarado = partes[0][0] + '***'
+
+    return jsonify({
+        'sucesso': True,
+        'cadastrado': True,
+        'cpf_consultado': f"***.{cpf_limpo[3:6]}.{cpf_limpo[6:9]}-**",
+        'nome_rf_mascarado': nome_mascarado,
+        'bairro': at.get('bairro') or 'Não informado',
+        'status_cadastral': 'Ativo / Atendido',
+        'data_ultimo_atendimento': at['data']
+    })
+
+
+@app.route('/api/v1/openapi.json', methods=['GET'])
+def api_openapi_json():
+    """Retorna a especificação OpenAPI 3.0 completa da API Pública e de Integração."""
+    cfg = get_config()
+    host_url = request.host_url.rstrip('/')
+    spec = {
+        "openapi": "3.0.3",
+        "info": {
+            "title": "API Pública e de Integração — Cadastro Único & SETAS Tomé-Açu",
+            "description": "API REST para consulta de elegibilidade, dados cadastrais e integração com o Sistema de Benefícios Eventuais SETAS.",
+            "version": "1.0.0",
+            "contact": {
+                "name": "SETAS — Prefeitura Municipal de Tomé-Açu",
+                "email": cfg.get("email_setor", "setascadastrounico@gmail.com")
+            }
+        },
+        "servers": [{"url": host_url, "description": "Servidor da Aplicação"}],
+        "paths": {
+            "/api/v1/public/consultar/{cpf}": {
+                "get": {
+                    "summary": "Consulta Pública de Cadastro de Cidadão (LGPD)",
+                    "parameters": [{"name": "cpf", "in": "path", "required": True, "schema": {"type": "string"}}],
+                    "responses": {"200": {"description": "Status cadastral do cidadão."}}
+                }
+            },
+            "/api/v1/integracao/beneficios/status": {
+                "get": {
+                    "summary": "Verificação de Status da API",
+                    "security": [{"SetasApiToken": []}],
+                    "responses": {"200": {"description": "Status operacional da API."}}
+                }
+            },
+            "/api/v1/integracao/beneficios/consultar/{identificador}": {
+                "get": {
+                    "summary": "Consulta Ficha Completa da Família por CPF ou Código Familiar",
+                    "security": [{"SetasApiToken": []}],
+                    "parameters": [{"name": "identificador", "in": "path", "required": True, "schema": {"type": "string"}}],
+                    "responses": {"200": {"description": "Dados da família, histórico de atendimentos e visitas."}}
+                }
+            },
+            "/api/v1/integracao/beneficios/conceder": {
+                "post": {
+                    "summary": "Registra Concessão de Benefício Eventual",
+                    "security": [{"SetasApiToken": []}],
+                    "requestBody": {
+                        "required": True,
+                        "content": {"application/json": {"schema": {"type": "object", "properties": {"cpf": {"type": "string"}, "tipo_beneficio": {"type": "string"}, "observacao": {"type": "string"}}}}}
+                    },
+                    "responses": {"200": {"description": "Benefício gravado na ficha do CadÚnico."}}
+                }
+            }
+        },
+        "components": {
+            "securitySchemes": {
+                "SetasApiToken": {
+                    "type": "apiKey",
+                    "in": "header",
+                    "name": "X-SETAS-API-TOKEN"
+                }
+            }
+        }
+    }
+    return jsonify(spec)
+
+
+@app.route('/portal-api')
+@app.route('/api/docs')
+@app.route('/desenvolvedores')
+def portal_api():
+    """Portal Interativo da API Pública e Integração REST."""
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso restrito ao Administrador.', 'erro')
+        return redirect(url_for('dashboard'))
+    cfg = get_config()
+    api_token = cfg.get('token_integracao_beneficios', 'setas-beneficios-token-2026')
+    return render_template('portal_api.html', api_token=api_token)
+
+
 @app.route('/cpf/<cpf>')
 def historico_cpf(cpf):
     if _requer_login():
