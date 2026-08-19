@@ -2063,6 +2063,191 @@ def api_cpf(cpf):
     return jsonify({})
 
 
+# ---------------------------------------------------------------------------
+# Módulo de Integração com o Sistema de Gestão de Benefícios Eventuais SETAS
+# ---------------------------------------------------------------------------
+
+def _validar_token_integracao(req):
+    """Valida a autenticação via Token HTTP Header ou Query Param para a API de Benefícios Eventuais SETAS."""
+    if 'usuario_id' in session and session.get('perfil') == 'admin':
+        return True, "Acesso por sessão administrativa"
+
+    cfg = get_config()
+    token_esperado = cfg.get('token_integracao_beneficios', 'setas-beneficios-token-2026').strip()
+    
+    token_header = req.headers.get('X-SETAS-API-TOKEN') or req.headers.get('Authorization', '').replace('Bearer ', '').strip()
+    token_param = req.args.get('token', '').strip()
+    
+    token_fornecido = token_header or token_param
+    if token_fornecido and token_fornecido == token_esperado:
+        return True, "Token de integração válido"
+    return False, "Token de integração inválido ou não fornecido"
+
+
+@app.route('/api/v1/integracao/beneficios/status', methods=['GET'])
+def api_beneficios_status():
+    """Endpoint de verificação de status e documentação da API de integração com o Sistema de Benefícios Eventuais SETAS."""
+    valid, msg = _validar_token_integracao(request)
+    if not valid:
+        return jsonify({'sucesso': False, 'mensagem': msg}), 401
+    
+    return jsonify({
+        'sucesso': True,
+        'sistema': 'Sistema Oficial do Cadastro Único — SETAS Tomé-Açu',
+        'modulo': 'Integração com Sistema de Gestão de Benefícios Eventuais',
+        'versao_api': '1.0',
+        'status': 'OPERACIONAL',
+        'horario_servidor': datetime.now(_TZ_BELEM).isoformat(),
+        'endpoints_disponiveis': [
+            {'metodo': 'GET', 'rota': '/api/v1/integracao/beneficios/consultar/<cpf_ou_codfam>', 'descricao': 'Consulta perfil da família, histórico de atendimentos e visitas por CPF ou Código Familiar'},
+            {'metodo': 'GET', 'rota': '/api/v1/integracao/beneficios/atendimentos', 'descricao': 'Lista atendimentos registrados filtrados por período ou bairro'},
+            {'metodo': 'POST', 'rota': '/api/v1/integracao/beneficios/conceder', 'descricao': 'Registra a concessão de um benefício eventual (cesta básica, auxílio natalidade, etc.) na ficha da família'}
+        ]
+    })
+
+
+@app.route('/api/v1/integracao/beneficios/consultar/<identificador>', methods=['GET'])
+def api_beneficios_consultar_familia(identificador):
+    """Consulta dados cadastrais completos da família (CPF ou Código Familiar) para elegibilidade de Benefícios Eventuais."""
+    valid, msg = _validar_token_integracao(request)
+    if not valid:
+        return jsonify({'sucesso': False, 'mensagem': msg}), 401
+
+    termo = identificador.strip()
+    digits = ''.join(c for c in termo if c.isdigit())
+
+    conn = get_db()
+    if len(digits) == 11 and validar_cpf(digits):
+        at_base = _fetchone(conn, "SELECT * FROM atendimentos WHERE cpf=? ORDER BY criado_em DESC LIMIT 1", (digits,))
+        ats = _fetchall(conn, f"SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.cpf={PH} ORDER BY a.data DESC", (digits,))
+        visitas = _fetchall(conn, f"SELECT * FROM solicitacoes_visita WHERE cpf_rf={PH} ORDER BY criado_em DESC", (digits,))
+    else:
+        at_base = _fetchone(conn, f"SELECT * FROM atendimentos WHERE codigo_familiar={PH} ORDER BY criado_em DESC LIMIT 1", (termo,))
+        if not at_base and digits:
+            at_base = _fetchone(conn, f"SELECT * FROM atendimentos WHERE codigo_familiar={PH} ORDER BY criado_em DESC LIMIT 1", (digits,))
+        
+        cpf_encontrado = at_base['cpf'] if at_base else None
+        if cpf_encontrado:
+            ats = _fetchall(conn, f"SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.cpf={PH} ORDER BY a.data DESC", (cpf_encontrado,))
+            visitas = _fetchall(conn, f"SELECT * FROM solicitacoes_visita WHERE cpf_rf={PH} ORDER BY criado_em DESC", (cpf_encontrado,))
+        else:
+            ats = []
+            visitas = []
+
+    conn.close()
+
+    if not at_base:
+        return jsonify({
+            'sucesso': False,
+            'mensagem': 'Família não encontrada no banco de dados local do Cadastro Único.',
+            'identificador_consultado': termo
+        }), 404
+
+    at_dict = dict(at_base)
+    ult_at_data = ats[0]['data'] if ats else None
+    
+    return jsonify({
+        'sucesso': True,
+        'familia': {
+            'cpf_rf': at_dict['cpf'],
+            'nome_rf': at_dict['nome_rf'],
+            'bairro': at_dict.get('bairro') or '',
+            'codigo_familiar': at_dict.get('codigo_familiar') or '',
+            'qtd_membros': at_dict.get('qtd_membros'),
+            'renda_per_capita': at_dict.get('renda_per_capita') or '',
+            'ultimo_atendimento_data': ult_at_data,
+            'total_atendimentos_registrados': len(ats),
+            'total_visitas_registradas': len(visitas)
+        },
+        'historico_atendimentos': [dict(a) for a in ats],
+        'historico_visitas': [dict(v) for v in visitas]
+    })
+
+
+@app.route('/api/v1/integracao/beneficios/atendimentos', methods=['GET'])
+def api_beneficios_listar_atendimentos():
+    """Lista atendimentos com metadados para sincronização com o Sistema de Benefícios Eventuais SETAS."""
+    valid, msg = _validar_token_integracao(request)
+    if not valid:
+        return jsonify({'sucesso': False, 'mensagem': msg}), 401
+
+    mes = request.args.get('mes', datetime.now(_TZ_BELEM).strftime('%Y-%m')).strip()
+    bairro = request.args.get('bairro', '').strip()
+    
+    conn = get_db()
+    if bairro:
+        ats = _fetchall(conn,
+            f"SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.data LIKE {PH} AND LOWER(a.bairro) LIKE {PH} ORDER BY a.data DESC LIMIT 500",
+            (mes + '%', f"%{bairro.lower()}%")
+        )
+    else:
+        ats = _fetchall(conn,
+            f"SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.data LIKE {PH} ORDER BY a.data DESC LIMIT 500",
+            (mes + '%',)
+        )
+    conn.close()
+
+    return jsonify({
+        'sucesso': True,
+        'mes_referencia': mes,
+        'total_registros': len(ats),
+        'atendimentos': [dict(a) for a in ats]
+    })
+
+
+@app.route('/api/v1/integracao/beneficios/conceder', methods=['POST'])
+def api_beneficios_conceder():
+    """Registra a concessão de um Benefício Eventual concedido pela SETAS na ficha familiar do CadÚnico."""
+    valid, msg = _validar_token_integracao(request)
+    if not valid:
+        return jsonify({'sucesso': False, 'mensagem': msg}), 401
+
+    dados = request.get_json(silent=True) or request.form
+    cpf = (dados.get('cpf') or dados.get('cpf_rf') or '').strip()
+    nome_rf = (dados.get('nome_rf') or '').strip()
+    tipo_beneficio = (dados.get('tipo_beneficio') or dados.get('beneficio') or 'Auxílio Eventual SETAS').strip()
+    observacao = (dados.get('observacao') or dados.get('detalhes') or '').strip()
+    bairro = (dados.get('bairro') or '').strip() or None
+    cod_fam = (dados.get('codigo_familiar') or '').strip() or None
+    qtd_memb = dados.get('qtd_membros')
+    rpc = (dados.get('renda_per_capita') or '').strip() or None
+
+    if not cpf or not validar_cpf(cpf):
+        return jsonify({'sucesso': False, 'mensagem': 'CPF do Responsável Familiar inválido ou obrigatório.'}), 400
+
+    conn = get_db()
+    if not nome_rf:
+        prev_row = _fetchone(conn, f"SELECT nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita FROM atendimentos WHERE cpf={PH} ORDER BY criado_em DESC LIMIT 1", (cpf,))
+        if prev_row:
+            prev = dict(prev_row)
+            nome_rf = prev['nome_rf']
+            if not bairro: bairro = prev.get('bairro')
+            if not cod_fam: cod_fam = prev.get('codigo_familiar')
+            if not qtd_memb: qtd_memb = prev.get('qtd_membros')
+            if not rpc: rpc = prev.get('renda_per_capita')
+        else:
+            conn.close()
+            return jsonify({'sucesso': False, 'mensagem': 'Nome do Responsável Familiar obrigatório para novo cadastro.'}), 400
+
+    data_hoje = datetime.now(_TZ_BELEM).strftime('%Y-%m-%d')
+    _salvar_atendimento(
+        conn, data_hoje, cpf, nome_rf, 'Benefícios Eventuais SETAS', [f"Concessão: {tipo_beneficio}"],
+        usuario_id=1, bairro=bairro, codigo_familiar=cod_fam, qtd_membros=qtd_memb, renda_per_capita=rpc,
+        obs_encaminhamento=f"Integração Benefícios Eventuais: {observacao}" if observacao else "Concessão registrada via sistema de Benefícios Eventuais"
+    )
+    conn.close()
+
+    audit('INTEGRACAO_BENEFICIOS_EVENTUAIS', f"cpf={cpf} beneficio={tipo_beneficio} obs={observacao}")
+
+    return jsonify({
+        'sucesso': True,
+        'mensagem': f"Benefício '{tipo_beneficio}' registrado com sucesso no histórico da família.",
+        'cpf_rf': cpf,
+        'nome_rf': nome_rf,
+        'data_registro': data_hoje
+    })
+
+
 @app.route('/cpf/<cpf>')
 def historico_cpf(cpf):
     if _requer_login():
