@@ -2362,22 +2362,92 @@ def portal_api():
     return render_template('portal_api.html', api_token=api_token)
 
 
-@app.route('/cpf/<cpf>')
-def historico_cpf(cpf):
+@app.route('/historico-familiar')
+@app.route('/historico')
+def historico_familiar():
     if _requer_login():
         return redirect(url_for('login'))
+
+    query = request.args.get('q', '').strip()
+    cpf_param = request.args.get('cpf', '').strip()
+    termo = query or cpf_param
+
     conn = get_db()
-    filtro_usuario = "" if session['perfil'] == 'admin' else f"AND a.usuario_id={PH}"
-    params = [cpf] + ([session['usuario_id']] if session['perfil'] != 'admin' else [])
-    ats = _fetchall(conn,
-        f"""SELECT a.*, u.nome as entrevistador FROM atendimentos a
-            JOIN usuarios u ON a.usuario_id=u.id
-            WHERE a.cpf={PH} {filtro_usuario} ORDER BY a.data DESC""",
-        params
-    )
-    nome_rf = ats[0]['nome_rf'] if ats else cpf
+    familias_encontradas = []
+    familia_selecionada = None
+    atendimentos = []
+    visitas = []
+
+    if termo:
+        digits = ''.join(c for c in termo if c.isdigit())
+        filtro_usuario = "" if session['perfil'] == 'admin' else f"AND a.usuario_id={PH}"
+        params_base = [session['usuario_id']] if session['perfil'] != 'admin' else []
+
+        # 1. Se for busca exata por CPF (11 dígitos válidos) ou por Código Familiar
+        if len(digits) == 11 and validar_cpf(digits):
+            at_base_row = _fetchone(conn, f"SELECT * FROM atendimentos WHERE cpf={PH} ORDER BY criado_em DESC LIMIT 1", (digits,))
+            if at_base_row:
+                familia_selecionada = dict(at_base_row)
+        
+        if not familia_selecionada:
+            at_base_row = _fetchone(conn, f"SELECT * FROM atendimentos WHERE codigo_familiar={PH} ORDER BY criado_em DESC LIMIT 1", (termo,))
+            if not at_base_row and digits:
+                at_base_row = _fetchone(conn, f"SELECT * FROM atendimentos WHERE codigo_familiar={PH} ORDER BY criado_em DESC LIMIT 1", (digits,))
+            if at_base_row:
+                familia_selecionada = dict(at_base_row)
+
+        # 2. Se não achou exato por CPF/Código, faz busca por Nome / Termo no banco
+        if not familia_selecionada:
+            search_param = f"%{termo.lower()}%"
+            rows = _fetchall(conn,
+                f"""SELECT cpf, nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita, COUNT(*) as total_atendimentos, MAX(data) as ultima_data
+                    FROM atendimentos
+                    WHERE (LOWER(nome_rf) LIKE {PH} OR cpf LIKE {PH} OR codigo_familiar LIKE {PH} OR LOWER(bairro) LIKE {PH})
+                    GROUP BY cpf, nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita
+                    ORDER BY ultima_data DESC LIMIT 30""",
+                (search_param, search_param, search_param, search_param)
+            )
+            familias_encontradas = [dict(r) for r in rows]
+            if len(familias_encontradas) == 1:
+                familia_selecionada = familias_encontradas[0]
+
+        # 3. Se temos uma família selecionada, carrega todos os atendimentos e visitas
+        if familia_selecionada:
+            cpf_alvo = familia_selecionada['cpf']
+            ats_rows = _fetchall(conn,
+                f"""SELECT a.*, u.nome as entrevistador FROM atendimentos a
+                    JOIN usuarios u ON a.usuario_id=u.id
+                    WHERE a.cpf={PH} {filtro_usuario} ORDER BY a.data DESC, a.criado_em DESC""",
+                [cpf_alvo] + params_base
+            )
+            atendimentos = [dict(a) for a in ats_rows]
+            
+            vis_rows = _fetchall(conn,
+                f"""SELECT v.*, u1.nome as solicitante_nome, u2.nome as responsavel_nome
+                    FROM solicitacoes_visita v
+                    LEFT JOIN usuarios u1 ON v.solicitante_id=u1.id
+                    LEFT JOIN usuarios u2 ON v.responsavel_id=u2.id
+                    WHERE v.cpf_rf={PH} ORDER BY v.criado_em DESC""",
+                (cpf_alvo,)
+            )
+            visitas = [dict(v) for v in vis_rows]
+
     conn.close()
-    return render_template('historico_cpf.html', atendimentos=ats, cpf=cpf, nome_rf=nome_rf)
+
+    return render_template(
+        'historico_familiar.html',
+        query=termo,
+        familias_encontradas=familias_encontradas,
+        familia=familia_selecionada,
+        atendimentos=atendimentos,
+        visitas=visitas
+    )
+
+
+@app.route('/cpf/<cpf>')
+def historico_cpf(cpf):
+    """Redireciona para o Histórico Familiar com a busca no CPF selecionado."""
+    return redirect(url_for('historico_familiar', q=cpf))
 
 
 # ---------------------------------------------------------------------------

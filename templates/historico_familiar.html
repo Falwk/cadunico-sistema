@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container" style="max-width:1050px">
+  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+    <div>
+      <h1 class="page-title" style="color:var(--cad-verde-escuro); margin-bottom:4px;">📜 Central do Histórico Familiar</h1>
+      <p style="color:var(--text-muted); font-size:0.9rem; margin:0;">
+        Consulte o histórico completo de atendimentos e visitas domiciliares por CPF, Código Familiar ou Nome
+      </p>
+    </div>
+    {% if familia %}
+    <div>
+      <button type="button" class="btn btn-outline btn-sm" onclick="window.print()" style="display:inline-flex; align-items:center; gap:6px;">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <span>🖨️ Imprimir Histórico</span>
+      </button>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Caixa de Pesquisa Unificada (CPF, Nome, Código Familiar) -->
+  <div class="card" style="margin-bottom:24px; border-left:4px solid var(--cad-verde-escuro);">
+    <form method="GET" action="{{ url_for('historico_familiar') }}" style="display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end;">
+      <div style="flex:1; min-width:260px;">
+        <label for="q" style="font-weight:700; font-size:0.88rem; color:var(--text-primary); margin-bottom:6px; display:block;">
+          🔍 Pesquisar por CPF, Código Familiar ou Nome do Responsável Familiar:
+        </label>
+        <input type="text" id="q" name="q" value="{{ query }}" placeholder="Digite o CPF, Código Familiar (ex: 01234567890) ou Nome..."
+               autocomplete="off" style="width:100%; padding:10px 14px; font-size:0.95rem; border:1px solid #CBD5E1; border-radius:8px;">
+      </div>
+      <button type="submit" class="btn btn-primary" style="padding:10px 20px; font-weight:700;">
+        Buscar Histórico
+      </button>
+      {% if query %}
+      <a href="{{ url_for('historico_familiar') }}" class="btn btn-outline" style="padding:10px 16px;">Limpar</a>
+      {% endif %}
+    </form>
+  </div>
+
+  <!-- Se busca retornou múltiplas famílias por Nome/Termo -->
+  {% if familias_encontradas and not familia %}
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-title" style="margin-bottom:12px;">👥 Selecione a Família Desejada ({{ familias_encontradas|length }} resultado(s) para "{{ query }}")</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Responsável Familiar</th>
+            <th>CPF</th>
+            <th>Código Familiar</th>
+            <th>Bairro / Comunidade</th>
+            <th>Atendimentos</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in familias_encontradas %}
+          <tr>
+            <td style="font-weight:700; color:var(--text-primary);">{{ f.nome_rf }}</td>
+            <td style="font-weight:600; color:var(--cad-verde-escuro);">{{ f.cpf }}</td>
+            <td>{% if f.codigo_familiar %}<code>{{ f.codigo_familiar }}</code>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+            <td>{{ f.bairro or '-' }}</td>
+            <td><span class="tag" style="background:#E2E8F0; color:#334155; font-weight:700;">{{ f.total_atendimentos }} atendimento(s)</span></td>
+            <td>
+              <a href="{{ url_for('historico_familiar', q=f.cpf) }}" class="btn btn-sm btn-primary">Ver Histórico</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if familia %}
+  <!-- Header Card da Família Selecionada -->
+  <div class="card" style="background:#F8FAFC; border:1px solid #E2E8F0; margin-bottom:24px; padding:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:16px;">
+      <div>
+        <div style="font-size:0.75rem; text-transform:uppercase; font-weight:800; letter-spacing:0.5px; color:#64748B; margin-bottom:4px;">Ficha da Família / Responsável Familiar</div>
+        <h2 style="font-size:1.4rem; color:var(--cad-verde-escuro); margin:0 0 6px 0; font-weight:800;">{{ familia.nome_rf }}</h2>
+        <div style="display:flex; flex-wrap:wrap; gap:12px; font-size:0.9rem; color:#334155; align-items:center;">
+          <span>📄 CPF: <strong>{{ familia.cpf }}</strong></span>
+          {% if familia.bairro %}<span>📍 Bairro: <strong>{{ familia.bairro }}</strong></span>{% endif %}
+          {% if familia.codigo_familiar %}<span>🆔 Cód. Familiar: <strong style="font-family:monospace; background:#E2E8F0; padding:2px 6px; border-radius:4px;">{{ familia.codigo_familiar }}</strong></span>{% endif %}
+          {% if familia.qtd_membros %}<span>👨‍👩‍👧‍👦 <strong>{{ familia.qtd_membros }}</strong> membros</span>{% endif %}
+          {% if familia.renda_per_capita %}<span>💵 RPC: <strong>{{ familia.renda_per_capita }}</strong></span>{% endif %}
+        </div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <div style="background:#DCFCE7; border:1px solid #86EFAC; color:#166534; padding:10px 16px; border-radius:10px; text-align:center;">
+          <div style="font-size:1.3rem; font-weight:800; line-height:1;">{{ atendimentos|length }}</div>
+          <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; margin-top:2px;">Atendimentos</div>
+        </div>
+        <div style="background:#F5F3FF; border:1px solid #DDD6FE; color:#5B21B6; padding:10px 16px; border-radius:10px; text-align:center;">
+          <div style="font-size:1.3rem; font-weight:800; line-height:1;">{{ visitas|length }}</div>
+          <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; margin-top:2px;">Visitas</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Linha do Tempo de Atendimentos -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-title" style="margin-bottom:16px;">📅 Histórico de Atendimentos Realizados ({{ atendimentos|length }})</div>
+    
+    {% if atendimentos %}
+    <div style="display:flex; flex-direction:column; gap:16px;">
+      {% for at in atendimentos %}
+      <div style="border-left:4px solid var(--cad-verde-escuro); background:#FFFFFF; border:1px solid #E2E8F0; border-left-width:5px; border-radius:10px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            <span style="font-weight:800; font-size:1.05rem; color:var(--cad-verde-escuro);">
+              🗓️ {{ at.data[8:] }}/{{ at.data[5:7] }}/{{ at.data[:4] }}
+            </span>
+            <span class="tag tag-origem" style="font-weight:700;">{{ at.origem }}</span>
+          </div>
+          <div style="font-size:0.8rem; color:#64748B;">
+            Atendido por: <strong>{{ at.entrevistador }}</strong>
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <strong style="font-size:0.82rem; color:#475569; text-transform:uppercase; display:block; margin-bottom:4px;">Tipos de Atendimento Prestados:</strong>
+          <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            {% for t in at.tipos.split('|') %}
+            <span class="tag" style="background:#EBF3FB; color:#1E40AF; border:1px solid #BFDBFE; font-weight:600; font-size:0.8rem;">{{ t }}</span>
+            {% endfor %}
+          </div>
+        </div>
+
+        {% if at.orgao_encaminhador %}
+        <div style="background:#FFFBEB; border:1px solid #FDE68A; padding:10px 12px; border-radius:8px; margin-top:8px; font-size:0.85rem; color:#92400E;">
+          <strong>📩 Encaminhamento Recebido:</strong> {{ at.orgao_encaminhador }}
+          {% if at.orgao_outro %} ({{ at.orgao_outro }}){% endif %}
+          {% if at.numero_oficio %} | Ofício: {{ at.numero_oficio }}{% endif %}
+          {% if at.servidor_encaminhador %} | Servidor: {{ at.servidor_encaminhador }}{% endif %}
+          {% if at.motivo_encaminhamento %} | Motivo: {{ at.motivo_encaminhamento }}{% endif %}
+          | Status: <strong>{{ at.situacao_encaminhamento or 'Atendido' }}</strong>
+        </div>
+        {% endif %}
+
+        {% if at.obs_encaminhamento %}
+        <div style="font-size:0.84rem; color:#475569; margin-top:6px; font-style:italic;">
+          💬 Obs: {{ at.obs_encaminhamento }}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted" style="text-align:center; padding:24px;">Nenhum atendimento presencial registrado para esta família.</p>
+    {% endif %}
+  </div>
+
+  <!-- Histórico de Visitas Domiciliares -->
+  {% if visitas %}
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-title" style="margin-bottom:16px;">🏠 Solicitacões / Visitas Domiciliares Registradas ({{ visitas|length }})</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nº VD</th>
+            <th>Data Cadastro</th>
+            <th>Motivo da Visita</th>
+            <th>Solicitante</th>
+            <th>Status</th>
+            <th>Parecer Técnico</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for v in visitas %}
+          <tr>
+            <td style="font-weight:700;">#{{ v.numero_vd or v.id }}</td>
+            <td>{{ v.criado_em[:10] }}</td>
+            <td><strong style="color:#334155;">{{ v.motivo }}</strong></td>
+            <td>{{ v.solicitante_nome or 'Sistema' }}</td>
+            <td>
+              {% if v.status == 'Concluída' %}
+                <span class="tag" style="background:#DCFCE7; color:#166534; font-weight:700;">Concluída</span>
+              {% elif v.status == 'Pendente' %}
+                <span class="tag" style="background:#FEF3C7; color:#92400E; font-weight:700;">Pendente</span>
+              {% else %}
+                <span class="tag" style="background:#F1F5F9; color:#475569; font-weight:700;">{{ v.status }}</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if v.parecer_tecnico_txt %}
+                <span style="font-size:0.8rem; color:#334155;">{{ v.parecer_tecnico_txt[:60] }}{% if v.parecer_tecnico_txt|length > 60 %}...{% endif %}</span>
+              {% else %}
+                <span class="text-muted">-</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% elif query and not familias_encontradas %}
+  <div class="card" style="text-align:center; padding:48px 24px;">
+    <div style="font-size:2.5rem; margin-bottom:12px;">🔎</div>
+    <h3 style="color:var(--text-primary); margin-bottom:6px;">Nenhum registro encontrado</h3>
+    <p style="color:var(--text-muted); font-size:0.9rem; max-width:480px; margin:0 auto 16px auto;">
+      Não encontramos atendimentos ou visitas para o termo <strong>"{{ query }}"</strong>. Verifique se o CPF, Código Familiar ou Nome foi digitado corretamente.
+    </p>
+    <a href="{{ url_for('registrar') }}" class="btn btn-primary">Registrar Novo Atendimento</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
