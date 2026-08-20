@@ -521,6 +521,11 @@ def _config_defaults() -> dict:
         'visita_assinatura_1': 'Assinatura do Entrevistador / Assistente Social',
         'visita_assinatura_2': 'Assinatura do Responsável Familiar (RF)',
         'visita_rodape_txt': 'Setor do Cadastro Único e Programa Bolsa Família',
+        'telegram_bot_token': '',
+        'telegram_chat_id': '',
+        'telegram_backup_ativo': '0',
+        'telegram_backup_frequencia': '1h',
+        'telegram_ultimo_backup': '',
     }
 
 
@@ -3863,7 +3868,7 @@ def central_backup():
             'total_backups_locais': len(backups_locais_lista)
         }
 
-        return render_template('central_backup.html', stats=stats, logs_historico=logs_historico)
+        return render_template('central_backup.html', stats=stats, logs_historico=logs_historico, cfg=cfg)
     except Exception as e:
         app.logger.error(f"Erro ao carregar central_backup: {e}", exc_info=True)
         flash(f"Atenção ao abrir Central de Backup: {str(e)}", "erro")
@@ -3995,12 +4000,8 @@ def admin_backup():
     )
 
 
-@app.route('/admin/backup/excel')
-def backup_excel():
-    if _requer_login() or session.get('perfil') != 'admin':
-        flash('Acesso negado.', 'erro')
-        return redirect(url_for('dashboard'))
-
+def _gerar_backup_excel_bytes():
+    """Gera o arquivo .xlsx completo de backup dos dados do banco e retorna (buf_bytes, filename)."""
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment
     from openpyxl.utils import get_column_letter
@@ -4071,9 +4072,122 @@ def backup_excel():
     wb.save(buf)
     buf.seek(0)
 
-    hoje_str = datetime.now(_TZ_BELEM).strftime('%Y-%m-%d')
-    xlsx_filename = f"Backup_Dados_CadUnico_{hoje_str}.xlsx"
+    hoje_str = datetime.now(_TZ_BELEM).strftime('%Y-%m-%d_%Hh%M')
+    xlsx_filename = f"Backup_CadUnico_SETAS_{hoje_str}.xlsx"
+    return buf, xlsx_filename
 
+
+def _enviar_backup_telegram(bot_token=None, chat_id=None):
+    """Envia o arquivo de backup em Excel para o chat/canal do Telegram."""
+    cfg = get_config()
+    bot_token = (bot_token or cfg.get('telegram_bot_token', '')).strip()
+    chat_id = (chat_id or cfg.get('telegram_chat_id', '')).strip()
+
+    if not bot_token or not chat_id:
+        return False, "Token do Bot do Telegram e Chat ID são obrigatórios."
+
+    try:
+        buf, filename = _gerar_backup_excel_bytes()
+        url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
+
+        agora_str = datetime.now(_TZ_BELEM).strftime('%d/%m/%Y às %H:%M')
+        caption = (
+            f"📦 *BACKUP AUTOMÁTICO DE DADOS — SETAS*\n"
+            f"🏛️ *Sistema:* Cadastro Único & PBF Tomé-Açu\n"
+            f"🗓️ *Data/Hora:* {agora_str}\n"
+            f"📄 *Arquivo:* `{filename}`\n"
+            f"✅ Backup de segurança enviado com sucesso!"
+        )
+
+        import urllib.request
+        import json
+
+        boundary = '----WebKitFormBoundary' + datetime.now().strftime('%Y%m%d%H%M%S')
+        body = bytearray()
+
+        body.extend(f'--{boundary}\r\n'.encode('utf-8'))
+        body.extend(f'Content-Disposition: form-data; name="chat_id"\r\n\r\n{chat_id}\r\n'.encode('utf-8'))
+
+        body.extend(f'--{boundary}\r\n'.encode('utf-8'))
+        body.extend(f'Content-Disposition: form-data; name="caption"\r\n\r\n{caption}\r\n'.encode('utf-8'))
+
+        body.extend(f'--{boundary}\r\n'.encode('utf-8'))
+        body.extend(f'Content-Disposition: form-data; name="parse_mode"\r\n\r\nMarkdown\r\n'.encode('utf-8'))
+
+        body.extend(f'--{boundary}\r\n'.encode('utf-8'))
+        body.extend(f'Content-Disposition: form-data; name="document"; filename="{filename}"\r\n'.encode('utf-8'))
+        body.extend(f'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n'.encode('utf-8'))
+        body.extend(buf.getvalue())
+        body.extend(f'\r\n--{boundary}--\r\n'.encode('utf-8'))
+
+        req = urllib.request.Request(url, data=bytes(body), headers={
+            'Content-Type': f'multipart/form-data; boundary={boundary}'
+        })
+
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            res_data = json.loads(resp.read().decode('utf-8'))
+            if res_data.get('ok'):
+                iso_agora = datetime.now(_TZ_BELEM).strftime('%d/%m/%Y %H:%M:%S')
+                set_config('telegram_ultimo_backup', iso_agora)
+                audit('BACKUP_TELEGRAM_BOT', f"chat_id={chat_id} arquivo={filename}")
+                return True, "Backup enviado para o Telegram com sucesso!"
+            else:
+                err_desc = res_data.get('description', 'Erro desconhecido na API do Telegram')
+                return False, f"Telegram API erro: {err_desc}"
+    except Exception as e:
+        return False, f"Falha no envio do backup para o Telegram: {str(e)}"
+
+
+_TELEGRAM_THREAD_STARTED = False
+
+def _loop_backup_telegram():
+    import time
+    while True:
+        try:
+            time.sleep(60)
+            cfg = get_config()
+            ativo = cfg.get('telegram_backup_ativo', '0') == '1'
+            bot_token = cfg.get('telegram_bot_token', '').strip()
+            chat_id = cfg.get('telegram_chat_id', '').strip()
+
+            if ativo and bot_token and chat_id:
+                freq_horas = int(cfg.get('telegram_backup_frequencia', '1h').replace('h', ''))
+                ultimo_str = cfg.get('telegram_ultimo_backup', '')
+
+                deve_executar = False
+                if not ultimo_str:
+                    deve_executar = True
+                else:
+                    try:
+                        ult_dt = datetime.strptime(ultimo_str, '%d/%m/%Y %H:%M:%S')
+                        horas_passadas = (datetime.now(_TZ_BELEM) - ult_dt.replace(tzinfo=_TZ_BELEM)).total_seconds() / 3600.0
+                        if horas_passadas >= freq_horas:
+                            deve_executar = True
+                    except Exception:
+                        deve_executar = True
+
+                if deve_executar:
+                    _enviar_backup_telegram(bot_token, chat_id)
+        except Exception as e:
+            print(f"[THREAD BACKUP TELEGRAM] Erro no loop: {e}")
+
+
+def _iniciar_engine_backup_telegram():
+    global _TELEGRAM_THREAD_STARTED
+    if not _TELEGRAM_THREAD_STARTED:
+        import threading
+        t = threading.Thread(target=_loop_backup_telegram, daemon=True)
+        t.start()
+        _TELEGRAM_THREAD_STARTED = True
+
+
+@app.route('/admin/backup/excel')
+def backup_excel():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    buf, xlsx_filename = _gerar_backup_excel_bytes()
     audit('BACKUP_SISTEMA_EXCEL', f"arquivo={xlsx_filename}")
     return send_file(
         buf,
@@ -4081,6 +4195,41 @@ def backup_excel():
         download_name=xlsx_filename,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
+
+
+@app.route('/admin/config-telegram-backup', methods=['POST'])
+def config_telegram_backup():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    bot_token = request.form.get('telegram_bot_token', '').strip()
+    chat_id = request.form.get('telegram_chat_id', '').strip()
+    frequencia = request.form.get('telegram_backup_frequencia', '1h').strip()
+    ativo = '1' if request.form.get('telegram_backup_ativo') == '1' else '0'
+
+    set_config('telegram_bot_token', bot_token)
+    set_config('telegram_chat_id', chat_id)
+    set_config('telegram_backup_frequencia', frequencia)
+    set_config('telegram_backup_ativo', ativo)
+
+    audit('CONFIG_TELEGRAM_BACKUP', f"ativo={ativo} freq={frequencia} chat_id={chat_id}")
+    flash('Configurações do Backup do Telegram salvas com sucesso!', 'ok')
+    return redirect(url_for('central_backup'))
+
+
+@app.route('/admin/testar-backup-telegram', methods=['POST'])
+def testar_backup_telegram():
+    if _requer_login() or session.get('perfil') != 'admin':
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    sucesso, msg = _enviar_backup_telegram()
+    if sucesso:
+        flash(f"✅ {msg}", 'ok')
+    else:
+        flash(f"❌ {msg}", 'erro')
+    return redirect(url_for('central_backup'))
 
 
 @app.route('/admin/restaurar-backup', methods=['POST'])
@@ -5732,6 +5881,7 @@ def exportar_documento_pdf(doc_id):
 if __name__ == '__main__':
     try:
         init_db()
+        _iniciar_engine_backup_telegram()
     except Exception as _e:
         app.logger.error(f"Erro ao inicializar DB no startup local: {_e}")
     app.run(host='0.0.0.0', port=5000, debug=False)
@@ -5739,5 +5889,6 @@ else:
     # Executado pelo gunicorn em produção
     try:
         init_db()
+        _iniciar_engine_backup_telegram()
     except Exception as _e:
         app.logger.error(f"Erro ao inicializar DB no startup do Gunicorn: {_e}")

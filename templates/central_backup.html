@@ -46,6 +46,80 @@
 
   </div>
 
+  {# ── Card Backup Automático no Telegram (Hora em Hora) ──────────────── #}
+  <div class="card" style="margin-bottom:24px; border:1.5px solid #0088CC; background:#F0F9FF;">
+    <div class="card-title" style="color:#0088CC; font-weight:800; font-size:1.1rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+      <span style="display:flex; align-items:center; gap:8px;">
+        🤖 Backup Automático no Telegram (Bot / Canal)
+      </span>
+      {% if cfg.get('telegram_backup_ativo') == '1' %}
+      <span class="tag" style="background:#DCFCE7; color:#15803D; border:1px solid #86EFAC; font-weight:700; font-size:0.8rem; padding:4px 10px;">
+        🟢 Envio Automático Ativo ({{ cfg.get('telegram_backup_frequencia', '1h') }})
+      </span>
+      {% else %}
+      <span class="tag" style="background:#F3F4F6; color:#6B7280; border:1px solid #E5E7EB; font-weight:700; font-size:0.8rem; padding:4px 10px;">
+        ⚪ Inativo
+      </span>
+      {% endif %}
+    </div>
+
+    <p style="font-size:0.9rem; color:#1E293B; line-height:1.6; margin-bottom:16px;">
+      Envie backups automáticos em planilha Excel (<code>.xlsx</code> com todas as abas de Atendimentos, Visitas, Usuários e Auditoria) diretamente para um Bot ou Canal do Telegram de hora em hora.
+    </p>
+
+    <form method="POST" action="{{ url_for('config_telegram_backup') }}" style="background:#FFFFFF; border:1px solid #BAE6FD; border-radius:10px; padding:18px; margin-bottom:16px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:14px;">
+        <div class="form-group" style="margin:0;">
+          <label for="telegram_bot_token" style="font-weight:700; font-size:0.85rem;">Token do Bot Telegram (via @BotFather):</label>
+          <input type="text" id="telegram_bot_token" name="telegram_bot_token" value="{{ cfg.get('telegram_bot_token', '') }}" placeholder="Ex: 123456789:ABCdefGHIjklmNOPqrstUVwxyz">
+        </div>
+        <div class="form-group" style="margin:0;">
+          <label for="telegram_chat_id" style="font-weight:700; font-size:0.85rem;">ID do Chat ou Canal Telegram (Chat ID):</label>
+          <input type="text" id="telegram_chat_id" name="telegram_chat_id" value="{{ cfg.get('telegram_chat_id', '') }}" placeholder="Ex: -100123456789 ou @seu_canal">
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px; align-items:center;">
+        <div class="form-group" style="margin:0;">
+          <label for="telegram_backup_frequencia" style="font-weight:700; font-size:0.85rem;">Frequência do Envio Automático:</label>
+          <select id="telegram_backup_frequencia" name="telegram_backup_frequencia">
+            <option value="1h" {% if cfg.get('telegram_backup_frequencia') == '1h' or not cfg.get('telegram_backup_frequencia') %}selected{% endif %}>⏰ A cada 1 hora (De Hora em Hora - Recomendado)</option>
+            <option value="6h" {% if cfg.get('telegram_backup_frequencia') == '6h' %}selected{% endif %}>⏱️ A cada 6 horas</option>
+            <option value="12h" {% if cfg.get('telegram_backup_frequencia') == '12h' %}selected{% endif %}>📅 A cada 12 horas</option>
+            <option value="24h" {% if cfg.get('telegram_backup_frequencia') == '24h' %}selected{% endif %}>📅 A cada 24 horas (Diário)</option>
+          </select>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px; margin-top:20px;">
+          <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-weight:700; font-size:0.9rem; color:#0F172A;">
+            <input type="checkbox" name="telegram_backup_ativo" value="1" {% if cfg.get('telegram_backup_ativo') == '1' %}checked{% endif %}>
+            <span>Ativar Envio Automático no Telegram</span>
+          </label>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <button type="submit" class="btn btn-primary" style="background:#0088CC; border-color:#0077B5; font-weight:700;">
+          💾 Salvar Configurações do Telegram
+        </button>
+      </div>
+    </form>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; background:#FFFFFF; border:1px solid #BAE6FD; border-radius:10px; padding:14px 18px;">
+      <div>
+        <span style="font-size:0.85rem; color:#0369A1; font-weight:600;">
+          Último envio para o Telegram: 
+          <strong style="color:#0F172A;">{{ cfg.get('telegram_ultimo_backup') or 'Nenhum envio realizado ainda' }}</strong>
+        </span>
+      </div>
+      <form method="POST" action="{{ url_for('testar_backup_telegram') }}" style="margin:0;">
+        <button type="submit" class="btn btn-outline" style="border-color:#0088CC; color:#0088CC; font-weight:700;">
+          🚀 Testar e Enviar Backup no Telegram Agora
+        </button>
+      </form>
+    </div>
+  </div>
+
   {# ── Card Backup Automático 1h (Com Fechamento às 14h) ──────────────── #}
   <div class="card" style="margin-bottom:24px; border:1.5px solid #2563EB; background:#EFF6FF;">
     <div class="card-title" style="color:#1D4ED8; font-weight:800; font-size:1.1rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
