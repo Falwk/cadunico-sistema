@@ -1103,7 +1103,11 @@ def init_db():
                 cur.execute(col_sql)
                 cur.execute(f"RELEASE SAVEPOINT {sp}")
             except Exception:
-                cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                try:
+                    cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                except Exception:
+                    conn.rollback()
+                    cur = conn.cursor()
         # Insere configurações padrão do relatório se não existirem
         defaults = _config_defaults()
         for chave, valor in defaults.items():
@@ -5726,8 +5730,14 @@ def exportar_documento_pdf(doc_id):
 # ---------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    init_db()
+    try:
+        init_db()
+    except Exception as _e:
+        app.logger.error(f"Erro ao inicializar DB no startup local: {_e}")
     app.run(host='0.0.0.0', port=5000, debug=False)
 else:
     # Executado pelo gunicorn em produção
-    init_db()
+    try:
+        init_db()
+    except Exception as _e:
+        app.logger.error(f"Erro ao inicializar DB no startup do Gunicorn: {_e}")
