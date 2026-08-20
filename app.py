@@ -4165,13 +4165,11 @@ def api_cron_backup_telegram():
     if secret_param and secret_param != cron_secret:
         return jsonify({'sucesso': False, 'mensagem': 'Segredo do Cron inválido.'}), 401
 
-    if not ativo:
-        return jsonify({'sucesso': False, 'mensagem': 'Backup do Telegram desativado nas configurações.'}), 200
+    if not ativo or not bot_token or not chat_id:
+        return jsonify({'sucesso': False, 'mensagem': 'Backup do Telegram desativado ou incompleto nas configurações.'}), 200
 
     sucesso, msg = _enviar_backup_telegram(bot_token, chat_id)
-    if sucesso:
-        return jsonify({'sucesso': True, 'mensagem': msg}), 200
-    return jsonify({'sucesso': False, 'mensagem': msg}), 500
+    return jsonify({'sucesso': sucesso, 'mensagem': msg}), 200
 
 
 @app.route('/admin/backup/excel')
