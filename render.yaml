@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: cadunico-sistema
+    runtime: python
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    autoDeployTrigger: commit
+    healthCheckPath: /
+    envVars:
+      - key: CADUNICO_SECRET
+        generateValue: true

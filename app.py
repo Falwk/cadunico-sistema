@@ -4083,7 +4083,7 @@ def _gerar_backup_excel_bytes():
 
 
 def _enviar_backup_telegram(bot_token=None, chat_id=None):
-    """Envia o arquivo de backup em Excel para o chat/canal do Telegram."""
+    """Envia o arquivo de backup completo do sistema em formato ZIP (.zip) para o grupo/chat do Telegram."""
     cfg = get_config()
     bot_token = (bot_token or cfg.get('telegram_bot_token', '')).strip()
     chat_id = (chat_id or cfg.get('telegram_chat_id', '')).strip()
@@ -4092,16 +4092,17 @@ def _enviar_backup_telegram(bot_token=None, chat_id=None):
         return False, "Token do Bot do Telegram e Chat ID são obrigatórios."
 
     try:
-        buf, filename = _gerar_backup_excel_bytes()
+        buf, filename = _gerar_backup_zip_bytes()
         url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
 
         agora_str = datetime.now(_TZ_BELEM).strftime('%d/%m/%Y às %H:%M')
         caption = (
-            f"📦 *BACKUP AUTOMÁTICO DE DADOS — SETAS*\n"
+            f"📦 *BACKUP COMPLETO DO SISTEMA (.ZIP) — SETAS*\n"
             f"🏛️ *Sistema:* Cadastro Único & PBF Tomé-Açu\n"
             f"🗓️ *Data/Hora:* {agora_str}\n"
             f"📄 *Arquivo:* `{filename}`\n"
-            f"✅ Backup de segurança enviado com sucesso!"
+            f"📁 *Conteúdo:* Banco de Dados + Anexos + Tabelas JSON + Manifesto\n"
+            f"✅ Backup de segurança completo enviado com sucesso!"
         )
 
         import urllib.request
@@ -4121,7 +4122,7 @@ def _enviar_backup_telegram(bot_token=None, chat_id=None):
 
         body.extend(f'--{boundary}\r\n'.encode('utf-8'))
         body.extend(f'Content-Disposition: form-data; name="document"; filename="{filename}"\r\n'.encode('utf-8'))
-        body.extend(f'Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\r\n\r\n'.encode('utf-8'))
+        body.extend(f'Content-Type: application/zip\r\n\r\n'.encode('utf-8'))
         body.extend(buf.getvalue())
         body.extend(f'\r\n--{boundary}--\r\n'.encode('utf-8'))
 

@@ -1,5 +1,24 @@
 # Como publicar o CadÚnico no Railway (online + HTTPS gratuito)
 
+## Publicar no Render
+
+O repositório agora inclui `render.yaml`, com o comando de instalação, o
+comando de inicialização e deploy automático da branch `main`.
+
+1. No Render, clique em **New** → **Blueprint** e conecte o repositório
+   `Falwk/cadunico-sistema` na branch `main`.
+2. Confirme a criação do serviço `cadunico-sistema`. O Render gera
+   automaticamente a variável `CADUNICO_SECRET`.
+3. Para dados persistentes, crie um **Render Postgres** e, no serviço web,
+   adicione `DATABASE_URL` com a *Internal Database URL* do banco.
+
+Se o serviço já existe, abra **Settings** e confirme: branch `main`,
+**Auto-Deploy = On Commit**, Build Command `pip install -r requirements.txt`
+e Start Command `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`.
+Depois clique em **Manual Deploy** → **Deploy latest commit**. Um `render.yaml`
+novo só é aplicado ao criar/sincronizar um Blueprint; ele não altera sozinho
+um serviço criado manualmente.
+
 ## 1. Instalar o Git
 Baixe em: https://git-scm.com/download/win
 Execute o instalador com as opções padrão. Reinicie o terminal após instalar.
