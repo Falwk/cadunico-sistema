@@ -46,15 +46,15 @@
 
   </div>
 
-  {# ── Card Backup Automático no Telegram (Hora em Hora) ──────────────── #}
+  {# ── Card Backup Automático no Grupo do Telegram ──────────────────────── #}
   <div class="card" style="margin-bottom:24px; border:1.5px solid #0088CC; background:#F0F9FF;">
     <div class="card-title" style="color:#0088CC; font-weight:800; font-size:1.1rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
       <span style="display:flex; align-items:center; gap:8px;">
-        🤖 Backup Automático no Telegram (Bot / Canal)
+        👥 Backup Automático no Grupo do Telegram
       </span>
       {% if cfg.get('telegram_backup_ativo') == '1' %}
       <span class="tag" style="background:#DCFCE7; color:#15803D; border:1px solid #86EFAC; font-weight:700; font-size:0.8rem; padding:4px 10px;">
-        🟢 Envio Automático Ativo ({{ cfg.get('telegram_backup_frequencia', '1h') }})
+        🟢 Envio no Grupo Ativo ({{ cfg.get('telegram_backup_frequencia', '1h') }})
       </span>
       {% else %}
       <span class="tag" style="background:#F3F4F6; color:#6B7280; border:1px solid #E5E7EB; font-weight:700; font-size:0.8rem; padding:4px 10px;">
@@ -64,18 +64,18 @@
     </div>
 
     <p style="font-size:0.9rem; color:#1E293B; line-height:1.6; margin-bottom:16px;">
-      Envie backups automáticos em planilha Excel (<code>.xlsx</code> com todas as abas de Atendimentos, Visitas, Usuários e Auditoria) diretamente para um Bot ou Canal do Telegram de hora em hora.
+      Envie backups automáticos em planilha Excel (<code>.xlsx</code> com todas as abas de Atendimentos, Visitas, Usuários e Auditoria) diretamente para o seu <strong>Grupo do Telegram</strong> de hora em hora.
     </p>
 
     <form method="POST" action="{{ url_for('config_telegram_backup') }}" style="background:#FFFFFF; border:1px solid #BAE6FD; border-radius:10px; padding:18px; margin-bottom:16px;">
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:14px;">
         <div class="form-group" style="margin:0;">
-          <label for="telegram_bot_token" style="font-weight:700; font-size:0.85rem;">Token do Bot Telegram (via @BotFather):</label>
+          <label for="telegram_bot_token" style="font-weight:700; font-size:0.85rem;">Token do Bot Telegram (Obtido no @BotFather):</label>
           <input type="text" id="telegram_bot_token" name="telegram_bot_token" value="{{ cfg.get('telegram_bot_token', '') }}" placeholder="Ex: 123456789:ABCdefGHIjklmNOPqrstUVwxyz">
         </div>
         <div class="form-group" style="margin:0;">
-          <label for="telegram_chat_id" style="font-weight:700; font-size:0.85rem;">ID do Chat ou Canal Telegram (Chat ID):</label>
-          <input type="text" id="telegram_chat_id" name="telegram_chat_id" value="{{ cfg.get('telegram_chat_id', '') }}" placeholder="Ex: -100123456789 ou @seu_canal">
+          <label for="telegram_chat_id" style="font-weight:700; font-size:0.85rem;">ID do Grupo ou Canal no Telegram (Chat ID):</label>
+          <input type="text" id="telegram_chat_id" name="telegram_chat_id" value="{{ cfg.get('telegram_chat_id', '') }}" placeholder="Ex: -100123456789 (ID do seu Grupo)">
         </div>
       </div>
 
