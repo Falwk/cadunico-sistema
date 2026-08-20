@@ -96,10 +96,15 @@ def _lastrowid(conn):
 class _PGRow:
     """Wrapper para dict do psycopg2 se comportar como sqlite3.Row."""
     def __init__(self, d):
-        self._d = d
+        self._d = dict(d) if hasattr(d, 'keys') else {}
 
     def __getitem__(self, key):
-        return self._d[key]
+        if isinstance(key, int):
+            vals = list(self._d.values())
+            if 0 <= key < len(vals):
+                return vals[key]
+            return None
+        return self._d.get(key)
 
     def __getattr__(self, key):
         try:
@@ -4138,47 +4143,35 @@ def _enviar_backup_telegram(bot_token=None, chat_id=None):
         return False, f"Falha no envio do backup para o Telegram: {str(e)}"
 
 
-_TELEGRAM_THREAD_STARTED = False
-
-def _loop_backup_telegram():
-    import time
-    while True:
-        try:
-            time.sleep(60)
-            cfg = get_config()
-            ativo = cfg.get('telegram_backup_ativo', '0') == '1'
-            bot_token = cfg.get('telegram_bot_token', '').strip()
-            chat_id = cfg.get('telegram_chat_id', '').strip()
-
-            if ativo and bot_token and chat_id:
-                freq_horas = int(cfg.get('telegram_backup_frequencia', '1h').replace('h', ''))
-                ultimo_str = cfg.get('telegram_ultimo_backup', '')
-
-                deve_executar = False
-                if not ultimo_str:
-                    deve_executar = True
-                else:
-                    try:
-                        ult_dt = datetime.strptime(ultimo_str, '%d/%m/%Y %H:%M:%S')
-                        horas_passadas = (datetime.now(_TZ_BELEM) - ult_dt.replace(tzinfo=_TZ_BELEM)).total_seconds() / 3600.0
-                        if horas_passadas >= freq_horas:
-                            deve_executar = True
-                    except Exception:
-                        deve_executar = True
-
-                if deve_executar:
-                    _enviar_backup_telegram(bot_token, chat_id)
-        except Exception as e:
-            print(f"[THREAD BACKUP TELEGRAM] Erro no loop: {e}")
+@app.route('/health')
+def health():
+    """Endpoint leve de verificação de saúde (Health Check) para o Render."""
+    return jsonify({
+        'status': 'ok',
+        'horario': datetime.now(_TZ_BELEM).isoformat()
+    }), 200
 
 
-def _iniciar_engine_backup_telegram():
-    global _TELEGRAM_THREAD_STARTED
-    if not _TELEGRAM_THREAD_STARTED:
-        import threading
-        t = threading.Thread(target=_loop_backup_telegram, daemon=True)
-        t.start()
-        _TELEGRAM_THREAD_STARTED = True
+@app.route('/api/v1/cron/backup-telegram', methods=['GET', 'POST'])
+def api_cron_backup_telegram():
+    """Endpoint para ser invocado via Cron Job do Render (ou serviço externo de agendamento)."""
+    cfg = get_config()
+    ativo = cfg.get('telegram_backup_ativo', '0') == '1'
+    bot_token = cfg.get('telegram_bot_token', '').strip()
+    chat_id = cfg.get('telegram_chat_id', '').strip()
+
+    secret_param = request.args.get('secret') or request.headers.get('X-CRON-SECRET')
+    cron_secret = cfg.get('token_integracao_beneficios', 'setas-beneficios-token-2026')
+    if secret_param and secret_param != cron_secret:
+        return jsonify({'sucesso': False, 'mensagem': 'Segredo do Cron inválido.'}), 401
+
+    if not ativo:
+        return jsonify({'sucesso': False, 'mensagem': 'Backup do Telegram desativado nas configurações.'}), 200
+
+    sucesso, msg = _enviar_backup_telegram(bot_token, chat_id)
+    if sucesso:
+        return jsonify({'sucesso': True, 'mensagem': msg}), 200
+    return jsonify({'sucesso': False, 'mensagem': msg}), 500
 
 
 @app.route('/admin/backup/excel')
@@ -5881,7 +5874,6 @@ def exportar_documento_pdf(doc_id):
 if __name__ == '__main__':
     try:
         init_db()
-        _iniciar_engine_backup_telegram()
     except Exception as _e:
         app.logger.error(f"Erro ao inicializar DB no startup local: {_e}")
     app.run(host='0.0.0.0', port=5000, debug=False)
@@ -5889,6 +5881,5 @@ else:
     # Executado pelo gunicorn em produção
     try:
         init_db()
-        _iniciar_engine_backup_telegram()
     except Exception as _e:
         app.logger.error(f"Erro ao inicializar DB no startup do Gunicorn: {_e}")
