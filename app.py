@@ -2280,7 +2280,7 @@ def api_beneficios_consultar_familia(identificador):
     conn = get_db()
     if len(digits) == 11 and validar_cpf(digits):
         at_base = _fetchone(conn, "SELECT * FROM atendimentos WHERE cpf=? ORDER BY criado_em DESC LIMIT 1", (digits,))
-        ats = _fetchall(conn, f"SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.cpf={PH} ORDER BY a.data DESC", (digits,))
+        ats = _fetchall(conn, f"SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.cpf={PH} ORDER BY a.data DESC", (digits,))
         visitas = _fetchall(conn, f"SELECT * FROM solicitacoes_visita WHERE cpf_rf={PH} ORDER BY criado_em DESC", (digits,))
     else:
         at_base = _fetchone(conn, f"SELECT * FROM atendimentos WHERE codigo_familiar={PH} ORDER BY criado_em DESC LIMIT 1", (termo,))
@@ -2289,7 +2289,7 @@ def api_beneficios_consultar_familia(identificador):
         
         cpf_encontrado = at_base['cpf'] if at_base else None
         if cpf_encontrado:
-            ats = _fetchall(conn, f"SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.cpf={PH} ORDER BY a.data DESC", (cpf_encontrado,))
+            ats = _fetchall(conn, f"SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.cpf={PH} ORDER BY a.data DESC", (cpf_encontrado,))
             visitas = _fetchall(conn, f"SELECT * FROM solicitacoes_visita WHERE cpf_rf={PH} ORDER BY criado_em DESC", (cpf_encontrado,))
         else:
             ats = []
@@ -2338,12 +2338,12 @@ def api_beneficios_listar_atendimentos():
     conn = get_db()
     if bairro:
         ats = _fetchall(conn,
-            f"SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.data LIKE {PH} AND LOWER(a.bairro) LIKE {PH} ORDER BY a.data DESC LIMIT 500",
+            f"SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.data LIKE {PH} AND LOWER(a.bairro) LIKE {PH} ORDER BY a.data DESC LIMIT 500",
             (mes + '%', f"%{bairro.lower()}%")
         )
     else:
         ats = _fetchall(conn,
-            f"SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.data LIKE {PH} ORDER BY a.data DESC LIMIT 500",
+            f"SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.data LIKE {PH} ORDER BY a.data DESC LIMIT 500",
             (mes + '%',)
         )
     conn.close()
@@ -3451,7 +3451,7 @@ def exportar_entrevistador():
         return redirect(url_for('relatorio', mes=mes))
 
     ats_u = _fetchall(conn,
-        "SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.usuario_id=? AND a.data LIKE ? ORDER BY a.data ASC",
+        "SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.usuario_id=? AND a.data LIKE ? ORDER BY a.data ASC",
         (usuario_id, mes + '%')
     )
     conn.close()
@@ -4163,7 +4163,7 @@ def _gerar_backup_excel_bytes():
 
     ws_at = wb.active
     ws_at.title = "Atendimentos"
-    ats = [dict(r) for r in _fetchall(conn, "SELECT a.*, u.nome as entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id ORDER BY a.id DESC")]
+    ats = [dict(r) for r in _fetchall(conn, "SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id ORDER BY a.id DESC")]
     headers_at = ['ID', 'Data', 'CPF', 'Nome do RF', 'Origem', 'Tipos', 'Entrevistador', 'Criado em', 'Órgão Encaminhador', 'Situação']
     ws_at.append(headers_at)
     for at in ats:
@@ -4174,7 +4174,7 @@ def _gerar_backup_excel_bytes():
         ])
 
     ws_v = wb.create_sheet("Visitas Domiciliares")
-    visitas = [dict(r) for r in _fetchall(conn, "SELECT sv.*, sol.nome as solicitante_nome, res.nome as responsavel_nome FROM solicitacoes_visita sv LEFT JOIN usuarios sol ON sol.id=sv.solicitante_id LEFT JOIN usuarios res ON res.id=sv.responsavel_id ORDER BY sv.id DESC")]
+    visitas = [dict(r) for r in _fetchall(conn, "SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, sol.nome AS solicitante_nome, res.nome AS responsavel_nome FROM solicitacoes_visita sv LEFT JOIN usuarios sol ON sol.id=sv.solicitante_id LEFT JOIN usuarios res ON res.id=sv.responsavel_id ORDER BY sv.id DESC")]
     headers_v = ['ID', 'Nº VD', 'CPF RF', 'Nome RF', 'Logradouro', 'Número', 'Bairro', 'Motivo', 'Status', 'Data Realizada', 'Solicitante', 'Responsável', 'Parecer Técnico']
     ws_v.append(headers_v)
     for v in visitas:
@@ -4691,7 +4691,7 @@ def painel_visitas():
     # ── Se o filtro de status for "Atrasada", busca todas as pendentes e filtra por SLA
     if status_filtro == 'Atrasada':
         visitas_raw = _fetchall(conn,
-            f"""SELECT sv.*, sol.nome AS solicitante_nome, res.nome AS responsavel_nome
+            f"""SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, sol.nome AS solicitante_nome, res.nome AS responsavel_nome
                 FROM solicitacoes_visita sv
                 JOIN usuarios sol ON sv.solicitante_id = sol.id
                 LEFT JOIN usuarios res ON sv.responsavel_id = res.id
@@ -4706,7 +4706,7 @@ def painel_visitas():
         visitas = visitas[(pagina - 1) * por_pagina : pagina * por_pagina]
     else:
         visitas_raw = _fetchall(conn,
-            f"""SELECT sv.*,
+            f"""SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2,
                        sol.nome  AS solicitante_nome,
                        res.nome  AS responsavel_nome
                 FROM solicitacoes_visita sv
@@ -5527,7 +5527,7 @@ def historico_familia(cpf):
 
     if perfil == 'admin':
         visitas = _fetchall(conn, """
-            SELECT sv.*, u.nome as responsavel_nome
+            SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, u.nome as responsavel_nome
             FROM solicitacoes_visita sv
             LEFT JOIN usuarios u ON u.id = sv.responsavel_id
             WHERE sv.cpf_rf = ?
@@ -5535,7 +5535,7 @@ def historico_familia(cpf):
         """, (cpf_digits,))
     else:
         visitas = _fetchall(conn, """
-            SELECT sv.*, u.nome as responsavel_nome
+            SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, u.nome as responsavel_nome
             FROM solicitacoes_visita sv
             LEFT JOIN usuarios u ON u.id = sv.responsavel_id
             WHERE sv.cpf_rf = ? AND (sv.solicitante_id = ? OR sv.responsavel_id = ?)
@@ -5769,7 +5769,7 @@ def listar_documentos():
     busca = request.args.get('busca', '').strip()
     tipo = request.args.get('tipo', '').strip()
 
-    sql = "SELECT d.*, u.nome as criador_nome FROM documentos_editaveis d LEFT JOIN usuarios u ON u.id = d.criador_id WHERE 1=1"
+    sql = "SELECT d.id AS id, d.titulo, d.tipo, d.conteudo_html, d.atendimento_id, d.visita_id, d.cpf_rf, d.nome_rf, d.criador_id, d.criado_em, d.atualizado_em, u.nome as criador_nome FROM documentos_editaveis d LEFT JOIN usuarios u ON u.id = d.criador_id WHERE 1=1"
     params = []
 
     if busca:
