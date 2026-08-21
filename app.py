@@ -1199,6 +1199,18 @@ def init_db():
                 "INSERT INTO usuarios (nome,login,senha,perfil,acesso_sibec,trocar_senha) VALUES (%s,%s,%s,%s,%s,%s)",
                 ('Administrador', 'admin', generate_password_hash('admin123'), 'admin', 1, 1)
             )
+
+        # Sincroniza sequências SERIAL do PostgreSQL para MAX(id)
+        tabelas_seq = [
+            'usuarios', 'atendimentos', 'solicitacoes_visita',
+            'audit_log', 'visita_contadores', 'visita_fotos', 'documentos_editaveis'
+        ]
+        for t in tabelas_seq:
+            try:
+                cur.execute(f"SELECT setval(pg_get_serial_sequence('{t}', 'id'), COALESCE((SELECT MAX(id) FROM {t}), 1));")
+            except Exception:
+                pass
+
         conn.commit()
         conn.close()
     else:
@@ -2027,15 +2039,38 @@ def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_
              at_id)
         )
     else:
-        _exec(conn,
-            """INSERT INTO atendimentos (data,cpf,nome_rf,bairro,codigo_familiar,qtd_membros,renda_per_capita,origem,tipos,usuario_id,criado_em,
-               orgao_encaminhador,orgao_outro,numero_oficio,data_encaminhamento,
-               servidor_encaminhador,motivo_encaminhamento,obs_encaminhamento,situacao_encaminhamento)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (data, cpf, nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat(),
-             orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
-             servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento)
-        )
+        try:
+            _exec(conn,
+                """INSERT INTO atendimentos (data,cpf,nome_rf,bairro,codigo_familiar,qtd_membros,renda_per_capita,origem,tipos,usuario_id,criado_em,
+                   orgao_encaminhador,orgao_outro,numero_oficio,data_encaminhamento,
+                   servidor_encaminhador,motivo_encaminhamento,obs_encaminhamento,situacao_encaminhamento)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (data, cpf, nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat(),
+                 orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
+                 servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento)
+            )
+        except Exception as ex_ins:
+            if _is_pg():
+                try:
+                    conn.rollback()
+                    cur = conn.cursor()
+                    cur.execute("SELECT setval(pg_get_serial_sequence('atendimentos', 'id'), COALESCE((SELECT MAX(id) FROM atendimentos), 1));")
+                    conn.commit()
+                    _exec(conn,
+                        """INSERT INTO atendimentos (data,cpf,nome_rf,bairro,codigo_familiar,qtd_membros,renda_per_capita,origem,tipos,usuario_id,criado_em,
+                           orgao_encaminhador,orgao_outro,numero_oficio,data_encaminhamento,
+                           servidor_encaminhador,motivo_encaminhamento,obs_encaminhamento,situacao_encaminhamento)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (data, cpf, nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat(),
+                         orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
+                         servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento)
+                    )
+                except Exception as ex_retry:
+                    erros.append(f"Erro ao salvar no banco de dados: {ex_retry}")
+                    return erros
+            else:
+                erros.append(f"Erro ao salvar no banco de dados: {ex_ins}")
+                return erros
     conn.commit()
     return []
 
