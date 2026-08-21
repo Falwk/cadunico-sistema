@@ -68,15 +68,90 @@ def _adapt_sql(sql: str) -> str:
     return sql
 
 
+def _conectar_pg_url(url):
+    """Conecta ao PostgreSQL tratando de forma segura URLs com senhas complexas, SSL e erros de codificação no Windows."""
+    if not url:
+        raise ValueError("URL do banco vazia")
+    url = url.strip()
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+
+    import psycopg2
+    import psycopg2.extras
+    import urllib.parse
+
+    user = None
+    password = None
+    host = None
+    port = 5432
+    dbname = "postgres"
+
+    try:
+        if url.count('@') >= 1 and '://' in url:
+            scheme_idx = url.find('://')
+            rest = url[scheme_idx+3:]
+            last_at_idx = rest.rfind('@')
+            user_pass = rest[:last_at_idx]
+            host_db = rest[last_at_idx+1:]
+            
+            if ':' in user_pass:
+                user, password = user_pass.split(':', 1)
+                password = urllib.parse.unquote(password)
+            else:
+                user = user_pass
+
+            if '/' in host_db:
+                host_port, dbname = host_db.split('/', 1)
+                if '?' in dbname:
+                    dbname = dbname.split('?')[0]
+            else:
+                host_port = host_db
+
+            if ':' in host_port:
+                host, port_str = host_port.split(':', 1)
+                port = int(port_str)
+            else:
+                host = host_port
+    except Exception:
+        pass
+
+    try:
+        if host and user and password:
+            return psycopg2.connect(
+                host=host,
+                port=port,
+                user=user,
+                password=password,
+                dbname=dbname,
+                sslmode='require',
+                cursor_factory=psycopg2.extras.RealDictCursor
+            )
+    except UnicodeDecodeError:
+        raise ConnectionError(f"Não foi possível resolver o endereço do servidor ('{host}'). Verifique se a URL do Supabase foi copiada corretamente do painel.")
+    except Exception as ex_kw:
+        raise ex_kw
+
+    try:
+        if 'sslmode' not in url.lower():
+            delim = '&' if '?' in url else '?'
+            url += f"{delim}sslmode=require"
+        return psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
+    except UnicodeDecodeError:
+        raise ConnectionError(f"Não foi possível resolver o endereço do servidor de banco de dados. Verifique a URL do Supabase.")
+
+
 def get_db():
     """Retorna uma conexão com o banco configurado (PostgreSQL ou SQLite com fallback)."""
     global _USE_PG, _PG_FAILED
     if _USE_PG and not _PG_FAILED:
         try:
-            conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
-            return conn
+            return _conectar_pg_url(DATABASE_URL)
         except Exception as e:
-            app.logger.warning(f"[BANCO] Não foi possível conectar ao PostgreSQL ({e}). Alternando automaticamente para SQLite local ({_DB_PATH}).")
+            try:
+                err_msg = str(e)
+            except Exception:
+                err_msg = repr(e)
+            app.logger.warning(f"[BANCO] Não foi possível conectar ao PostgreSQL ({err_msg}). Alternando automaticamente para SQLite local ({_DB_PATH}).")
             _PG_FAILED = True
 
     import sqlite3
