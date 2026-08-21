@@ -1898,9 +1898,9 @@ def dashboard():
 
     offset = (pagina - 1) * por_pagina
     ats = _fetchall(conn,
-        f"""SELECT a.*, u.nome as entrevistador
+        f"""SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador
             FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id
-            {base_where} ORDER BY a.data DESC LIMIT {PH} OFFSET {PH}""",
+            {base_where} ORDER BY a.data DESC, a.id DESC LIMIT {PH} OFFSET {PH}""",
         params_base + [por_pagina, offset]
     )
 
@@ -2576,7 +2576,7 @@ def historico_familiar():
         if familia_selecionada:
             cpf_alvo = familia_selecionada['cpf']
             ats_rows = _fetchall(conn,
-                f"""SELECT a.*, u.nome as entrevistador FROM atendimentos a
+                f"""SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador FROM atendimentos a
                     JOIN usuarios u ON a.usuario_id=u.id
                     WHERE a.cpf={PH} {filtro_usuario} ORDER BY a.data DESC, a.criado_em DESC""",
                 [cpf_alvo] + params_base
@@ -2584,7 +2584,7 @@ def historico_familiar():
             atendimentos = [dict(a) for a in ats_rows]
             
             vis_rows = _fetchall(conn,
-                f"""SELECT v.*, u1.nome as solicitante_nome, u2.nome as responsavel_nome
+                f"""SELECT v.id AS id, v.cpf_rf, v.nome_rf, v.logradouro, v.numero, v.complemento, v.bairro, v.referencia, v.zona, v.motivo, v.data_realizada, v.status, v.solicitante_id, v.responsavel_id, v.observacoes, v.motivo_cancelamento, v.anexo_url, v.anexo_nome, v.atendimento_id, v.criado_em, v.atualizado_em, v.parecer_tecnico_txt, v.numero_vd, v.parecer_as_url, v.parecer_as_nome, v.telefone1, v.telefone2, u1.nome AS solicitante_nome, u2.nome AS responsavel_nome
                     FROM solicitacoes_visita v
                     LEFT JOIN usuarios u1 ON v.solicitante_id=u1.id
                     LEFT JOIN usuarios u2 ON v.responsavel_id=u2.id
