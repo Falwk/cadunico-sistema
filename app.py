@@ -1876,6 +1876,52 @@ def dashboard():
 # Registrar / Editar / Excluir atendimentos
 # ---------------------------------------------------------------------------
 
+def _formatar_moeda_brl(val):
+    """Formata qualquer string/número de renda no padrão monetário brasileiro R$ 0,00."""
+    if val is None:
+        return ''
+    s = str(val).strip()
+    if not s:
+        return ''
+
+    if s.startswith('R$ ') and ',' in s:
+        return s
+
+    s = s.replace('R$', '').replace('r$', '').strip()
+    if not s:
+        return ''
+
+    if '.' in s and ',' not in s:
+        partes = s.split('.')
+        if len(partes) == 2 and len(partes[1]) <= 2:
+            s = s.replace('.', ',')
+        else:
+            s = s.replace('.', '')
+
+    partes = s.split(',')
+    inteiro_str = ''.join(c for c in partes[0] if c.isdigit())
+    decimal_str = ''.join(c for c in partes[1] if c.isdigit()) if len(partes) > 1 else ''
+
+    if not inteiro_str and not decimal_str:
+        return ''
+    if not inteiro_str:
+        inteiro_str = '0'
+
+    if len(decimal_str) == 0:
+        decimal_str = '00'
+    elif len(decimal_str) == 1:
+        decimal_str += '0'
+    else:
+        decimal_str = decimal_str[:2]
+
+    try:
+        n_int = int(inteiro_str)
+        int_fmt = f"{n_int:,}".replace(',', '.')
+        return f"R$ {int_fmt},{decimal_str}"
+    except Exception:
+        return s
+
+
 def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_id=None,
                         bairro=None, codigo_familiar=None, qtd_membros=None, renda_per_capita=None,
                         orgao_encaminhador=None, orgao_outro=None, numero_oficio=None,
@@ -1899,6 +1945,8 @@ def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_
     if erros:
         return erros
     tipos_str = '|'.join(tipos)
+
+    renda_per_capita = _formatar_moeda_brl(renda_per_capita) or None
     if at_id:
         _exec(conn,
             """UPDATE atendimentos SET data=?,cpf=?,nome_rf=?,bairro=?,codigo_familiar=?,qtd_membros=?,renda_per_capita=?,origem=?,tipos=?,
@@ -2072,7 +2120,7 @@ def api_cpf(cpf):
             'bairro': row.get('bairro') or '',
             'codigo_familiar': row.get('codigo_familiar') or '',
             'qtd_membros': row.get('qtd_membros') or '',
-            'renda_per_capita': row.get('renda_per_capita') or ''
+            'renda_per_capita': _formatar_moeda_brl(row.get('renda_per_capita')) or ''
         })
     return jsonify({})
 

@@ -866,6 +866,65 @@
     }
   }
 
+  function formatarMoedaBRL(val) {
+    if (val === null || val === undefined) return '';
+    let str = String(val).trim();
+    if (!str) return '';
+
+    if (str.startsWith('R$ ') && str.includes(',')) return str;
+
+    let limpo = str.replace(/[R$\s]/gi, '').trim();
+    if (!limpo) return '';
+
+    if (limpo.includes('.') && !limpo.includes(',')) {
+      let partes = limpo.split('.');
+      if (partes.length === 2 && partes[1].length <= 2) {
+        limpo = limpo.replace('.', ',');
+      } else {
+        limpo = limpo.replace(/\./g, '');
+      }
+    }
+
+    let partes = limpo.split(',');
+    let inteiro = partes[0].replace(/\D/g, '');
+    let decimal = partes.length > 1 ? partes[1].replace(/\D/g, '') : '';
+
+    if (!inteiro && !decimal) return '';
+    if (!inteiro) inteiro = '0';
+
+    if (decimal.length === 0) {
+      decimal = '00';
+    } else if (decimal.length === 1) {
+      decimal = decimal + '0';
+    } else if (decimal.length > 2) {
+      decimal = decimal.substring(0, 2);
+    }
+
+    let numInt = parseInt(inteiro, 10);
+    if (isNaN(numInt)) return '';
+
+    let intFormatado = numInt.toLocaleString('pt-BR');
+    return `R$ ${intFormatado},${decimal}`;
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    function aplicarFormatacaoCampos() {
+      const inputsRenda = document.querySelectorAll('#renda_per_capita, .formatar-moeda-brl');
+      inputsRenda.forEach(input => {
+        if (input.value && input.value.trim()) {
+          input.value = formatarMoedaBRL(input.value);
+        }
+        input.addEventListener('blur', function() {
+          if (this.value && this.value.trim()) {
+            this.value = formatarMoedaBRL(this.value);
+          }
+        });
+      });
+    }
+
+    aplicarFormatacaoCampos();
+  });
+
   document.addEventListener('click', function(e) {
     const dropdown = document.getElementById('notif-dropdown');
     const btn = document.getElementById('btn-notif-icon');
