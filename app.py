@@ -423,9 +423,6 @@ TIPOS_ATENDIMENTO = [
     "Comprovante de Cadastro",
     "Consulta Cadastro Único",
     "Consulta SIBEC",
-    "Encaminhamentos",
-    "Escuta Qualificada",
-    "Benefício Eventual",
     "Exclusão de membros",
     "Folha de Pagamento (SIBEC)",
     "Inclusão de membros",
@@ -439,11 +436,7 @@ TIPOS_ATENDIMENTO = [
     "Troca de RF",
 ]
 
-TIPOS_ASSISTENTE_SOCIAL = {
-    "Encaminhamentos",
-    "Escuta Qualificada",
-    "Benefício Eventual",
-}
+TIPOS_ASSISTENTE_SOCIAL = set()
 
 TIPOS_SIBEC = {
     "Bloqueio de Benefício",
@@ -2070,11 +2063,9 @@ def registrar():
         obs_encaminhamento = request.form.get('obs_encaminhamento', '').strip() or None
         situacao_encaminhamento = request.form.get('situacao_encaminhamento', 'Atendido').strip() or 'Atendido'
 
-        # Bloquear SIBEC sem acesso e opções de Assistente Social
+        # Bloquear SIBEC sem acesso
         if not session.get('acesso_sibec'):
             tipos = [t for t in tipos if t not in TIPOS_SIBEC]
-        if session.get('perfil') not in ('assistente_social', 'admin'):
-            tipos = [t for t in tipos if t not in TIPOS_ASSISTENTE_SOCIAL]
         conn = get_db()
         erros = _salvar_atendimento(
             conn, data, cpf, nome_rf, origem, tipos, session['usuario_id'], bairro=bairro,
@@ -2131,8 +2122,6 @@ def editar_atendimento(at_id):
 
         if not session.get('acesso_sibec'):
             tipos = [t for t in tipos if t not in TIPOS_SIBEC]
-        if session.get('perfil') not in ('assistente_social', 'admin'):
-            tipos = [t for t in tipos if t not in TIPOS_ASSISTENTE_SOCIAL]
         erros = _salvar_atendimento(
             conn, data, cpf, nome_rf, origem, tipos, at['usuario_id'], at_id=at_id, bairro=bairro,
             codigo_familiar=codigo_familiar, qtd_membros=qtd_membros, renda_per_capita=renda_per_capita,

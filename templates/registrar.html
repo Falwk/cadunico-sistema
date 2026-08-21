@@ -94,10 +94,9 @@
         {% set user_perfil = perfil or session.get('perfil') %}
         {% for tipo in tipos %}
           {% set is_sibec = tipo in tipos_sibec %}
-          {% set is_as = tipos_assistente_social and (tipo in tipos_assistente_social) %}
-          {% set can_show = (not is_sibec or acesso_sibec) and (not is_as or user_perfil in ['assistente_social', 'admin']) %}
+          {% set can_show = not is_sibec or acesso_sibec %}
           {% if can_show %}
-          <label class="check-item {% if is_sibec %}sibec{% endif %} {% if is_as %}as-only{% endif %}">
+          <label class="check-item {% if is_sibec %}sibec{% endif %}">
             <input type="checkbox" name="tipos" value="{{ tipo }}"
                    {% if tipo in tipos_selecionados %}checked{% endif %}>
             <span>
