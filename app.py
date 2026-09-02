@@ -2018,6 +2018,10 @@ def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_
         erros.append('CPF inválido — verifique os dígitos.')
     if not nome_rf:
         erros.append('Nome do RF obrigatório.')
+    if not bairro:
+        erros.append('Bairro obrigatório.')
+    if not codigo_familiar:
+        erros.append('Código Familiar obrigatório.')
     if not origem:
         erros.append('Selecione a origem do atendimento.')
     if not tipos:
