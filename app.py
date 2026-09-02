@@ -1211,6 +1211,18 @@ def init_db():
             except Exception:
                 pass
 
+        # Ativa Row Level Security (RLS) para proteger todas as tabelas contra acesso público não autorizado via Supabase API
+        tabelas_rls = [
+            'usuarios', 'atendimentos', 'solicitacoes_visita',
+            'audit_log', 'config_relatorio', 'visita_contadores',
+            'visita_fotos', 'documentos_editaveis'
+        ]
+        for t in tabelas_rls:
+            try:
+                cur.execute(f'ALTER TABLE public."{t}" ENABLE ROW LEVEL SECURITY;')
+            except Exception:
+                pass
+
         conn.commit()
         conn.close()
     else:
