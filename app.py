@@ -2034,6 +2034,10 @@ def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_
         erros.append('Bairro obrigatório.')
     if not codigo_familiar:
         erros.append('Código Familiar obrigatório.')
+    if not qtd_membros:
+        erros.append('Quantidade de membros obrigatória.')
+    if not renda_per_capita:
+        erros.append('Renda per capita obrigatória.')
     if not origem:
         erros.append('Selecione a origem do atendimento.')
     if not tipos:
