@@ -19,7 +19,10 @@
         <div class="form-group">
           <label for="nome_rf">Nome do Responsável Familiar *</label>
           <input type="text" id="nome_rf" name="nome_rf" placeholder="Nome completo"
-                 value="{{ form.get('nome_rf', '') }}" required>
+                 value="{{ form.get('nome_rf', '') }}" required
+                 pattern="[A-Za-zÀ-ÖØ-öø-ÿ\s'\-\.]+"
+                 title="Digite apenas letras e espaços"
+                 oninput="this.value = this.value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s'\-\.]/g, '')">
         </div>
       </div>
     </div>

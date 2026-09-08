@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 import sqlite3
 import os
 import io
+import re
 from datetime import datetime, date, timezone, timedelta
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -2030,6 +2031,8 @@ def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_
         erros.append('CPF inválido — verifique os dígitos.')
     if not nome_rf:
         erros.append('Nome do RF obrigatório.')
+    elif not re.match(r"^[A-Za-zÀ-ÖØ-öø-ÿ\s'\-\.]+$", nome_rf):
+        erros.append('O Nome do RF deve conter apenas letras e espaços.')
     if not bairro:
         erros.append('Bairro obrigatório.')
     if not codigo_familiar:

@@ -25,7 +25,10 @@
         <div class="form-group">
           <label for="nome_rf">Nome do Responsável Familiar *</label>
           <input type="text" id="nome_rf" name="nome_rf"
-                 value="{% if form.get %}{{ form.get('nome_rf', at.nome_rf) }}{% else %}{{ at.nome_rf }}{% endif %}" required>
+                 value="{% if form.get %}{{ form.get('nome_rf', at.nome_rf) }}{% else %}{{ at.nome_rf }}{% endif %}" required
+                 pattern="[A-Za-zÀ-ÖØ-öø-ÿ\s'\-\.]+"
+                 title="Digite apenas letras e espaços"
+                 oninput="this.value = this.value.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s'\-\.]/g, '')">
         </div>
         <div class="form-group">
           <label for="bairro">Bairro / Comunidade *</label>
