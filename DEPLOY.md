@@ -1,81 +1,133 @@
-# Como publicar o CadÚnico no Railway (online + HTTPS gratuito)
+# 🚀 Guia de Deploy e Infraestrutura
+### Sistema Cadastro Único & Visitas Domiciliares · Tomé-Açu / PA
 
-## Publicar no Render
+Este documento orienta a implantação do sistema tanto em **Servidores Dedicados (Cloud VPS Ubuntu)** quanto em plataformas de nuvem gerenciada (**Render + Supabase + Cloudinary**).
 
-O repositório agora inclui `render.yaml`, com o comando de instalação, o
-comando de inicialização e deploy automático da branch `main`.
+---
 
-1. No Render, clique em **New** → **Blueprint** e conecte o repositório
-   `Falwk/cadunico-sistema` na branch `main`.
-2. Confirme a criação do serviço `cadunico-sistema`. O Render gera
-   automaticamente a variável `CADUNICO_SECRET`.
-3. Para dados persistentes, crie um **Render Postgres** e, no serviço web,
-   adicione `DATABASE_URL` com a *Internal Database URL* do banco.
-
-Se o serviço já existe, abra **Settings** e confirme: branch `main`,
-**Auto-Deploy = On Commit**, Build Command `pip install -r requirements.txt`
-e Start Command `gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120`.
-Depois clique em **Manual Deploy** → **Deploy latest commit**. Um `render.yaml`
-novo só é aplicado ao criar/sincronizar um Blueprint; ele não altera sozinho
-um serviço criado manualmente.
-
-## 1. Instalar o Git
-Baixe em: https://git-scm.com/download/win
-Execute o instalador com as opções padrão. Reinicie o terminal após instalar.
-
-## 2. Criar repositório no GitHub
-Acesse: https://github.com/new
-- Repository name: cadunico-sistema
-- Visibility: Private (recomendado — dados sensíveis)
-- NÃO marque "Initialize this repository"
-- Clique em Create repository
-
-## 3. Configurar Git e fazer o primeiro push
-Abra o Prompt de Comando na pasta do sistema e execute:
+## 🏗️ Arquitetura de Produção
 
 ```
-git config --global user.name "Falwk"
-git config --global user.email "seu-email@exemplo.com"
-
-cd c:\Users\USER\Documents\Codex\2026-06-16\files-mentioned-by-the-user-database\CadUnico_Sistema\cadunico
-
-git init
-git add .
-git commit -m "primeiro commit - sistema cadunico pbf"
-git branch -M main
-git remote add origin https://github.com/Falwk/cadunico-sistema.git
-git push -u origin main
+[ Usuários (Celular/PC) ]
+           │ (HTTPS / Porta 443)
+           ▼
+    [ Nginx / Render ]
+           │ (Reverse Proxy)
+           ▼
+[ Gunicorn WSGI (Python 3.10+) ]
+           │ (Flask Application)
+    ┌──────┴──────────────────────────┐
+    ▼                                 ▼
+[ PostgreSQL (Supabase Pooler) ]   [ Cloudinary Storage ]
+(Banco Relacional + RLS)           (Fotos e PDFs de Anexos)
 ```
 
-O GitHub vai pedir login: use seu usuário Falwk e uma senha de acesso pessoal (token).
-Para criar o token: https://github.com/settings/tokens → Generate new token (classic)
-Marque a opção "repo" e clique em Generate.
+---
 
-## 4. Publicar no Railway
-1. Acesse: https://railway.app
-2. Clique em "Start a New Project"
-3. Escolha "Deploy from GitHub repo"
-4. Selecione: Falwk/cadunico-sistema
-5. Clique em "+ New" → "Database" → "Add PostgreSQL"
-6. Vá em "Variables" e adicione:
-   - CADUNICO_SECRET = qualquer_frase_longa_e_aleatoria_aqui
+## 🖥️ Opção A: Implantação em Cloud VPS (Ubuntu 22.04 / 24.04 LTS)
 
-## 5. Configurar domínio
-No painel do Railway:
-- Clique no seu serviço web
-- Vá em "Settings" → "Networking" → "Generate Domain"
-- Você terá uma URL como: https://cadunico.up.railway.app
-
-## 6. Primeiro acesso online
-- Abra a URL gerada
-- Login: admin / admin123
-- O sistema pedirá troca de senha obrigatória
-
-## Atualizar o sistema depois
-Sempre que fizer mudanças no código:
+### 1. Atualização do Sistema e Instalação de Pacotes
+Conecte-se via SSH como `root` e execute:
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y python3 python3-pip python3-venv git nginx certbot python3-certbot-nginx libpq-dev
 ```
-git add .
-git commit -m "descricao da mudanca"
-git push
+
+### 2. Clonagem do Projeto e Configuração do Ambiente
+```bash
+cd /var/www
+git clone https://github.com/Falwk/cadunico-sistema.git cadunico
+cd cadunico
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
 ```
-O Railway faz redeploy automático em ~2 minutos.
+
+### 3. Configuração do Serviço Systemd (`gunicorn.service`)
+Crie o arquivo de serviço para que a aplicação inicialize automaticamente com o servidor:
+```bash
+sudo nano /etc/systemd/system/cadunico.service
+```
+
+Cole a configuração:
+```ini
+[Unit]
+Description=Gunicorn instance to serve CadUnico Sistema
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/cadunico
+Environment="PATH=/var/www/cadunico/venv/bin"
+Environment="DATABASE_URL=postgresql://postgres.cfcdmuffivnukleadiyl:Amand%4027Telm%4007@aws-0-sa-east-1.pooler.supabase.com:6543/postgres"
+Environment="CADUNICO_SECRET=cadunico_tomeacu_chave_segura_2026"
+Environment="CLOUDINARY_URL=cloudinary://SUA_CHAVE_AQUI"
+ExecStart=/var/www/cadunico/venv/bin/gunicorn --workers 3 --bind 127.0.0.1:5000 app:app
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Ative e inicialize o serviço:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl start cadunico
+sudo systemctl enable cadunico
+```
+
+### 4. Configuração do Nginx (Proxy Reverso e SSL)
+Crie o bloco de configuração do Nginx:
+```bash
+sudo nano /etc/nginx/sites-available/cadunico
+```
+
+Cole a configuração:
+```nginx
+server {
+    listen 80;
+    server_name seu-dominio.com.br;
+
+    client_max_body_size 25M;
+
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+Ative o site e instale o certificado HTTPS gratuito:
+```bash
+sudo ln -s /etc/nginx/sites-available/cadunico /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+sudo certbot --nginx -d seu-dominio.com.br
+```
+
+---
+
+## ☁️ Opção B: Implantação no Render (Managed Web Service)
+
+1. Crie um **Web Service** no [Render Dashboard](https://dashboard.render.com).
+2. Conecte ao repositório `Falwk/cadunico-sistema`.
+3. Configure os parâmetros:
+   * **Runtime:** `Python 3`
+   * **Build Command:** `pip install -r requirements.txt`
+   * **Start Command:** `gunicorn app:app`
+4. Na aba **Environment Variables**, adicione:
+   * `DATABASE_URL`
+   * `CADUNICO_SECRET`
+   * `CLOUDINARY_URL`
+
+---
+
+## ⏰ Configuração do Agendador de Backup (Cron Job)
+Para que o backup diário para o Telegram seja disparado pontualmente:
+1. Cadastre uma tarefa no **[cron-job.org](https://cron-job.org)**:
+   * **URL:** `https://seu-dominio.com.br/api/v1/cron/backup-telegram`
+   * **Frequência:** Diariamente às 23:00 (Fuso horário: `America/Belem`).
