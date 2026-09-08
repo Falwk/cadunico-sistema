@@ -263,6 +263,7 @@ def inject_logos():
         logo_cadunico_25_b64=logo_25_b64,
         logo_bolsafamilia=_logo_url('bolsafamilia.png'),
         bairros_list=BAIRROS_TOME_ACU,
+        bairros_urbanos=BAIRROS_URBANOS,
     )
 
 # ---------------------------------------------------------------------------
@@ -504,21 +505,32 @@ MOTIVOS_ENCAMINHAMENTO = [
 
 SITUACES_ENCAMINHAMENTO = ["Atendido", "Pendente", "Cancelado", "Não localizado"]
 
-BAIRROS_TOME_ACU = [
+BAIRROS_URBANOS = [
+    "Centro",
+    "Alveslandia",
     "Campina",
-    "Centro (Sede)",
-    "Quatro Bocas (Centro)",
     "Bairro Novo",
+    "Novo Horizonte",
     "Fátima",
-    "São Francisco",
-    "São José",
-    "Porto de Formosa",
-    "Vila Forquilha",
-    "Vila Jupiranga",
-    "Vila Nova",
-    "Zona Rural",
-    "Outro"
+    "Cidina",
+    "Conquista",
+    "Alvorada",
+    "Alvoradinha",
+    "Vitória",
+    "Nobre",
+    "Maranhense",
+    "Pedreira",
+    "Portelinha",
+    "Tabom",
+    "Torre",
+    "Tucano I",
+    "Tucano II",
+    "Residencial Ibitinga",
+    "Tsuruzaki",
+    "Serraria",
+    "Venceslau",
 ]
+BAIRROS_TOME_ACU = BAIRROS_URBANOS
 
 
 # ---------------------------------------------------------------------------

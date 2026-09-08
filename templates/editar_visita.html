@@ -52,10 +52,16 @@
                  value="{{ form.get('complemento', visita.complemento or '') }}">
         </div>
         <div class="form-group">
-          <label for="bairro">Bairro *</label>
+          <label for="bairro">Bairro (Urbano) ou Vila/Ramal (Rural) *</label>
           <input type="text" id="bairro" name="bairro"
-                 placeholder="Nome do bairro"
+                 placeholder="Selecione o bairro ou digite a vila/ramal..."
+                 list="lista-bairros-urbanos"
                  value="{{ form.get('bairro', visita.bairro or '') }}" required>
+          <datalist id="lista-bairros-urbanos">
+            {% for b in bairros_urbanos %}
+              <option value="{{ b }}">{{ b }} (Zona Urbana)</option>
+            {% endfor %}
+          </datalist>
         </div>
       </div>
       <div class="form-group">
