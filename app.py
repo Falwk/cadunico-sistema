@@ -262,8 +262,8 @@ def inject_logos():
         logo_cadunico=logo_25_url or _logo_url('cadunico.png'),
         logo_cadunico_25_b64=logo_25_b64,
         logo_bolsafamilia=_logo_url('bolsafamilia.png'),
-        bairros_list=BAIRROS_TOME_ACU,
-        bairros_urbanos=BAIRROS_URBANOS,
+        bairros_list=get_bairros_por_usuario(session.get('unidade')),
+        bairros_urbanos=get_bairros_por_usuario(session.get('unidade')),
     )
 
 # ---------------------------------------------------------------------------
@@ -505,32 +505,49 @@ MOTIVOS_ENCAMINHAMENTO = [
 
 SITUACES_ENCAMINHAMENTO = ["Atendido", "Pendente", "Cancelado", "Não localizado"]
 
-BAIRROS_URBANOS = [
-    "Centro",
+BAIRROS_QUATRO_BOCAS = [
     "Alveslandia",
-    "Campina",
-    "Bairro Novo",
-    "Novo Horizonte",
-    "Fátima",
-    "Cidina",
-    "Conquista",
     "Alvorada",
     "Alvoradinha",
-    "Vitória",
+    "Bairro Novo",
+    "Centro (QB)",
+    "Cidina",
+    "Conquista",
     "Nobre",
+    "Novo Horizonte",
+    "Residencial Ipitinga",
+    "Serraria",
+    "Torre",
+    "Tsuruzaki",
+    "Tucano I",
+    "Tucano II",
+    "Venceslau",
+    "Vitória",
+]
+
+BAIRROS_TOME_ACU_SEDE = [
+    "Campina",
+    "Centro (Sede)",
+    "Constran",
+    "Fátima",
+    "Kanebo",
     "Maranhense",
     "Pedreira",
     "Portelinha",
     "Tabom",
-    "Torre",
-    "Tucano I",
-    "Tucano II",
-    "Residencial Ibitinga",
-    "Tsuruzaki",
-    "Serraria",
-    "Venceslau",
 ]
+
+BAIRROS_URBANOS = BAIRROS_TOME_ACU_SEDE + BAIRROS_QUATRO_BOCAS
 BAIRROS_TOME_ACU = BAIRROS_URBANOS
+
+
+def get_bairros_por_usuario(unidade_usuario=None):
+    """Retorna lista de bairros priorizando a unidade/polo do entrevistador em ordem alfabética."""
+    u_norm = (unidade_usuario or '').lower()
+    if 'quatro bocas' in u_norm or 'qb' in u_norm or '4 bocas' in u_norm:
+        return BAIRROS_QUATRO_BOCAS + BAIRROS_TOME_ACU_SEDE
+    else:
+        return BAIRROS_TOME_ACU_SEDE + BAIRROS_QUATRO_BOCAS
 
 
 # ---------------------------------------------------------------------------
@@ -1528,6 +1545,7 @@ def login():
             session['usuario_id'] = u['id']
             session['usuario_nome'] = u['nome']
             session['perfil'] = u['perfil']
+            session['unidade'] = u['unidade'] or 'Tomé-Açu (Sede)'
             session['acesso_sibec'] = bool(u['acesso_sibec'])
             session['trocar_senha'] = bool(u['trocar_senha'])
             audit('LOGIN', f"login={login_}")
