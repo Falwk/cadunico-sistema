@@ -115,18 +115,7 @@
         <label for="motivo">Motivo da Visita *</label>
         <select id="motivo" name="motivo" required>
           <option value="">— Selecione o motivo —</option>
-          {% set motivos = [
-            "Família Unipessoal","Averiguação Cadastral","Revisão Cadastral",
-            "Busca Ativa","Denúncia","Suspeita de Inconsistência Cadastral",
-            "Verificação de Endereço","Verificação da Composição Familiar",
-            "Inclusão Cadastral Domiciliar","Atualização Cadastral Domiciliar",
-            "Pessoa Idosa com dificuldade de locomoção","Pessoa com Deficiência",
-            "Pessoa Acamada","Encaminhamento do CRAS","Encaminhamento do CREAS",
-            "Solicitação da Gestão do Cadastro Único",
-            "Solicitação da Secretaria de Assistência Social",
-            "Solicitação do Ministério Público","Solicitação do Poder Judiciário","Outro"
-          ] %}
-          {% for m in motivos %}
+          {% for m in motivos_visita %}
           <option value="{{ m }}"
             {% if form.get('motivo', visita.motivo) == m %}selected{% endif %}>{{ m }}</option>
           {% endfor %}

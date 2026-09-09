@@ -264,6 +264,7 @@ def inject_logos():
         logo_bolsafamilia=_logo_url('bolsafamilia.png'),
         bairros_list=get_bairros_por_usuario(session.get('unidade')),
         bairros_urbanos=get_bairros_por_usuario(session.get('unidade')),
+        motivos_visita=MOTIVOS_VISITA,
     )
 
 # ---------------------------------------------------------------------------
@@ -450,7 +451,7 @@ TIPOS_SIBEC = {
 ORIGENS = ["Demanda Espontânea", "Encaminhado", "Visita Domiciliar"]
 
 MOTIVOS_VISITA = [
-    "Família Unipessoal",
+    "Família Unipessoal (Averiguação obrigatória de cadastros unipessoais)",
     "Averiguação Cadastral",
     "Revisão Cadastral",
     "Busca Ativa",
@@ -458,6 +459,7 @@ MOTIVOS_VISITA = [
     "Suspeita de Inconsistência Cadastral",
     "Verificação de Endereço",
     "Verificação da Composição Familiar",
+    "Exclusão de Membros da Família",
     "Inclusão Cadastral Domiciliar",
     "Atualização Cadastral Domiciliar",
     "Pessoa Idosa com dificuldade de locomoção",
@@ -466,7 +468,7 @@ MOTIVOS_VISITA = [
     "Encaminhamento do CRAS",
     "Encaminhamento do CREAS",
     "Solicitação da Gestão do Cadastro Único",
-    "Solicitação da Secretaria de Assistência Social",
+    "Solicitação da Secretaria de Assistência Social (SETAS)",
     "Solicitação do Ministério Público",
     "Solicitação do Poder Judiciário",
     "Outro",
