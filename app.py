@@ -268,9 +268,11 @@ def inject_logos():
     )
 
 # ---------------------------------------------------------------------------
-# Cloudinary — upload de anexos
+# Sistema de Armazenamento Persistente de Anexos (Banco de Dados + Cloudinary + Cache)
 # ---------------------------------------------------------------------------
 import os as _os
+import base64 as _base64
+import mimetypes as _mimetypes
 
 _CLOUDINARY_URL = _os.environ.get('CLOUDINARY_URL', '')
 
@@ -336,8 +338,36 @@ def _comprimir_anexo_bytes(raw_bytes, filename_orig):
     return raw_bytes
 
 
+def _salvar_arquivo_no_banco(caminho_relativo, nome_orig, file_bytes, mime_type='application/octet-stream'):
+    """Salva os bytes do arquivo em base64 na tabela arquivos_anexos para persistência definitiva no Supabase/PostgreSQL/SQLite."""
+    if not file_bytes:
+        return
+    try:
+        b64_str = _base64.b64encode(file_bytes).decode('ascii')
+        agora = datetime.now(_TZ_BELEM).isoformat()
+        conn = get_db()
+        if _is_pg():
+            _exec(conn, """
+                INSERT INTO arquivos_anexos (caminho_relativo, nome_arquivo, mime_type, conteudo_base64, tamanho_bytes, criado_em)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (caminho_relativo) DO UPDATE SET
+                    conteudo_base64 = EXCLUDED.conteudo_base64,
+                    tamanho_bytes = EXCLUDED.tamanho_bytes,
+                    criado_em = EXCLUDED.criado_em
+            """, (caminho_relativo, nome_orig, mime_type, b64_str, len(file_bytes), agora))
+        else:
+            _exec(conn, """
+                INSERT OR REPLACE INTO arquivos_anexos (caminho_relativo, nome_arquivo, mime_type, conteudo_base64, tamanho_bytes, criado_em)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (caminho_relativo, nome_orig, mime_type, b64_str, len(file_bytes), agora))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        app.logger.error(f"Erro ao salvar arquivo em arquivos_anexos: {e}")
+
+
 def _upload_anexo(file_obj, pasta='visitas'):
-    """Comprime o anexo (PDF ou imagem) e salva no Cloudinary ou localmente em static/uploads/."""
+    """Comprime o anexo (PDF ou imagem) e salva com redundância total (Cloudinary + Banco de Dados PostgreSQL/SQLite + Cache Local)."""
     if not file_obj or not hasattr(file_obj, 'filename') or not file_obj.filename:
         return None, None
 
@@ -360,6 +390,20 @@ def _upload_anexo(file_obj, pasta='visitas'):
     # Aplica compressao automatica (PDF / Imagem)
     final_bytes = _comprimir_anexo_bytes(raw_bytes, filename_orig)
 
+    # Identifica MIME Type
+    ext = filename_orig.rsplit('.', 1)[-1].lower() if '.' in filename_orig else ''
+    mime_map = {
+        'pdf': 'application/pdf',
+        'jpg': 'image/jpeg',
+        'jpeg': 'image/jpeg',
+        'png': 'image/png',
+        'webp': 'image/webp',
+        'heic': 'image/heic',
+        'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    }
+    mime_type = mime_map.get(ext, 'application/octet-stream')
+
     # 1. Tenta Cloudinary primeiro se configurado
     if _CLOUDINARY_URL or (
         _os.environ.get('CLOUDINARY_CLOUD_NAME') and
@@ -381,38 +425,95 @@ def _upload_anexo(file_obj, pasta='visitas'):
                 folder=pasta,
                 resource_type='auto',
             )
-            return result['secure_url'], filename_orig
+            cld_url = result.get('secure_url') or result.get('url')
+            if cld_url:
+                _salvar_arquivo_no_banco(cld_url, filename_orig, final_bytes, mime_type)
+                return cld_url, filename_orig
         except Exception as e:
             app.logger.error(f'Cloudinary upload error: {e}')
 
-    # 2. FALLBACK AUTOMÁTICO LOCAL: Salva os bytes comprimidos em static/uploads/{pasta}/
+    # 2. ARMAZENAMENTO PERSISTENTE (Banco de Dados + Cache em Disco)
     try:
         import uuid
         from werkzeug.utils import secure_filename
 
-        ext = ''
-        if '.' in filename_orig:
-            ext = '.' + filename_orig.rsplit('.', 1)[1].lower()
-        
         raw_base = filename_orig.rsplit('.', 1)[0] if '.' in filename_orig else filename_orig
-        safe_base = secure_filename(raw_base)
-        if not safe_base:
-            safe_base = 'anexo'
-            
-        unique_name = f"{uuid.uuid4().hex[:10]}_{safe_base}{ext}"
+        safe_base = secure_filename(raw_base) or 'anexo'
+        ext_dot = f".{ext}" if ext else ""
+        unique_name = f"{uuid.uuid4().hex[:10]}_{safe_base}{ext_dot}"
 
+        relative_url = f'/static/uploads/{pasta}/{unique_name}'
+
+        # A. Salva no banco de dados (Supabase PostgreSQL / SQLite) - NUNCA SE PERDE!
+        _salvar_arquivo_no_banco(relative_url, filename_orig, final_bytes, mime_type)
+
+        # B. Salva no disco local para carregamento veloz em cache
         upload_dir = os.path.join(app.root_path, 'static', 'uploads', pasta)
         os.makedirs(upload_dir, exist_ok=True)
-
         dest_path = os.path.join(upload_dir, unique_name)
         with open(dest_path, 'wb') as f_out:
             f_out.write(final_bytes)
 
-        relative_url = f'/static/uploads/{pasta}/{unique_name}'
         return relative_url, filename_orig
     except Exception as ex_local:
-        app.logger.error(f'Erro no fallback local de anexo: {ex_local}')
+        app.logger.error(f'Erro no fallback de anexo: {ex_local}')
         return None, None
+
+
+@app.route('/static/uploads/<path:filename>')
+@app.route('/uploads/<path:filename>')
+@app.route('/anexo/download/<path:filename>')
+@app.route('/anexo/view/<path:filename>')
+def servir_arquivo_anexo(filename):
+    """Serve arquivos de upload com restauração automática do banco caso o disco do Render tenha sido reiniciado."""
+    # 1. Se já existe no disco local, entrega diretamente
+    local_path = os.path.join(app.root_path, 'static', 'uploads', filename)
+    if os.path.isfile(local_path):
+        mime, _ = _mimetypes.guess_type(local_path)
+        return send_file(local_path, mimetype=mime or 'application/octet-stream', as_attachment=False)
+
+    # 2. Se não existir no disco (servidor reiniciou), restaura do banco de dados
+    nome_simples = filename.split('/')[-1].split('\\')[-1]
+    rel_busca = f"/static/uploads/{filename.replace('\\', '/')}"
+    caminho_like = f"%{nome_simples}%"
+    
+    conn = get_db()
+    row = _fetchone(conn, """
+        SELECT nome_arquivo, mime_type, conteudo_base64
+        FROM arquivos_anexos
+        WHERE caminho_relativo = ? OR caminho_relativo LIKE ?
+        ORDER BY id DESC LIMIT 1
+    """, (rel_busca, caminho_like))
+    conn.close()
+
+    if row and row['conteudo_base64']:
+        try:
+            file_bytes = _base64.b64decode(row['conteudo_base64'])
+            # Recria o arquivo no disco para cache futuro
+            try:
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                with open(local_path, 'wb') as f_out:
+                    f_out.write(file_bytes)
+            except Exception:
+                pass
+
+            mime = row['mime_type'] or _mimetypes.guess_type(row['nome_arquivo'])[0] or 'application/octet-stream'
+            return send_file(
+                io.BytesIO(file_bytes),
+                mimetype=mime,
+                as_attachment=False,
+                download_name=row['nome_arquivo']
+            )
+        except Exception as e:
+            app.logger.error(f"Erro ao decodificar anexo do banco: {e}")
+
+    # 3. Se for URL externa (Cloudinary), redireciona
+    if filename.startswith('http://') or filename.startswith('https://'):
+        return redirect(filename)
+
+    flash('Arquivo anexo não localizado.', 'aviso')
+    return redirect(url_for('painel_visitas'))
+
 
 
 TIPOS_ATENDIMENTO = [
@@ -1168,6 +1269,16 @@ def init_db():
             criado_em               TEXT NOT NULL,
             atualizado_em           TEXT NOT NULL
         )''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS arquivos_anexos (
+            id                      SERIAL PRIMARY KEY,
+            caminho_relativo        TEXT UNIQUE NOT NULL,
+            nome_arquivo            TEXT NOT NULL,
+            mime_type               TEXT NOT NULL,
+            conteudo_base64         TEXT NOT NULL,
+            tamanho_bytes           INTEGER NOT NULL,
+            criado_em               TEXT NOT NULL
+        )''')
+        cur.execute('''CREATE INDEX IF NOT EXISTS idx_arquivos_anexos_caminho ON arquivos_anexos(caminho_relativo)''')
         # Migrações seguras para PostgreSQL — cada uma em savepoint individual
         migracoes = [
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
@@ -1235,7 +1346,8 @@ def init_db():
         # Sincroniza sequências SERIAL do PostgreSQL para MAX(id)
         tabelas_seq = [
             'usuarios', 'atendimentos', 'solicitacoes_visita',
-            'audit_log', 'visita_contadores', 'visita_fotos', 'documentos_editaveis'
+            'audit_log', 'visita_contadores', 'visita_fotos', 'documentos_editaveis',
+            'arquivos_anexos'
         ]
         for t in tabelas_seq:
             try:
@@ -1247,7 +1359,7 @@ def init_db():
         tabelas_rls = [
             'usuarios', 'atendimentos', 'solicitacoes_visita',
             'audit_log', 'config_relatorio', 'visita_contadores',
-            'visita_fotos', 'documentos_editaveis'
+            'visita_fotos', 'documentos_editaveis', 'arquivos_anexos'
         ]
         for t in tabelas_rls:
             try:
@@ -1348,6 +1460,15 @@ def init_db():
             criador_id              INTEGER REFERENCES usuarios(id),
             criado_em               TEXT NOT NULL,
             atualizado_em           TEXT NOT NULL
+        )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS arquivos_anexos (
+            id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+            caminho_relativo        TEXT UNIQUE NOT NULL,
+            nome_arquivo            TEXT NOT NULL,
+            mime_type               TEXT NOT NULL,
+            conteudo_base64         TEXT NOT NULL,
+            tamanho_bytes           INTEGER NOT NULL,
+            criado_em               TEXT NOT NULL
         )''')
         for col_sql in [
             "ALTER TABLE usuarios ADD COLUMN unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",

@@ -148,6 +148,23 @@
         </div>
       </div>
 
+      {% if visita.anexo_url %}
+      <div style="grid-column:1 / -1">
+        <div class="text-muted" style="font-size:.78rem;font-weight:600;text-transform:uppercase;margin-bottom:6px">📎 Anexo da Solicitação</div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:#F8FAFC; padding:12px 16px; border-radius:8px; border:1px solid #E2E8F0;">
+          <span style="font-size:0.9rem; font-weight:600; color:#334155;">{{ visita.anexo_nome or 'Documento Anexado' }}</span>
+          <div style="margin-left:auto; display:flex; gap:8px;">
+            <a href="{{ visita.anexo_url }}" target="_blank" class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px; font-weight:700; padding:6px 14px;">
+              👁️ Visualizar Arquivo
+            </a>
+            <a href="{{ visita.anexo_url }}" download="{{ visita.anexo_nome or 'anexo' }}" class="btn btn-outline btn-sm" style="display:inline-flex; align-items:center; gap:6px; padding:6px 14px;">
+              ⬇️ Baixar
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
       {% if visita.observacoes %}
       <div style="grid-column:1 / -1">
         <div class="text-muted" style="font-size:.78rem;font-weight:600;text-transform:uppercase;margin-bottom:4px">Observações</div>
@@ -186,15 +203,21 @@
   {# ── Parecer da Assistente Social ─────────────────────────────────────── #}
   {% if visita.parecer_tecnico_txt or visita.parecer_as_url %}
   <div class="card" style="border:1.5px solid var(--cad-verde); background:#F0FDF4;">
-    <div class="card-title" style="color:var(--cad-verde-escuro); display:flex; justify-content:space-between; align-items:center;">
+    <div class="card-title" style="color:var(--cad-verde-escuro); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
       <span style="display:flex; align-items:center; gap:8px;">
         📋 Parecer Técnico Assistencial (Serviço Social)
       </span>
       {% if visita.parecer_as_url %}
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <a href="{{ visita.parecer_as_url }}" target="_blank"
-           class="btn btn-outline btn-sm" download="{{ visita.parecer_as_nome }}" style="border-color:var(--cad-verde-escuro); color:var(--cad-verde-escuro);">
-          📎 {{ visita.parecer_as_nome or 'Baixar Anexo PDF' }}
+           class="btn btn-primary btn-sm" style="background:var(--cad-verde-escuro); border-color:var(--cad-verde-escuro); font-weight:700; display:inline-flex; align-items:center; gap:6px;">
+          👁️ Visualizar PDF
         </a>
+        <a href="{{ visita.parecer_as_url }}" download="{{ visita.parecer_as_nome or 'parecer_tecnico.pdf' }}"
+           class="btn btn-outline btn-sm" style="border-color:var(--cad-verde-escuro); color:var(--cad-verde-escuro); font-weight:700; display:inline-flex; align-items:center; gap:6px;">
+          ⬇️ Baixar ({{ visita.parecer_as_nome or 'PDF' }})
+        </a>
+      </div>
       {% endif %}
     </div>
     {% if visita.parecer_tecnico_txt %}
