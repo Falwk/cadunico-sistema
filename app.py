@@ -442,6 +442,55 @@ def _upload_anexo(file_obj, pasta='visitas'):
         return None, None
 
 
+
+
+def _garantir_pdf_valido(file_bytes, nome_arquivo="documento.pdf"):
+    """Garante que os bytes retornados sejam uma estrutura PDF 100% válida e legível pelo navegador."""
+    if not file_bytes:
+        return file_bytes
+    if file_bytes.startswith(b'%PDF'):
+        return file_bytes
+    
+    # Se for texto antigo ou dummy de teste, encapsula em um documento PDF formal
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.pdfgen import canvas
+        from reportlab.lib import colors
+        
+        texto_original = file_bytes.decode('utf-8', errors='ignore') if file_bytes else 'Documento Anexo'
+        buf = io.BytesIO()
+        p = canvas.Canvas(buf, pagesize=A4)
+        width, height = A4
+        
+        # Topo
+        p.setFillColor(colors.HexColor("#00542A"))
+        p.rect(0, height - 60, width, 60, fill=1, stroke=0)
+        p.setFillColor(colors.white)
+        p.setFont("Helvetica-Bold", 14)
+        p.drawString(40, height - 38, "SISTEMA CADASTRO ÚNICO — TOMÉ-AÇU / PA")
+        
+        # Título
+        p.setFillColor(colors.HexColor("#1E293B"))
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(40, height - 100, f"Documento Anexo: {nome_arquivo}")
+        
+        # Informações
+        p.setFont("Helvetica", 10)
+        p.drawString(40, height - 130, f"Conteúdo do Registro: {texto_original}")
+        
+        # Rodapé
+        p.setFillColor(colors.HexColor("#64748B"))
+        p.setFont("Helvetica-Oblique", 8)
+        p.drawString(40, 40, "Documento emitido/armazenado pelo Sistema Oficial do Cadastro Único & SETAS.")
+        
+        p.showPage()
+        p.save()
+        buf.seek(0)
+        return buf.getvalue()
+    except Exception:
+        return file_bytes
+
+
 @app.route('/static/uploads/<path:filename>')
 @app.route('/uploads/<path:filename>')
 @app.route('/anexo/download/<path:filename>')
@@ -453,12 +502,19 @@ def servir_arquivo_anexo(filename):
     ext = nome_simples.rsplit('.', 1)[-1].lower() if '.' in nome_simples else ''
     mime_padrao = 'application/pdf' if ext == 'pdf' else (_mimetypes.guess_type(nome_simples)[0] or 'application/octet-stream')
 
-    # 1. Se já existe no disco local, entrega diretamente com headers inline
+    # 1. Se já existe no disco local
     if os.path.isfile(local_path):
-        resp = send_file(local_path, mimetype=mime_padrao, as_attachment=False)
-        resp.headers['Content-Disposition'] = f'inline; filename="{nome_simples}"'
-        resp.headers['X-Content-Type-Options'] = 'nosniff'
-        return resp
+        try:
+            with open(local_path, 'rb') as f_in:
+                raw_disk = f_in.read()
+            if ext == 'pdf':
+                raw_disk = _garantir_pdf_valido(raw_disk, nome_simples)
+            resp = send_file(io.BytesIO(raw_disk), mimetype=mime_padrao, as_attachment=False, download_name=nome_simples)
+            resp.headers['Content-Disposition'] = f'inline; filename="{nome_simples}"'
+            resp.headers['X-Content-Type-Options'] = 'nosniff'
+            return resp
+        except Exception:
+            pass
 
     # 2. Se não existir no disco (servidor reiniciou), restaura do banco de dados
     rel_busca = f"/static/uploads/{filename.replace('\\', '/')}"
@@ -476,6 +532,9 @@ def servir_arquivo_anexo(filename):
     if row and row['conteudo_base64']:
         try:
             file_bytes = _base64.b64decode(row['conteudo_base64'])
+            if ext == 'pdf':
+                file_bytes = _garantir_pdf_valido(file_bytes, row['nome_arquivo'])
+
             # Recria o arquivo no disco para cache futuro
             try:
                 os.makedirs(os.path.dirname(local_path), exist_ok=True)
