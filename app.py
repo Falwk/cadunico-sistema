@@ -278,33 +278,15 @@ _CLOUDINARY_URL = _os.environ.get('CLOUDINARY_URL', '')
 
 
 def _comprimir_anexo_bytes(raw_bytes, filename_orig):
-    """Comprime arquivos PDF e Imagens para reduzir tamanho ocupado no armazenamento."""
+    """Comprime imagens e preserva integralmente arquivos PDF para evitar qualquer corrupção de assinaturas ou estruturas."""
     if not raw_bytes:
         return raw_bytes
 
     ext = filename_orig.rsplit('.', 1)[-1].lower() if '.' in filename_orig else ''
 
-    # 1. Compressao de PDF via pypdf
+    # 1. Arquivos PDF: preserva 100% dos bytes originais para integridade máxima (assinaturas, carimbos e páginas)
     if ext == 'pdf':
-        try:
-            import pypdf
-            reader = pypdf.PdfReader(io.BytesIO(raw_bytes))
-            writer = pypdf.PdfWriter()
-            for page in reader.pages:
-                try:
-                    page.compress_content_streams()
-                except Exception:
-                    pass
-                writer.add_page(page)
-            
-            out = io.BytesIO()
-            writer.write(out)
-            compressed_bytes = out.getvalue()
-            if compressed_bytes and len(compressed_bytes) < len(raw_bytes):
-                app.logger.info(f"PDF comprimido: {len(raw_bytes)} B -> {len(compressed_bytes)} B")
-                return compressed_bytes
-        except Exception as ex_pdf:
-            app.logger.warning(f"Não foi possível comprimir PDF ({filename_orig}): {ex_pdf}")
+        return raw_bytes
 
     # 2. Compressao de Imagens via PIL / Pillow
     elif ext in ('jpg', 'jpeg', 'png', 'webp'):
@@ -367,7 +349,7 @@ def _salvar_arquivo_no_banco(caminho_relativo, nome_orig, file_bytes, mime_type=
 
 
 def _upload_anexo(file_obj, pasta='visitas'):
-    """Comprime o anexo (PDF ou imagem) e salva com redundância total (Cloudinary + Banco de Dados PostgreSQL/SQLite + Cache Local)."""
+    """Salva o anexo com redundância total (Cloudinary + Banco de Dados PostgreSQL/SQLite + Cache Local)."""
     if not file_obj or not hasattr(file_obj, 'filename') or not file_obj.filename:
         return None, None
 
@@ -387,7 +369,7 @@ def _upload_anexo(file_obj, pasta='visitas'):
     if not raw_bytes:
         return None, None
 
-    # Aplica compressao automatica (PDF / Imagem)
+    # Aplica compressao em imagens e preserva integridade exata de PDFs
     final_bytes = _comprimir_anexo_bytes(raw_bytes, filename_orig)
 
     # Identifica MIME Type
@@ -466,14 +448,19 @@ def _upload_anexo(file_obj, pasta='visitas'):
 @app.route('/anexo/view/<path:filename>')
 def servir_arquivo_anexo(filename):
     """Serve arquivos de upload com restauração automática do banco caso o disco do Render tenha sido reiniciado."""
-    # 1. Se já existe no disco local, entrega diretamente
     local_path = os.path.join(app.root_path, 'static', 'uploads', filename)
+    nome_simples = filename.split('/')[-1].split('\\')[-1]
+    ext = nome_simples.rsplit('.', 1)[-1].lower() if '.' in nome_simples else ''
+    mime_padrao = 'application/pdf' if ext == 'pdf' else (_mimetypes.guess_type(nome_simples)[0] or 'application/octet-stream')
+
+    # 1. Se já existe no disco local, entrega diretamente com headers inline
     if os.path.isfile(local_path):
-        mime, _ = _mimetypes.guess_type(local_path)
-        return send_file(local_path, mimetype=mime or 'application/octet-stream', as_attachment=False)
+        resp = send_file(local_path, mimetype=mime_padrao, as_attachment=False)
+        resp.headers['Content-Disposition'] = f'inline; filename="{nome_simples}"'
+        resp.headers['X-Content-Type-Options'] = 'nosniff'
+        return resp
 
     # 2. Se não existir no disco (servidor reiniciou), restaura do banco de dados
-    nome_simples = filename.split('/')[-1].split('\\')[-1]
     rel_busca = f"/static/uploads/{filename.replace('\\', '/')}"
     caminho_like = f"%{nome_simples}%"
     
@@ -497,13 +484,16 @@ def servir_arquivo_anexo(filename):
             except Exception:
                 pass
 
-            mime = row['mime_type'] or _mimetypes.guess_type(row['nome_arquivo'])[0] or 'application/octet-stream'
-            return send_file(
+            mime = row['mime_type'] or mime_padrao
+            resp = send_file(
                 io.BytesIO(file_bytes),
                 mimetype=mime,
                 as_attachment=False,
                 download_name=row['nome_arquivo']
             )
+            resp.headers['Content-Disposition'] = f'inline; filename="{row["nome_arquivo"]}"'
+            resp.headers['X-Content-Type-Options'] = 'nosniff'
+            return resp
         except Exception as e:
             app.logger.error(f"Erro ao decodificar anexo do banco: {e}")
 
