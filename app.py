@@ -349,7 +349,9 @@ def _salvar_arquivo_no_banco(caminho_relativo, nome_orig, file_bytes, mime_type=
 
 
 def _upload_anexo(file_obj, pasta='visitas'):
-    """Salva o anexo com redundância total (Cloudinary + Banco de Dados PostgreSQL/SQLite + Cache Local)."""
+    """Salva o anexo com armazenamento permanente e seguro.
+    PDFs e documentos são SEMPRE armazenados no banco de dados (Supabase PostgreSQL) e servidos internamente
+    para evitar restrições de 401 Unauthorized do Cloudinary."""
     if not file_obj or not hasattr(file_obj, 'filename') or not file_obj.filename:
         return None, None
 
@@ -386,12 +388,12 @@ def _upload_anexo(file_obj, pasta='visitas'):
     }
     mime_type = mime_map.get(ext, 'application/octet-stream')
 
-    # 1. Tenta Cloudinary primeiro se configurado
-    if _CLOUDINARY_URL or (
+    # 1. Se for IMAGEM e Cloudinary estiver configurado, pode usar Cloudinary
+    if ext in ('jpg', 'jpeg', 'png', 'webp', 'heic') and (_CLOUDINARY_URL or (
         _os.environ.get('CLOUDINARY_CLOUD_NAME') and
         _os.environ.get('CLOUDINARY_API_KEY') and
         _os.environ.get('CLOUDINARY_API_SECRET')
-    ):
+    )):
         try:
             import cloudinary
             import cloudinary.uploader
@@ -405,7 +407,7 @@ def _upload_anexo(file_obj, pasta='visitas'):
             result = cloudinary.uploader.upload(
                 file_stream,
                 folder=pasta,
-                resource_type='auto',
+                resource_type='image',
             )
             cld_url = result.get('secure_url') or result.get('url')
             if cld_url:
@@ -414,7 +416,8 @@ def _upload_anexo(file_obj, pasta='visitas'):
         except Exception as e:
             app.logger.error(f'Cloudinary upload error: {e}')
 
-    # 2. ARMAZENAMENTO PERSISTENTE (Banco de Dados + Cache em Disco)
+    # 2. ARMAZENAMENTO PERSISTENTE NO BANCO DE DADOS (Supabase PostgreSQL / SQLite)
+    # PDFs e documentos são SEMPRE salvos internamente para garantir 100% de disponibilidade sem bloqueio 401 do Cloudinary
     try:
         import uuid
         from werkzeug.utils import secure_filename
@@ -426,7 +429,7 @@ def _upload_anexo(file_obj, pasta='visitas'):
 
         relative_url = f'/static/uploads/{pasta}/{unique_name}'
 
-        # A. Salva no banco de dados (Supabase PostgreSQL / SQLite) - NUNCA SE PERDE!
+        # A. Salva no banco de dados (Supabase PostgreSQL / SQLite) - NUNCA SE PERDE E NUNCA DÁ 401!
         _salvar_arquivo_no_banco(relative_url, filename_orig, final_bytes, mime_type)
 
         # B. Salva no disco local para carregamento veloz em cache
@@ -438,7 +441,7 @@ def _upload_anexo(file_obj, pasta='visitas'):
 
         return relative_url, filename_orig
     except Exception as ex_local:
-        app.logger.error(f'Erro no fallback de anexo: {ex_local}')
+        app.logger.error(f'Erro ao salvar anexo internamente: {ex_local}')
         return None, None
 
 
