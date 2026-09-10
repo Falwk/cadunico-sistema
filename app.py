@@ -4375,6 +4375,297 @@ def api_cron_backup_telegram():
     return jsonify({'sucesso': sucesso, 'mensagem': msg}), 200
 
 
+def _validar_token_api_setas():
+    """Valida token recebido via Header ou Query Param contra o configurado no sistema."""
+    cfg = get_config()
+    token_esperado = cfg.get('token_integracao_beneficios', 'setas-beneficios-token-2026').strip()
+    token_recebido = (
+        request.headers.get('X-SETAS-API-TOKEN') or
+        request.headers.get('X-CRON-SECRET') or
+        request.args.get('token') or
+        request.args.get('secret')
+    )
+    if not token_recebido:
+        auth_hdr = request.headers.get('Authorization', '')
+        if auth_hdr.startswith('Bearer '):
+            token_recebido = auth_hdr.split(' ', 1)[1].strip()
+
+    return bool(token_recebido and token_recebido == token_esperado)
+
+
+def _mascarar_nome_lgpd(nome):
+    if not nome:
+        return ""
+    partes = nome.strip().split()
+    mascarado = []
+    for p in partes:
+        if len(p) <= 2:
+            mascarado.append(p)
+        else:
+            mascarado.append(p[0] + '*' * (len(p) - 1))
+    return ' '.join(mascarado)
+
+
+def _mascarar_cpf_lgpd(cpf):
+    nums = ''.join(c for c in (cpf or '') if c.isdigit())
+    if len(nums) == 11:
+        return f"{nums[:3]}.***.***-{nums[-2:]}"
+    return "***.***.***-**"
+
+
+@app.route('/api/v1/public/consultar/<cpf>', methods=['GET'])
+def api_public_consultar_cpf(cpf):
+    """Verifica a existência do cidadão no banco de dados do Cadastro Único com máscara LGPD no nome."""
+    cpf_limpo = ''.join(c for c in cpf if c.isdigit())
+    if not cpf_limpo:
+        return jsonify({'encontrado': False, 'mensagem': 'CPF inválido.'}), 400
+
+    conn = get_db()
+    at = _fetchone(conn, """
+        SELECT a.id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, u.unidade
+        FROM atendimentos a
+        LEFT JOIN usuarios u ON a.usuario_id = u.id
+        WHERE REPLACE(REPLACE(REPLACE(a.cpf, '.', ''), '-', ''), ' ', '') = ?
+        ORDER BY a.id DESC LIMIT 1
+    """, (cpf_limpo,))
+    conn.close()
+
+    if not at:
+        return jsonify({
+            'encontrado': False,
+            'mensagem': 'Cidadão não localizado na base municipal do Cadastro Único.'
+        }), 404
+
+    return jsonify({
+        'encontrado': True,
+        'cpf_mascarado': _mascarar_cpf_lgpd(at['cpf']),
+        'nome_mascarado': _mascarar_nome_lgpd(at['nome_rf']),
+        'status_cadastro': 'Cadastrado no Município de Tomé-Açu',
+        'bairro_ou_comunidade': at['bairro'] or 'Não informado',
+        'polo_referencia': at['unidade'] or 'Tomé-Açu (Sede)',
+        'ultimo_atendimento': at['data']
+    }), 200
+
+
+@app.route('/api/v1/integracao/beneficios/consultar/<cpf_ou_codfam>', methods=['GET'])
+def api_integracao_consultar_familia(cpf_ou_codfam):
+    """Retorna a ficha familiar completa (Nome, CPF, Bairro, Código Familiar, Qtd. Membros, Renda Per Capita e Histórico)."""
+    if not _validar_token_api_setas():
+        return jsonify({'sucesso': False, 'mensagem': 'Acesso não autorizado. Token da API inválido ou ausente.'}), 401
+
+    termo = cpf_ou_codfam.strip()
+    termo_limpo = ''.join(c for c in termo if c.isdigit())
+    if not termo_limpo:
+        return jsonify({'sucesso': False, 'mensagem': 'Parâmetro de busca inválido.'}), 400
+
+    conn = get_db()
+    at = _fetchone(conn, """
+        SELECT a.id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, 
+               a.qtd_membros, a.renda_per_capita, a.origem, u.nome as entrevistador_nome, u.unidade
+        FROM atendimentos a
+        LEFT JOIN usuarios u ON a.usuario_id = u.id
+        WHERE REPLACE(REPLACE(REPLACE(a.cpf, '.', ''), '-', ''), ' ', '') = ?
+           OR a.codigo_familiar = ?
+        ORDER BY a.id DESC LIMIT 1
+    """, (termo_limpo, termo))
+
+    if not at:
+        conn.close()
+        return jsonify({
+            'sucesso': False,
+            'mensagem': 'Família não localizada no banco do Cadastro Único.'
+        }), 404
+
+    cpf_ref = at['cpf']
+    historico = _fetchall(conn, """
+        SELECT a.id, a.data, a.tipos, a.origem, u.nome as entrevistador
+        FROM atendimentos a
+        LEFT JOIN usuarios u ON a.usuario_id = u.id
+        WHERE a.cpf = ?
+        ORDER BY a.id DESC LIMIT 20
+    """, (cpf_ref,))
+
+    visitas = _fetchall(conn, """
+        SELECT sv.id, sv.numero_vd, sv.status, sv.motivo, sv.zona, sv.bairro, sv.criado_em, sv.data_realizada
+        FROM solicitacoes_visita sv
+        WHERE sv.cpf_rf = ?
+        ORDER BY sv.id DESC LIMIT 10
+    """, (cpf_ref,))
+    conn.close()
+
+    return jsonify({
+        'sucesso': True,
+        'dados_familia': {
+            'nome_rf': at['nome_rf'],
+            'cpf': at['cpf'],
+            'codigo_familiar': at['codigo_familiar'],
+            'bairro': at['bairro'],
+            'qtd_membros': at['qtd_membros'],
+            'renda_per_capita': at['renda_per_capita'],
+            'polo_atendimento': at['unidade'] or 'Tomé-Açu (Sede)',
+            'ultimo_atendimento_data': at['data'],
+            'ultimo_entrevistador': at['entrevistador_nome']
+        },
+        'historico_atendimentos': [dict(h) for h in historico],
+        'solicitacoes_visita': [dict(v) for v in visitas]
+    }), 200
+
+
+@app.route('/api/v1/integracao/beneficios/conceder', methods=['POST'])
+def api_integracao_conceder_beneficio():
+    """Registra a concessão de um benefício eventual diretamente na ficha da família no CadÚnico."""
+    if not _validar_token_api_setas():
+        return jsonify({'sucesso': False, 'mensagem': 'Acesso não autorizado. Token da API inválido ou ausente.'}), 401
+
+    dados = request.get_json(silent=True) or request.form or {}
+    cpf = dados.get('cpf', '').strip()
+    tipo_beneficio = dados.get('tipo_beneficio', 'Benefício Eventual').strip()
+    observacao = dados.get('observacao', '').strip()
+    orgao_concessor = dados.get('orgao_concessor', 'SETAS / Benefícios Eventuais').strip()
+
+    cpf_limpo = ''.join(c for c in cpf if c.isdigit())
+    if not cpf_limpo:
+        return jsonify({'sucesso': False, 'mensagem': 'CPF é obrigatório.'}), 400
+
+    conn = get_db()
+    at_existente = _fetchone(conn, """
+        SELECT a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.usuario_id
+        FROM atendimentos a
+        WHERE REPLACE(REPLACE(REPLACE(a.cpf, '.', ''), '-', ''), ' ', '') = ?
+        ORDER BY a.id DESC LIMIT 1
+    """, (cpf_limpo,))
+
+    agora = datetime.now(_TZ_BELEM)
+    data_hoje = agora.strftime('%d/%m/%Y')
+
+    nome_rf = at_existente['nome_rf'] if at_existente else dados.get('nome_rf', 'Cidadão Beneficiário')
+    bairro = at_existente['bairro'] if at_existente else (dados.get('bairro') or 'Centro (Sede)')
+    cod_fam = at_existente['codigo_familiar'] if at_existente else (dados.get('codigo_familiar') or '00000000000')
+    qtd_m = at_existente['qtd_membros'] if at_existente else (dados.get('qtd_membros') or 1)
+    renda = at_existente['renda_per_capita'] if at_existente else (dados.get('renda_per_capita') or 'R$ 0,00')
+    uid = at_existente['usuario_id'] if at_existente else 1
+
+    tipo_txt = f"Concessão de Benefício: {tipo_beneficio}"
+    protocolo = f"BENEF-{agora.strftime('%Y%m%d%H%M%S')}"
+    obs_final = f"Protocolo: {protocolo} | Órgão: {orgao_concessor} | Obs: {observacao}"
+
+    erros = _salvar_atendimento(
+        conn, data_hoje, cpf, nome_rf, 'Encaminhado', [tipo_txt], uid,
+        bairro=bairro, codigo_familiar=cod_fam, qtd_membros=qtd_m, renda_per_capita=renda,
+        orgao_encaminhador=orgao_concessor, numero_oficio=protocolo,
+        motivo_encaminhamento=tipo_beneficio, obs_encaminhamento=obs_final,
+        situacao_encaminhamento='Atendido'
+    )
+    conn.commit()
+    conn.close()
+
+    if erros:
+        return jsonify({'sucesso': False, 'erros': erros}), 400
+
+    audit('API_CONCESSAO_BENEFICIO', f"cpf={cpf} beneficio={tipo_beneficio} protocolo={protocolo}")
+    return jsonify({
+        'sucesso': True,
+        'mensagem': 'Benefício eventual registrado com sucesso no histórico da família!',
+        'protocolo': protocolo,
+        'cpf': cpf,
+        'nome_rf': nome_rf,
+        'tipo_beneficio': tipo_beneficio,
+        'data_registro': agora.strftime('%d/%m/%Y %H:%M:%S')
+    }), 201
+
+
+@app.route('/api/v1/openapi.json', methods=['GET'])
+def api_openapi_json():
+    """Especificação OpenAPI 3.0 dos serviços REST da SETAS."""
+    spec = {
+        "openapi": "3.0.3",
+        "info": {
+            "title": "API de Integração Cadastro Único & Benefícios Eventuais SETAS",
+            "version": "1.0.0",
+            "description": "API REST oficial para integração da base municipal do Cadastro Único com a rede socioassistencial (CRAS, CREAS, Benefícios Eventuais e Órgãos de Controle) de Tomé-Açu/PA."
+        },
+        "servers": [
+            {"url": request.host_url.rstrip('/'), "description": "Servidor Atual"}
+        ],
+        "paths": {
+            "/api/v1/public/consultar/{cpf}": {
+                "get": {
+                    "summary": "Consulta Pública com Máscara LGPD",
+                    "description": "Verifica se o CPF informado possui registro ativo no município, retornando nome e CPF mascarados.",
+                    "parameters": [
+                        {"name": "cpf", "in": "path", "required": True, "schema": {"type": "string"}}
+                    ],
+                    "responses": {
+                        "200": {"description": "Cidadão localizado"},
+                        "404": {"description": "Não encontrado"}
+                    }
+                }
+            },
+            "/api/v1/integracao/beneficios/consultar/{cpf_ou_codfam}": {
+                "get": {
+                    "summary": "Consulta Completa de Família",
+                    "description": "Retorna todos os dados da composição familiar e histórico de atendimentos/visitas. Requer token.",
+                    "security": [{"ApiKeyAuth": []}],
+                    "parameters": [
+                        {"name": "cpf_ou_codfam", "in": "path", "required": True, "schema": {"type": "string"}}
+                    ],
+                    "responses": {
+                        "200": {"description": "Ficha familiar completa"},
+                        "401": {"description": "Token inválido ou não informado"}
+                    }
+                }
+            },
+            "/api/v1/integracao/beneficios/conceder": {
+                "post": {
+                    "summary": "Registrar Concessão de Benefício Eventual",
+                    "description": "Lança o registro de concessão de benefício na ficha do cidadão.",
+                    "security": [{"ApiKeyAuth": []}],
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "cpf": {"type": "string"},
+                                        "tipo_beneficio": {"type": "string"},
+                                        "observacao": {"type": "string"},
+                                        "orgao_concessor": {"type": "string"}
+                                    },
+                                    "required": ["cpf", "tipo_beneficio"]
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "201": {"description": "Benefício registrado com sucesso"},
+                        "401": {"description": "Não autorizado"}
+                    }
+                }
+            }
+        },
+        "components": {
+            "securitySchemes": {
+                "ApiKeyAuth": {
+                    "type": "apiKey",
+                    "in": "header",
+                    "name": "X-SETAS-API-TOKEN"
+                }
+            }
+        }
+    }
+    return jsonify(spec), 200
+
+
+@app.route('/api/v1/portal', methods=['GET'])
+@app.route('/api/docs', methods=['GET'])
+def api_portal_docs():
+    """Página interativa com o Portal da API e documentação OpenAPI."""
+    cfg = get_config()
+    token_api = cfg.get('token_integracao_beneficios', 'setas-beneficios-token-2026')
+    return render_template('portal_api.html', token_api=token_api)
+
+
 @app.route('/admin/backup/excel')
 def backup_excel():
     if _requer_login() or session.get('perfil') != 'admin':
