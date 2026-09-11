@@ -5,7 +5,7 @@
 
   {% for e in erros %}<div class="alerta alerta-erro">{{ e }}</div>{% endfor %}
 
-  <form method="POST" enctype="multipart/form-data" novalidate>
+  <form method="POST" novalidate>
 
     {# ── Seção 1: Dados do Beneficiário ──────────────────────────────── #}
     <div class="card">
@@ -149,20 +149,15 @@
 
 
 
-    {# ── Seção 6: Parecer da Assistente Social ────────────────────────── #}
+    {# ── Seção 6: Parecer Técnico / Relatório ────────────────────────── #}
     <div class="card">
-      <div class="card-title">Parecer da Assistente Social
+      <div class="card-title">Parecer Técnico / Relatório da Visita
         <span class="text-muted" style="font-weight:400">(opcional)</span>
       </div>
-      {% if visita.parecer_as_nome %}
-      <p style="margin-bottom:10px;font-size:.88rem">
-        Parecer atual: <a href="{{ visita.parecer_as_url }}" target="_blank">{{ visita.parecer_as_nome }}</a>
-      </p>
-      {% endif %}
       <div class="form-group">
-        <label for="parecer_as">Substituir parecer (somente PDF, máx. 20 MB)</label>
-        <input type="file" id="parecer_as" name="parecer_as"
-               accept=".pdf" style="padding:8px 0">
+        <label for="parecer_tecnico_txt">Texto do Parecer Técnico / Relatório</label>
+        <textarea id="parecer_tecnico_txt" name="parecer_tecnico_txt" rows="6"
+                  placeholder="Escreva o parecer técnico ou relatório da visita…">{{ form.get('parecer_tecnico_txt', visita.parecer_tecnico_txt or '') }}</textarea>
       </div>
     </div>
 
@@ -172,14 +167,4 @@
     </div>
   </form>
 </div>
-
-<script>
-document.getElementById('anexo').addEventListener('change', function () {
-  const MAX = 10 * 1024 * 1024;
-  if (this.files[0] && this.files[0].size > MAX) {
-    alert('O arquivo selecionado excede o limite de 10 MB.');
-    this.value = '';
-  }
-});
-</script>
 {% endblock %}

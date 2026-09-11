@@ -5080,31 +5080,16 @@ def emitir_parecer_tecnico_visita(visita_id):
         flash('Por favor, informe o texto do Parecer Técnico Assistencial.', 'erro')
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
-    parecer_url = dict(visita).get('parecer_as_url')
-    parecer_nome = dict(visita).get('parecer_as_nome')
-
-    arquivo_parecer = request.files.get('parecer_as_file')
-    if arquivo_parecer and arquivo_parecer.filename:
-        err = _validar_parecer(arquivo_parecer)
-        if err:
-            conn.close()
-            flash(err, 'erro')
-            return redirect(url_for('detalhe_visita', visita_id=visita_id))
-        url_p, nome_p = _upload_anexo(arquivo_parecer, pasta='visitas_pareceres')
-        if url_p:
-            parecer_url = url_p
-            parecer_nome = nome_p
-
     agora = datetime.now(_TZ_BELEM).isoformat()
     hoje_str = date.today().isoformat()
 
     _exec(conn,
         """UPDATE solicitacoes_visita
-           SET parecer_tecnico_txt=?, parecer_as_url=?, parecer_as_nome=?,
+           SET parecer_tecnico_txt=?,
                status='Realizada', data_realizada=?, responsavel_id=?,
                atualizado_em=?
            WHERE id=?""",
-        (parecer_txt, parecer_url, parecer_nome, hoje_str, session['usuario_id'], agora, visita_id)
+        (parecer_txt, hoje_str, session['usuario_id'], agora, visita_id)
     )
     conn.commit()
     conn.close()
@@ -5165,6 +5150,7 @@ def editar_visita(visita_id):
         observacoes   = request.form.get('observacoes', '').strip() or None
         telefone1     = request.form.get('telefone1', '').strip() or None
         telefone2     = request.form.get('telefone2', '').strip() or None
+        parecer_tecnico_txt = request.form.get('parecer_tecnico_txt', '').strip() or None
 
         # Apenas admin pode alterar o responsável
         if perfil == 'admin':
@@ -5182,20 +5168,6 @@ def editar_visita(visita_id):
                 anexo_url  = url_nova
                 anexo_nome = nome_orig
 
-        # Upload de novo parecer AS (se fornecido)
-        parecer_url  = visita['parecer_as_url']
-        parecer_nome = visita['parecer_as_nome']
-        arquivo_parecer = request.files.get('parecer_as')
-        if arquivo_parecer and arquivo_parecer.filename:
-            err = _validar_parecer(arquivo_parecer)
-            if err:
-                erros.append(err)
-            else:
-                url_p, nome_p = _upload_anexo(arquivo_parecer, pasta='visitas_pareceres')
-                if url_p:
-                    parecer_url  = url_p
-                    parecer_nome = nome_p
-
         form = {
             'nome_rf': nome_rf,
             'logradouro': logradouro,
@@ -5207,6 +5179,7 @@ def editar_visita(visita_id):
             'motivo': motivo,
             'responsavel_id': responsavel_id,
             'observacoes': observacoes or '',
+            'parecer_tecnico_txt': parecer_tecnico_txt or '',
         }
 
         erros = []
@@ -5233,14 +5206,14 @@ def editar_visita(visita_id):
                SET nome_rf=?, logradouro=?, numero=?, complemento=?, bairro=?,
                    referencia=?, zona=?, motivo=?,
                    responsavel_id=?, observacoes=?, anexo_url=?, anexo_nome=?,
-                   parecer_as_url=?, parecer_as_nome=?,
+                   parecer_tecnico_txt=?,
                    telefone1=?, telefone2=?,
                    atualizado_em=?
                WHERE id=?""",
             (nome_rf, logradouro, numero, complemento, bairro,
              referencia, zona, motivo,
              responsavel_id, observacoes, anexo_url, anexo_nome,
-             parecer_url, parecer_nome,
+             parecer_tecnico_txt,
              telefone1, telefone2,
              agora, visita_id)
         )
@@ -5258,16 +5231,17 @@ def editar_visita(visita_id):
 
     # Pré-preenche o formulário com os dados atuais
     form = {
-        'nome_rf':        visita['nome_rf'],
-        'logradouro':     visita['logradouro'] or '',
-        'numero':         visita['numero'] or '',
-        'complemento':    visita['complemento'] or '',
-        'bairro':         visita['bairro'] or '',
-        'referencia':     visita['referencia'] or '',
-        'zona':           visita['zona'] or 'Urbana',
-        'motivo':         visita['motivo'],
-        'responsavel_id': visita['responsavel_id'],
-        'observacoes':    visita['observacoes'] or '',
+        'nome_rf':             visita['nome_rf'],
+        'logradouro':          visita['logradouro'] or '',
+        'numero':              visita['numero'] or '',
+        'complemento':         visita['complemento'] or '',
+        'bairro':              visita['bairro'] or '',
+        'referencia':          visita['referencia'] or '',
+        'zona':                visita['zona'] or 'Urbana',
+        'motivo':              visita['motivo'],
+        'responsavel_id':      visita['responsavel_id'],
+        'observacoes':         visita['observacoes'] or '',
+        'parecer_tecnico_txt': visita['parecer_tecnico_txt'] or '',
     }
 
     conn.close()
@@ -5579,33 +5553,18 @@ def resultado_visita(visita_id):
     if request.method == 'POST':
         data_realizada = request.form.get('data_realizada', '').strip()
         observacoes    = request.form.get('observacoes', '').strip() or None
-        arquivo_parecer = request.files.get('parecer_as')
+        parecer_tecnico_txt = request.form.get('parecer_tecnico_txt', '').strip() or None
 
         if not data_realizada:
             erros.append('Informe a data de realização da visita.')
         elif data_realizada > hoje:
             erros.append('A data de realização não pode ser uma data futura.')
 
+        if not parecer_tecnico_txt:
+            erros.append('Informe o parecer técnico / relatório da visita.')
+
         if not erros:
             agora = datetime.now(_TZ_BELEM).isoformat()
-            parecer_url  = visita['parecer_as_url']
-            parecer_nome = visita['parecer_as_nome']
-            aviso_parecer = None
-
-            if arquivo_parecer and arquivo_parecer.filename:
-                err = _validar_parecer(arquivo_parecer)
-                if err:
-                    erros.append(err)
-                else:
-                    url_nova, nome_orig = _upload_anexo(arquivo_parecer, pasta='visitas_pareceres')
-                    if url_nova:
-                        parecer_url  = url_nova
-                        parecer_nome = nome_orig
-                    else:
-                        aviso_parecer = ('Resultado registrado, mas o parecer não pôde ser '
-                                         'anexado. Tente enviá-lo novamente.')
-
-        if not erros:
             cpf_rf  = visita['cpf_rf']
             nome_rf = visita['nome_rf']
             try:
@@ -5631,10 +5590,10 @@ def resultado_visita(visita_id):
                 _exec(conn,
                     """UPDATE solicitacoes_visita
                        SET status='Realizada', data_realizada=?, observacoes=?,
-                           parecer_as_url=?, parecer_as_nome=?,
+                           parecer_tecnico_txt=?,
                            atendimento_id=?, atualizado_em=?
                        WHERE id=?""",
-                    (data_realizada, observacoes, parecer_url, parecer_nome,
+                    (data_realizada, observacoes, parecer_tecnico_txt,
                      atendimento_id, agora, visita_id)
                 )
                 conn.commit()
@@ -5646,9 +5605,7 @@ def resultado_visita(visita_id):
 
             conn.close()
             audit('VISITA_RESULTADO', f"id={visita_id} data={data_realizada}")
-            if aviso_parecer:
-                flash(aviso_parecer, 'aviso')
-            flash('Resultado registrado com sucesso!', 'ok')
+            flash('Resultado e relatório registrados com sucesso!', 'ok')
             return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
     conn.close()

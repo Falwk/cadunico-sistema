@@ -15,9 +15,9 @@
 
   {% for e in erros %}<div class="alerta alerta-erro">{{ e }}</div>{% endfor %}
 
-  <form method="POST" enctype="multipart/form-data" novalidate>
+  <form method="POST" novalidate>
     <div class="card">
-      <div class="card-title">Resultado da Visita</div>
+      <div class="card-title">Resultado e Relatório da Visita</div>
 
       <div class="form-group">
         <label for="data_realizada">Data de Realização *</label>
@@ -26,25 +26,24 @@
       </div>
 
       <div class="form-group">
-        <label for="observacoes">Observações do Entrevistador
-          <span class="text-muted">(opcional)</span></label>
-        <textarea id="observacoes" name="observacoes" rows="4"
-                  placeholder="Descreva o resultado e as condições encontradas…">{{ request.form.get('observacoes', '') }}</textarea>
+        <label for="parecer_tecnico_txt" style="font-weight:700;">Parecer Técnico / Relatório da Visita *</label>
+        <textarea id="parecer_tecnico_txt" name="parecer_tecnico_txt" rows="7"
+                  placeholder="Escreva aqui o relatório detalhado da visita, descrição da situação encontrada na residência, avaliação social e encaminhamentos..." required>{{ request.form.get('parecer_tecnico_txt', visita.parecer_tecnico_txt or '') }}</textarea>
       </div>
 
       <div class="form-group">
-        <label for="parecer_as">Parecer da Assistente Social
-          <span class="text-muted">(opcional — somente PDF, máx. 20 MB)</span></label>
-        <input type="file" id="parecer_as" name="parecer_as" accept=".pdf"
-               style="padding:8px 0">
+        <label for="observacoes">Observações Adicionais do Entrevistador
+          <span class="text-muted">(opcional)</span></label>
+        <textarea id="observacoes" name="observacoes" rows="3"
+                  placeholder="Informações complementares…">{{ request.form.get('observacoes', visita.observacoes or '') }}</textarea>
       </div>
     </div>
 
     <div class="flex" style="gap:12px">
       <a href="{{ url_for('detalhe_visita', visita_id=visita.id) }}"
          class="btn btn-outline">Cancelar</a>
-      <button type="submit" class="btn btn-primary" style="margin-left:auto">
-        ✅ Salvar Resultado
+      <button type="submit" class="btn btn-primary" style="margin-left:auto; font-weight:700;">
+        ✅ Salvar Resultado & Relatório
       </button>
     </div>
   </form>
