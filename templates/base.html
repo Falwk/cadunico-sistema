@@ -762,28 +762,50 @@
         </a>
 
         <div class="header-notif-wrap">
-          <div class="header-notif" id="btn-notif-icon" onclick="toggleNotifDropdown(event)" title="Notificações de Visitas em Atraso">
+          <div class="header-notif" id="btn-notif-icon" onclick="toggleNotifDropdown(event)" title="Notificações e Avisos">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            {% if notif_total_atrasadas|default(0) > 0 %}
-              <div class="notif-dot-count">{{ notif_total_atrasadas }}</div>
+            {% if notif_total_geral|default(0) > 0 %}
+              <div class="notif-dot-count">{{ notif_total_geral }}</div>
             {% else %}
               <div class="notif-dot"></div>
             {% endif %}
           </div>
 
-          <!-- Dropdown Pop-Up das Visitas em Atraso do Entrevistador -->
-          <div id="notif-dropdown" class="notif-dropdown-menu" style="display:none;">
+          <!-- Dropdown Pop-Up das Notificações -->
+          <div id="notif-dropdown" class="notif-dropdown-menu" style="display:none; max-width:360px; width:90vw;">
             <div class="notif-dropdown-header">
               <span style="font-weight:700; color:var(--cad-verde-escuro); display:flex; align-items:center; gap:6px;">
-                🔔 Visitas em Atraso
+                🔔 Central de Notificações
               </span>
-              {% if notif_total_atrasadas|default(0) > 0 %}
-                <span class="notif-badge-count">{{ notif_total_atrasadas }} pendente{{ 's' if notif_total_atrasadas > 1 else '' }}</span>
+              {% if notif_total_geral|default(0) > 0 %}
+                <span class="notif-badge-count">{{ notif_total_geral }} nova{{ 's' if notif_total_geral > 1 else '' }}</span>
               {% endif %}
             </div>
 
-            <div class="notif-dropdown-body">
+            <div class="notif-dropdown-body" style="max-height:380px; overflow-y:auto;">
+              {# Seção 1: Notificações de Pareceres Emitidos / Visitas Concluídas #}
+              {% if notif_mensagens %}
+                <div style="padding:6px 12px; background:#F0FDF4; font-size:0.75rem; font-weight:700; color:var(--cad-verde-escuro); border-bottom:1px solid #DCFCE7;">
+                  📋 Pareceres & Visitas Concluídas
+                </div>
+                {% for n in notif_mensagens %}
+                  <a href="{{ url_for('marcar_notificacao_lida', notif_id=n.id) }}" class="notif-item" style="border-left:3px solid var(--cad-verde); background:#FAF5FF;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:2px;">
+                      <strong style="color:var(--cad-roxo); font-size:0.83rem;">{{ n.titulo }}</strong>
+                      <span style="font-size:0.7rem; color:#64748B;">Novo</span>
+                    </div>
+                    <div style="font-size:0.78rem; color:#334155; line-height:1.4;">
+                      {{ n.mensagem }}
+                    </div>
+                  </a>
+                {% endfor %}
+              {% endif %}
+
+              {# Seção 2: Visitas em Atraso #}
               {% if notif_visitas_atrasadas %}
+                <div style="padding:6px 12px; background:#FFFBEB; font-size:0.75rem; font-weight:700; color:#B45309; border-bottom:1px solid #FEF3C7; margin-top:{% if notif_mensagens %}6px{% else %}0{% endif %};">
+                  ⚠️ Visitas Pendentes em Atraso
+                </div>
                 {% for v in notif_visitas_atrasadas %}
                   <a href="{{ url_for('detalhe_visita', visita_id=v.id) }}" class="notif-item">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
@@ -797,22 +819,25 @@
                       {% endif %}
                     </div>
                     {% if v.bairro %}
-                      <div style="font-size:0.75rem; color:#64748B; margin-top:2px;">📍 Bairro: {{ v.bairro }}</div>
+                      <div style="font-size:0.75rem; color:#64748B; margin-top:2px;">📍 Bairro: {{ v.bairro }} ({{ v.zona or 'Urbana' }})</div>
                     {% endif %}
                   </a>
                 {% endfor %}
-              {% else %}
+              {% endif %}
+
+              {# Estado Vazio #}
+              {% if not notif_mensagens and not notif_visitas_atrasadas %}
                 <div style="padding:22px 16px; text-align:center; color:var(--text-muted); font-size:0.85rem;">
                   <div style="font-size:1.6rem; margin-bottom:6px;">✅</div>
-                  <strong>Nenhuma visita em atraso!</strong>
-                  <p style="margin:4px 0 0 0; font-size:0.78rem; color:#94A3B8;">Todas as solicitações de visitas estão em dia.</p>
+                  <strong>Tudo em dia!</strong>
+                  <p style="margin:4px 0 0 0; font-size:0.78rem; color:#94A3B8;">Nenhuma notificação nova ou visita pendente em atraso.</p>
                 </div>
               {% endif %}
             </div>
 
             <div class="notif-dropdown-footer">
-              <a href="{{ url_for('painel_visitas', status='Pendente') }}" style="color:var(--cad-verde-escuro); font-weight:700; font-size:0.82rem; text-decoration:none;">
-                Ver Painel Completo de Visitas →
+              <a href="{{ url_for('painel_visitas') }}" style="color:var(--cad-verde-escuro); font-weight:700; font-size:0.82rem; text-decoration:none;">
+                Ver Todas as Visitas Domiciliares →
               </a>
             </div>
           </div>

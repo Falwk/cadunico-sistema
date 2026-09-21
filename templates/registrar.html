@@ -101,18 +101,25 @@
       <div class="card-title">Tipos de Atendimento *
         <span class="text-muted" style="font-weight:400;font-size:.82rem">(marque todos os realizados)</span>
       </div>
+      {% set user_perfil = perfil or session.get('perfil') %}
+      {% if user_perfil == 'assistente_social' %}
+      <div style="margin-bottom:14px; padding:10px 14px; background:#FAF5FF; border-left:4px solid var(--cad-roxo); border-radius:6px; font-size:0.88rem; color:#581C87; font-weight:600;">
+        ✨ Atendimentos Principais do Serviço Social:
+      </div>
+      {% endif %}
       <div class="checks-grid">
         {% set tipos_selecionados = form.getlist('tipos') if form.getlist else [] %}
-        {% set user_perfil = perfil or session.get('perfil') %}
         {% for tipo in tipos %}
+          {% set is_as = tipo in tipos_assistente_social %}
           {% set is_sibec = tipo in tipos_sibec %}
           {% set can_show = not is_sibec or acesso_sibec %}
           {% if can_show %}
-          <label class="check-item {% if is_sibec %}sibec{% endif %}">
+          <label class="check-item {% if is_sibec %}sibec{% endif %}" style="{% if is_as and user_perfil == 'assistente_social' %}background:#FAF5FF; border-color:#C084FC; font-weight:700;{% endif %}">
             <input type="checkbox" name="tipos" value="{{ tipo }}"
                    {% if tipo in tipos_selecionados %}checked{% endif %}>
             <span>
               {{ tipo }}
+              {% if is_as and user_perfil == 'assistente_social' %}<span class="badge" style="background:#783DB2; color:#fff; font-size:0.7rem; padding:2px 6px; border-radius:4px; margin-left:4px;">Serviço Social</span>{% endif %}
               {% if is_sibec %}<span class="badge-sibec">SIBEC</span>{% endif %}
             </span>
           </label>

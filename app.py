@@ -569,6 +569,7 @@ def servir_arquivo_anexo(filename):
 
 
 TIPOS_ATENDIMENTO = [
+    "Atendimento Social (Escuta)",
     "Bloqueio de Benefício",
     "Desbloqueio de Benefício",
     "CadÚnico para BPC - 1ª Vez (Idoso)",
@@ -579,6 +580,7 @@ TIPOS_ATENDIMENTO = [
     "Comprovante de Cadastro",
     "Consulta Cadastro Único",
     "Consulta SIBEC",
+    "Encaminhamento",
     "Exclusão de membros",
     "Folha de Pagamento (SIBEC)",
     "Inclusão de membros",
@@ -592,7 +594,11 @@ TIPOS_ATENDIMENTO = [
     "Troca de RF",
 ]
 
-TIPOS_ASSISTENTE_SOCIAL = set()
+TIPOS_ASSISTENTE_SOCIAL = {
+    "Atendimento Social (Escuta)",
+    "Visita Domiciliar",
+    "Encaminhamento",
+}
 
 TIPOS_SIBEC = {
     "Bloqueio de Benefício",
@@ -1331,6 +1337,17 @@ def init_db():
             criado_em               TEXT NOT NULL
         )''')
         cur.execute('''CREATE INDEX IF NOT EXISTS idx_arquivos_anexos_caminho ON arquivos_anexos(caminho_relativo)''')
+        cur.execute('''CREATE TABLE IF NOT EXISTS notificacoes_usuario (
+            id              SERIAL PRIMARY KEY,
+            usuario_id      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            titulo          TEXT NOT NULL,
+            mensagem        TEXT NOT NULL,
+            link            TEXT,
+            tipo            TEXT NOT NULL DEFAULT 'visita_concluida',
+            lida            INTEGER NOT NULL DEFAULT 0,
+            criado_em       TEXT NOT NULL
+        )''')
+        cur.execute('''CREATE INDEX IF NOT EXISTS idx_notificacoes_usuario_uid ON notificacoes_usuario(usuario_id)''')
         # Migrações seguras para PostgreSQL — cada uma em savepoint individual
         migracoes = [
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
@@ -1522,6 +1539,16 @@ def init_db():
             tamanho_bytes           INTEGER NOT NULL,
             criado_em               TEXT NOT NULL
         )''')
+        c.execute('''CREATE TABLE IF NOT EXISTS notificacoes_usuario (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            usuario_id      INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+            titulo          TEXT NOT NULL,
+            mensagem        TEXT NOT NULL,
+            link            TEXT,
+            tipo            TEXT NOT NULL DEFAULT 'visita_concluida',
+            lida            INTEGER NOT NULL DEFAULT 0,
+            criado_em       TEXT NOT NULL
+        )''')
         for col_sql in [
             "ALTER TABLE usuarios ADD COLUMN unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
             "ALTER TABLE usuarios ADD COLUMN trocar_senha INTEGER NOT NULL DEFAULT 0",
@@ -1610,28 +1637,85 @@ def tutorial():
     return redirect(url_for('dashboard'))
 
 
+def _criar_notificacao(conn, usuario_id, titulo, mensagem, link="", tipo="visita_concluida"):
+    """Cria um registro de notificação persistente para o usuário especificado."""
+    try:
+        agora = datetime.now(_TZ_BELEM).isoformat()
+        _exec(conn,
+            """INSERT INTO notificacoes_usuario (usuario_id, titulo, mensagem, link, tipo, lida, criado_em)
+               VALUES (?, ?, ?, ?, ?, 0, ?)""",
+            (usuario_id, titulo, mensagem, link, tipo, agora)
+        )
+    except Exception as e:
+        app.logger.warning(f"[NOTIF] Erro ao criar notificacao: {e}")
+
+
 @app.context_processor
 def inject_notificacoes_visitas():
     if 'usuario_id' not in session:
-        return {'notif_visitas_atrasadas': [], 'notif_total_atrasadas': 0}
+        return {
+            'notif_visitas_atrasadas': [],
+            'notif_total_atrasadas': 0,
+            'notif_mensagens': [],
+            'notif_total_mensagens': 0,
+            'notif_total_geral': 0
+        }
     try:
         conn = get_db()
         uid = session['usuario_id']
         perfil = session.get('perfil')
         if perfil == 'admin':
             visitas = _fetchall(conn, "SELECT * FROM solicitacoes_visita WHERE status='Pendente' ORDER BY criado_em ASC")
+        elif perfil == 'assistente_social':
+            visitas = _fetchall(conn, "SELECT * FROM solicitacoes_visita WHERE status='Pendente' ORDER BY criado_em ASC")
         else:
             visitas = _fetchall(conn, "SELECT * FROM solicitacoes_visita WHERE status='Pendente' AND (solicitante_id=? OR responsavel_id=?) ORDER BY criado_em ASC", (uid, uid))
         cfg = get_config()
-        conn.close()
         visitas_proc, total_atrasadas = _processar_sla_visitas(visitas, cfg)
         visitas_atrasadas = [v for v in visitas_proc if v.get('atrasada')]
+
+        # Notificações pessoais do usuário
+        notifs_db = _fetchall(conn,
+            "SELECT * FROM notificacoes_usuario WHERE usuario_id=? AND lida=0 ORDER BY criado_em DESC LIMIT 15",
+            (uid,)
+        )
+        conn.close()
+
+        notifs_list = [dict(n) for n in notifs_db]
+        total_mensagens = len(notifs_list)
+        total_geral = len(visitas_atrasadas) + total_mensagens
+
         return {
             'notif_visitas_atrasadas': visitas_atrasadas,
-            'notif_total_atrasadas': len(visitas_atrasadas)
+            'notif_total_atrasadas': len(visitas_atrasadas),
+            'notif_mensagens': notifs_list,
+            'notif_total_mensagens': total_mensagens,
+            'notif_total_geral': total_geral,
         }
     except Exception:
-        return {'notif_visitas_atrasadas': [], 'notif_total_atrasadas': 0}
+        return {
+            'notif_visitas_atrasadas': [],
+            'notif_total_atrasadas': 0,
+            'notif_mensagens': [],
+            'notif_total_mensagens': 0,
+            'notif_total_geral': 0
+        }
+
+
+@app.route('/notificacoes/<int:notif_id>/marcar-lida')
+def marcar_notificacao_lida(notif_id):
+    if _requer_login():
+        return redirect(url_for('login'))
+    conn = get_db()
+    notif = _fetchone(conn, "SELECT * FROM notificacoes_usuario WHERE id=? AND usuario_id=?", (notif_id, session['usuario_id']))
+    if notif:
+        _exec(conn, "UPDATE notificacoes_usuario SET lida=1 WHERE id=?", (notif_id,))
+        conn.commit()
+        link = notif['link'] or url_for('dashboard')
+        conn.close()
+        return redirect(link)
+    conn.close()
+    return redirect(url_for('dashboard'))
 
 
 import smtplib
@@ -2631,8 +2715,35 @@ def dados_relatorio(mes):
     )
     grafico_situacoes_enc = [{'nome': s, 'total': t} for s, t in situacoes_enc_quant.items() if t > 0]
 
+    # Estatísticas de Visitas Domiciliares (Urbana vs Rural e Realizadas para o RMA)
+    filtro_vis_usuario = "" if session['perfil'] in ('admin', 'assistente_social') else f"AND (sv.solicitante_id={PH} OR sv.responsavel_id={PH})"
+    params_vis = [mes + '%', mes + '%'] + ([session['usuario_id'], session['usuario_id']] if session['perfil'] not in ('admin', 'assistente_social') else [])
+
+    vis_mes = _fetchall(conn,
+        f"""SELECT sv.*, u_sol.nome as solicitante_nome, u_res.nome as responsavel_nome
+            FROM solicitacoes_visita sv
+            LEFT JOIN usuarios u_sol ON sv.solicitante_id=u_sol.id
+            LEFT JOIN usuarios u_res ON sv.responsavel_id=u_res.id
+            WHERE (sv.data_realizada LIKE {PH} OR (sv.data_realizada IS NULL AND sv.criado_em LIKE {PH})) {filtro_vis_usuario}
+            ORDER BY sv.data_realizada DESC, sv.criado_em DESC""",
+        params_vis
+    )
+
+    visitas_realizadas = [dict(v) for v in vis_mes if v['status'] == 'Realizada']
+    visitas_urbana = [v for v in visitas_realizadas if (v.get('zona') or 'Urbana') == 'Urbana']
+    visitas_rural = [v for v in visitas_realizadas if (v.get('zona') or '') == 'Rural']
+
+    resumo_visitas_rma = {
+        'total_realizadas': len(visitas_realizadas),
+        'total_urbana': len(visitas_urbana),
+        'total_rural': len(visitas_rural),
+        'total_pendentes': len([v for v in vis_mes if v['status'] == 'Pendente']),
+        'total_canceladas': len([v for v in vis_mes if v['status'] in ('Cancelada', 'Não Localizada')]),
+        'visitas_realizadas_lista': visitas_realizadas,
+    }
+
     conn.close()
-    return atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_entrevistadores, grafico_bairros, grafico_orgaos, grafico_situacoes_enc
+    return atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_entrevistadores, grafico_bairros, grafico_orgaos, grafico_situacoes_enc, resumo_visitas_rma
 
 
 @app.route('/relatorio')
@@ -2640,7 +2751,7 @@ def relatorio():
     if _requer_login():
         return redirect(url_for('login'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
-    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc = dados_relatorio(mes)
+    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc, resumo_visitas_rma = dados_relatorio(mes)
     
     conn = get_db()
     todos_usuarios = [dict(u) for u in _fetchall(conn, "SELECT id, nome, perfil, COALESCE(unidade, 'Tomé-Açu (Sede)') as unidade FROM usuarios ORDER BY nome ASC")]
@@ -2654,6 +2765,7 @@ def relatorio():
                            grafico_bairros=grafico_bairros,
                            grafico_orgaos=grafico_orgaos,
                            grafico_situacoes_enc=grafico_situacoes_enc,
+                           resumo_visitas_rma=resumo_visitas_rma,
                            todos_usuarios=todos_usuarios)
 
 # ---------------------------------------------------------------------------
@@ -2687,12 +2799,12 @@ def criar_excel_relatorio(mes):
     thin = Side(style='thin', color='CBD5E1')
     borda = Border(left=thin, right=thin, top=thin, bottom=thin)
 
+    mes_titulo = nome_mes(mes).upper()
+
     if session['perfil'] == 'admin':
         # Separar entrevistadores por unidade
         u_tome = [u for u in usuarios if (dict(u).get('unidade') or 'Tomé-Açu (Sede)') != 'Quatro Bocas']
         u_qb = [u for u in usuarios if dict(u).get('unidade') == 'Quatro Bocas']
-
-        mes_titulo = nome_mes(mes).upper()
 
         # Buscar todos os atendimentos do mês
         ats_all = _fetchall(conn,
@@ -3019,6 +3131,106 @@ def criar_excel_relatorio(mes):
         ws_o.column_dimensions['C'].width = 12
 
     # -------------------------------------------------------------
+    # Aba "RMA & Visitas Domiciliares" (Urbana e Rural)
+    # -------------------------------------------------------------
+    vis_excel = _fetchall(conn,
+        """SELECT sv.*, u_sol.nome as solicitante_nome, u_res.nome as responsavel_nome
+           FROM solicitacoes_visita sv
+           LEFT JOIN usuarios u_sol ON sv.solicitante_id=u_sol.id
+           LEFT JOIN usuarios u_res ON sv.responsavel_id=u_res.id
+           WHERE (sv.data_realizada LIKE ? OR (sv.data_realizada IS NULL AND sv.criado_em LIKE ?))
+           ORDER BY sv.data_realizada DESC, sv.criado_em DESC""",
+        (mes + '%', mes + '%')
+    )
+    v_realizadas = [dict(v) for v in vis_excel if v['status'] == 'Realizada']
+    v_urbana = [v for v in v_realizadas if (v.get('zona') or 'Urbana') == 'Urbana']
+    v_rural = [v for v in v_realizadas if (v.get('zona') or '') == 'Rural']
+
+    ws_rma = wb.create_sheet("RMA & Visitas Domiciliares")
+    ws_rma.merge_cells('A1:G1')
+    ws_rma['A1'] = f"REGISTRO MENSAL DE ATENDIMENTOS (RMA) & VISITAS - {mes_titulo}"
+    ws_rma['A1'].font = Font(bold=True, color=branco, size=13)
+    ws_rma['A1'].fill = PatternFill("solid", fgColor=verde_escuro)
+    ws_rma['A1'].alignment = Alignment(horizontal='center', vertical='center')
+    ws_rma.row_dimensions[1].height = 26
+
+    # Indicadores do RMA
+    ws_rma.merge_cells('A3:D3')
+    ws_rma['A3'] = "INDICADORES CONSOLIDADOS PARA O RMA"
+    ws_rma['A3'].font = Font(bold=True, color=branco, size=11)
+    ws_rma['A3'].fill = PatternFill("solid", fgColor=verde_escuro)
+    ws_rma['A3'].alignment = Alignment(horizontal='center')
+
+    ats_mes_all = _fetchall(conn, "SELECT tipos FROM atendimentos WHERE data LIKE ?", (mes + '%',))
+    cnt_escuta = sum(1 for a in ats_mes_all if "Atendimento Social (Escuta)" in a['tipos'] or "Escuta Qualificada" in a['tipos'])
+    cnt_encaminh = sum(1 for a in ats_mes_all if "Encaminhamento" in a['tipos'] or "Encaminhamentos" in a['tipos'])
+
+    indicadores_rma = [
+        ("1. Atendimento Social (Escuta Qualificada / Serviço Social)", cnt_escuta),
+        ("2. Visitas Domiciliares Realizadas (Total)", len(v_realizadas)),
+        ("   ↳ Visitas Domiciliares Realizadas na ZONA URBANA", len(v_urbana)),
+        ("   ↳ Visitas Domiciliares Realizadas na ZONA RURAL", len(v_rural)),
+        ("3. Encaminhamentos / Ofícios Realizados", cnt_encaminh),
+    ]
+
+    for ri_rma, (item_rma, val_rma) in enumerate(indicadores_rma, 4):
+        c_i = ws_rma.cell(ri_rma, 1, item_rma)
+        ws_rma.merge_cells(start_row=ri_rma, start_column=1, end_row=ri_rma, end_column=3)
+        c_i.border = borda
+        c_i.font = Font(bold=True if ri_rma in (4, 5, 8) else False)
+        c_v = ws_rma.cell(ri_rma, 4, val_rma)
+        c_v.font = Font(bold=True)
+        c_v.border = borda
+        c_v.alignment = Alignment(horizontal='center')
+        c_v.fill = PatternFill("solid", fgColor=verde_claro if ri_rma == 5 else branco)
+
+    # Tabela detalhada de visitas
+    r_vd_start = 11
+    ws_rma.merge_cells(f'A{r_vd_start}:G{r_vd_start}')
+    ws_rma[f'A{r_vd_start}'] = "RELAÇÃO DETALHADA DE VISITAS DOMICILIARES REALIZADAS NO MÊS"
+    ws_rma[f'A{r_vd_start}'].font = Font(bold=True, color=branco, size=11)
+    ws_rma[f'A{r_vd_start}'].fill = PatternFill("solid", fgColor=roxo)
+    ws_rma[f'A{r_vd_start}'].alignment = Alignment(horizontal='center')
+
+    vd_headers = ['Nº VD', 'DATA REALIZADA', 'CPF', 'NOME DO RESPONSÁVEL', 'ZONA', 'BAIRRO / COMUNIDADE', 'PARECER TÉCNICO / RELATÓRIO']
+    for ci, h in enumerate(vd_headers, 1):
+        c = ws_rma.cell(r_vd_start + 1, ci, h)
+        c.font = Font(bold=True, color=branco)
+        c.fill = PatternFill("solid", fgColor=roxo)
+        c.border = borda
+        c.alignment = Alignment(horizontal='center')
+
+    for ri_v, v in enumerate(v_realizadas, r_vd_start + 2):
+        fill = PatternFill("solid", fgColor=cinza if ri_v % 2 == 0 else branco)
+        dt_v = datetime.strptime(v['data_realizada'], '%Y-%m-%d').strftime('%d/%m/%Y') if v.get('data_realizada') else '-'
+        zona_v = v.get('zona') or 'Urbana'
+        vals_v = [
+            v.get('numero_vd') or f"#{v['id']}",
+            dt_v,
+            v.get('cpf_rf') or '',
+            v.get('nome_rf') or '',
+            zona_v,
+            v.get('bairro') or '',
+            v.get('parecer_tecnico_txt') or v.get('observacoes') or ''
+        ]
+        for ci, val in enumerate(vals_v, 1):
+            c = ws_rma.cell(ri_v, ci, val)
+            c.fill = fill
+            c.border = borda
+            if ci in (1, 2, 5):
+                c.alignment = Alignment(horizontal='center')
+            if ci == 7:
+                c.alignment = Alignment(wrap_text=True)
+
+    ws_rma.column_dimensions['A'].width = 16
+    ws_rma.column_dimensions['B'].width = 16
+    ws_rma.column_dimensions['C'].width = 16
+    ws_rma.column_dimensions['D'].width = 32
+    ws_rma.column_dimensions['E'].width = 14
+    ws_rma.column_dimensions['F'].width = 24
+    ws_rma.column_dimensions['G'].width = 50
+
+    # -------------------------------------------------------------
     # Abas Individuais dos Entrevistadores
     # -------------------------------------------------------------
     for u in usuarios:
@@ -3156,7 +3368,7 @@ def exportar_relatorio():
         return redirect(url_for('login'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
     formato = request.args.get('formato', 'excel').lower()
-    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc = dados_relatorio(mes)
+    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc, resumo_visitas_rma = dados_relatorio(mes)
 
     if formato == 'word':
         try:
@@ -3188,7 +3400,7 @@ def exportar_registro():
         return redirect(url_for('login'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
     formato = request.args.get('formato', 'pdf').lower()
-    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc = dados_relatorio(mes)
+    atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc, resumo_visitas_rma = dados_relatorio(mes)
 
     if formato == 'word':
         try:
@@ -4844,7 +5056,7 @@ def painel_visitas():
     por_pagina    = 20
 
     # ── Filtro de acesso por perfil ─────────────────────────────────────────
-    if perfil != 'admin':
+    if perfil not in ('admin', 'assistente_social'):
         filtro_acesso  = f"AND (sv.solicitante_id = {PH} OR sv.responsavel_id = {PH})"
         params_acesso  = [uid, uid]
     else:
@@ -4873,8 +5085,8 @@ def painel_visitas():
     filtro_busca = ""
     params_busca = []
     if busca:
-        filtro_busca = f"AND (sv.cpf_rf LIKE {PH} OR LOWER(sv.nome_rf) LIKE LOWER({PH}))"
-        params_busca = [f"%{busca}%", f"%{busca}%"]
+        filtro_busca = f"AND (sv.cpf_rf LIKE {PH} OR LOWER(sv.nome_rf) LIKE LOWER({PH}) OR sv.numero_vd LIKE {PH} OR CAST(sv.id AS TEXT) LIKE {PH})"
+        params_busca = [f"%{busca}%", f"%{busca}%", f"%{busca}%", f"%{busca}%"]
 
     filtro_zona = ""
     params_zona = []
@@ -5083,14 +5295,55 @@ def emitir_parecer_tecnico_visita(visita_id):
     agora = datetime.now(_TZ_BELEM).isoformat()
     hoje_str = date.today().isoformat()
 
+    cpf_rf  = visita['cpf_rf']
+    nome_rf = visita['nome_rf']
+    atendimento_id = visita['atendimento_id']
+
+    if not atendimento_id:
+        try:
+            if _USE_PG:
+                cur = _exec(conn,
+                    """INSERT INTO atendimentos
+                        (data, cpf, nome_rf, origem, tipos, usuario_id, criado_em, bairro)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    (hoje_str, cpf_rf, nome_rf,
+                     'Visita Domiciliar', 'Visita Domiciliar', session['usuario_id'], agora, visita['bairro'])
+                )
+                atendimento_id = cur.fetchone()['id']
+            else:
+                _exec(conn,
+                    """INSERT INTO atendimentos
+                        (data, cpf, nome_rf, origem, tipos, usuario_id, criado_em, bairro)
+                       VALUES (?,?,?,?,?,?,?,?)""",
+                    (hoje_str, cpf_rf, nome_rf,
+                     'Visita Domiciliar', 'Visita Domiciliar', session['usuario_id'], agora, visita['bairro'])
+                )
+                atendimento_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        except Exception as e:
+            app.logger.warning(f"[PARECER] Erro ao criar atendimento para parecer: {e}")
+
     _exec(conn,
         """UPDATE solicitacoes_visita
            SET parecer_tecnico_txt=?,
                status='Realizada', data_realizada=?, responsavel_id=?,
-               atualizado_em=?
+               atendimento_id=?, atualizado_em=?
            WHERE id=?""",
-        (parecer_txt, hoje_str, session['usuario_id'], agora, visita_id)
+        (parecer_txt, hoje_str, session['usuario_id'], atendimento_id, agora, visita_id)
     )
+
+    # Notifica o entrevistador que solicitou a visita
+    num_vd = visita['numero_vd'] or f"#{visita_id}"
+    solicitante_id = visita['solicitante_id']
+    if solicitante_id and str(solicitante_id) != str(session.get('usuario_id')):
+        _criar_notificacao(
+            conn,
+            usuario_id=int(solicitante_id),
+            titulo=f"Visita Concluída ({num_vd})",
+            mensagem=f"A Assistente Social {session.get('usuario_nome', 'Assistente Social')} registrou o parecer técnico da visita para {nome_rf}.",
+            link=url_for('detalhe_visita', visita_id=visita_id),
+            tipo="visita_concluida"
+        )
+
     conn.commit()
     conn.close()
 

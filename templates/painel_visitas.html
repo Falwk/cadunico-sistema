@@ -80,6 +80,15 @@
       <span>Solicitações Registradas</span>
     </div>
 
+    {% if session.get('perfil') == 'assistente_social' %}
+    <div style="margin-bottom:16px; padding:12px 16px; background:#FAF5FF; border:1px solid #DDD6FE; border-radius:10px; display:flex; align-items:center; gap:10px;">
+      <span style="font-size:1.4rem;">📋</span>
+      <div style="font-size:0.88rem; color:#581C87;">
+        <strong>Painel de Pareceres do Serviço Social:</strong> Busque visitas pendentes por <strong>CPF</strong>, <strong>Nº VD (ex: VD-001/2026)</strong> ou <strong>Nome</strong> para emitir seu parecer técnico assistencial e concluir a visita.
+      </div>
+    </div>
+    {% endif %}
+
     <!-- Filters Form -->
     <form method="GET" action="{{ url_for('painel_visitas') }}" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
       <select name="status" style="max-width:170px;">
@@ -98,9 +107,9 @@
       <input type="text" name="bairro" value="{{ filtros.get('bairro', '') }}" placeholder="Bairro..." style="max-width:150px;">
       <input type="date" name="data_ini" value="{{ filtros.get('data_ini', '') }}" title="Data inicial" style="max-width:150px;">
       <input type="date" name="data_fim" value="{{ filtros.get('data_fim', '') }}" title="Data final" style="max-width:150px;">
-      <input type="search" name="busca" value="{{ filtros.get('busca', '') }}" placeholder="Buscar CPF ou nome..." style="flex:1; min-width:180px;">
+      <input type="search" name="busca" value="{{ filtros.get('busca', '') }}" placeholder="Buscar por CPF, Nº VD (ex: VD-001) ou Nome..." style="flex:1; min-width:240px;">
 
-      <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
+      <button type="submit" class="btn btn-outline btn-sm">🔍 Filtrar / Buscar</button>
 
       {% if filtros.get('status') or filtros.get('data_ini') or filtros.get('data_fim') or filtros.get('busca') or filtros.get('zona') or filtros.get('bairro') %}
         <a href="{{ url_for('painel_visitas') }}" class="btn btn-outline btn-sm">Limpar</a>
