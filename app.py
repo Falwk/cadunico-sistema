@@ -1042,6 +1042,9 @@ def _build_pdf_story(visita, solicitante, responsavel, cfg: dict) -> list:
 
     sol_nome  = (dict(solicitante).get('nome')) if solicitante else '—'
     resp_nome = (dict(responsavel).get('nome')) if responsavel else 'Não atribuído'
+    is_as     = bool(responsavel and dict(responsavel).get('perfil') == 'assistente_social')
+    lbl_resp  = 'ASSISTENTE SOCIAL DESIGNADA' if is_as else 'ENTREVISTADOR / AS RESPONSÁVEL'
+    resp_nome_exib = f"{resp_nome} (Serviço Social)" if (is_as and resp_nome != 'Não atribuído') else resp_nome
 
     adm_dados = [
         [par('MOTIVO PRINCIPAL DA VISITA', size=8, bold=True, color=cinza_t),
@@ -1049,9 +1052,9 @@ def _build_pdf_story(visita, solicitante, responsavel, cfg: dict) -> list:
         [par(visita.get('motivo', '—'), size=10, bold=True, color=verde_escuro),
          par(criado_fmt, size=9)],
         [par('SOLICITANTE DO REGISTRO', size=8, bold=True, color=cinza_t),
-         par('ENTREVISTADOR / AS RESPONSÁVEL', size=8, bold=True, color=cinza_t)],
+         par(lbl_resp, size=8, bold=True, color=roxo if is_as else cinza_t)],
         [par(sol_nome, size=9),
-         par(resp_nome, size=9, bold=True)],
+         par(resp_nome_exib, size=9, bold=True, color=roxo if is_as else rl_colors.black)],
     ]
     at = Table(adm_dados, colWidths=[9.5*cm, 7.5*cm])
     at.setStyle(TableStyle([
@@ -1121,7 +1124,10 @@ def _build_pdf_story(visita, solicitante, responsavel, cfg: dict) -> list:
 
     # ── Assinaturas Oficiais (Configuráveis no Admin) ────────────────────────
     story.append(Spacer(1, 0.8*cm))
-    lbl_ass1 = cfg.get('visita_assinatura_1', 'Assinatura do Entrevistador / Assistente Social')
+    if is_as:
+        lbl_ass1 = 'Assinatura da Assistente Social Designada'
+    else:
+        lbl_ass1 = cfg.get('visita_assinatura_1', 'Assinatura do Entrevistador / Assistente Social')
     lbl_ass2 = cfg.get('visita_assinatura_2', 'Assinatura do Responsável Familiar (RF)')
 
     sig = Table([
@@ -1179,7 +1185,7 @@ def gerar_pdf_visita(visita_id: int):
                             (visita['solicitante_id'],))
     responsavel = None
     if visita['responsavel_id']:
-        responsavel = _fetchone(conn, "SELECT nome FROM usuarios WHERE id=?",
+        responsavel = _fetchone(conn, "SELECT id, nome, perfil FROM usuarios WHERE id=?",
                                 (visita['responsavel_id'],))
     cfg = get_config()
     conn.close()
@@ -5129,7 +5135,7 @@ def painel_visitas():
     # ── Se o filtro de status for "Atrasada", busca todas as pendentes e filtra por SLA
     if status_filtro == 'Atrasada':
         visitas_raw = _fetchall(conn,
-            f"""SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, sol.nome AS solicitante_nome, res.nome AS responsavel_nome
+            f"""SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, sol.nome AS solicitante_nome, res.nome AS responsavel_nome, res.perfil AS responsavel_perfil
                 FROM solicitacoes_visita sv
                 JOIN usuarios sol ON sv.solicitante_id = sol.id
                 LEFT JOIN usuarios res ON sv.responsavel_id = res.id
@@ -5146,7 +5152,8 @@ def painel_visitas():
         visitas_raw = _fetchall(conn,
             f"""SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2,
                        sol.nome  AS solicitante_nome,
-                       res.nome  AS responsavel_nome
+                       res.nome  AS responsavel_nome,
+                       res.perfil AS responsavel_perfil
                 FROM solicitacoes_visita sv
                 JOIN usuarios sol ON sv.solicitante_id = sol.id
                 LEFT JOIN usuarios res ON sv.responsavel_id = res.id
@@ -6093,7 +6100,7 @@ def historico_familia(cpf):
 
     if perfil == 'admin':
         visitas = _fetchall(conn, """
-            SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, u.nome as responsavel_nome
+            SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, u.nome as responsavel_nome, u.perfil as responsavel_perfil
             FROM solicitacoes_visita sv
             LEFT JOIN usuarios u ON u.id = sv.responsavel_id
             WHERE sv.cpf_rf = ?
@@ -6101,7 +6108,7 @@ def historico_familia(cpf):
         """, (cpf_digits,))
     else:
         visitas = _fetchall(conn, """
-            SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, u.nome as responsavel_nome
+            SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, u.nome as responsavel_nome, u.perfil as responsavel_perfil
             FROM solicitacoes_visita sv
             LEFT JOIN usuarios u ON u.id = sv.responsavel_id
             WHERE sv.cpf_rf = ? AND (sv.solicitante_id = ? OR sv.responsavel_id = ?)

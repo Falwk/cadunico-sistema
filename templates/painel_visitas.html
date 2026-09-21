@@ -188,7 +188,7 @@
             <th>Nome do RF</th>
             <th>Motivo</th>
             <th>Status</th>
-            <th>Entrevistador Atribuído</th>
+            <th>Responsável / Atribuição</th>
             <th style="width:130px; text-align:center;">Ações</th>
           </tr>
         </thead>
@@ -219,7 +219,20 @@
                 <span class="tag">{{ v.status }}</span>
               {% endif %}
             </td>
-            <td>{{ v.responsavel_nome if v.responsavel_nome else '—' }}</td>
+            <td>
+              {% if v.responsavel_nome %}
+                {% if v.responsavel_perfil == 'assistente_social' %}
+                  <div style="font-weight:700; color:#6B21A8; display:flex; flex-direction:column; gap:2px;">
+                    <span style="display:inline-flex; align-items:center; gap:4px; font-size:0.88rem;">👩‍💼 {{ v.responsavel_nome }}</span>
+                    <span class="badge" style="background:#FAF5FF; color:#783DB2; border:1px solid #DDD6FE; font-size:0.72rem; padding:1px 6px; border-radius:4px; font-weight:700; width:fit-content;">Serviço Social</span>
+                  </div>
+                {% else %}
+                  <span style="font-size:0.88rem;">{{ v.responsavel_nome }}</span>
+                {% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
             <td style="text-align:center;">
               <div style="display:flex; justify-content:center; gap:6px;">
                 <a href="{{ url_for('detalhe_visita', visita_id=v.id) }}" class="btn btn-outline btn-sm">Detalhe</a>

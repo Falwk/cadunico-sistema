@@ -77,6 +77,13 @@
       {% if visita.numero_vd %}
       <span style="font-weight:700;font-size:.95rem;color:#1F4E79">{{ visita.numero_vd }}</span>
       {% endif %}
+      {% if responsavel and responsavel.perfil == 'assistente_social' %}
+      <span style="display:inline-flex;align-items:center;gap:6px;background:#FAF5FF;color:#6B21A8;
+                   border:1.5px solid #DDD6FE;border-radius:20px;
+                   padding:4px 14px;font-size:.85rem;font-weight:700;letter-spacing:.3px">
+        👩‍💼 Assistente Social Designada: {{ responsavel.nome }}
+      </span>
+      {% endif %}
       <span class="text-muted" style="font-size:.82rem">
         #{{ visita.id }} · criado em {{ visita.criado_em[:16].replace('T',' ') }}
       </span>
@@ -142,9 +149,26 @@
       {% endif %}
 
       <div>
-        <div class="text-muted" style="font-size:.78rem;font-weight:600;text-transform:uppercase;margin-bottom:4px">Entrevistador Responsável</div>
+        <div class="text-muted" style="font-size:.78rem;font-weight:600;text-transform:uppercase;margin-bottom:4px">
+          {% if responsavel and responsavel.perfil == 'assistente_social' %}
+            👩‍💼 Assistente Social Designada
+          {% else %}
+            Entrevistador / Responsável
+          {% endif %}
+        </div>
         <div style="font-size:.95rem">
-          {% if responsavel %}{{ responsavel.nome }}{% else %}<em style="color:var(--cinza-t)">Não atribuído</em>{% endif %}
+          {% if responsavel %}
+            {% if responsavel.perfil == 'assistente_social' %}
+              <div style="font-weight:700; color:#6B21A8; display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span>👩‍💼 {{ responsavel.nome }}</span>
+                <span class="badge" style="background:#FAF5FF; color:#783DB2; border:1px solid #DDD6FE; font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:700;">Serviço Social</span>
+              </div>
+            {% else %}
+              {{ responsavel.nome }}
+            {% endif %}
+          {% else %}
+            <em style="color:var(--cinza-t)">Não atribuído</em>
+          {% endif %}
         </div>
       </div>
 

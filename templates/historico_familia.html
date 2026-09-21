@@ -69,7 +69,13 @@
                 {{ s }}
               </span>
             </td>
-            <td style="font-size:.9rem">{{ v.responsavel_nome or 'Não atribuído' }}</td>
+            <td style="font-size:.9rem">
+              {% if v.responsavel_perfil == 'assistente_social' %}
+                <span style="color:#6B21A8; font-weight:700;">👩‍💼 {{ v.responsavel_nome }}</span>
+              {% else %}
+                {{ v.responsavel_nome or 'Não atribuído' }}
+              {% endif %}
+            </td>
             <td>
               <a href="{{ url_for('detalhe_visita', visita_id=v.id) }}"
                  class="btn btn-outline btn-sm">Ver</a>
