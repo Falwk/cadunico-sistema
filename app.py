@@ -5259,6 +5259,9 @@ def detalhe_visita(visita_id):
         (f"%id={visita_id}%",)
     )
 
+    # Busca lista de Assistentes Sociais para direcionamento rápido
+    assistentes_sociais = _fetchall(conn, "SELECT id, nome, unidade FROM usuarios WHERE perfil='assistente_social' ORDER BY nome")
+
     conn.close()
 
     return render_template(
@@ -5271,7 +5274,74 @@ def detalhe_visita(visita_id):
         pode_registrar_resultado=pode_registrar_resultado,
         fotos=fotos,
         historico=historico,
+        assistentes_sociais=assistentes_sociais,
     )
+
+
+@app.route('/visitas/<int:visita_id>/direcionar-as', methods=['POST'])
+def direcionar_visita_as(visita_id):
+    """Permite que o entrevistador ou admin direcione uma visita já solicitada para a Assistente Social."""
+    if _requer_login():
+        return redirect(url_for('login'))
+
+    conn = get_db()
+    uid = session['usuario_id']
+    perfil = session.get('perfil')
+
+    visita = _fetchone(conn, "SELECT * FROM solicitacoes_visita WHERE id=?", (visita_id,))
+    if not visita:
+        conn.close()
+        flash('Solicitação não encontrada.', 'erro')
+        return redirect(url_for('painel_visitas'))
+
+    if perfil != 'admin' and visita['solicitante_id'] != uid and visita['responsavel_id'] != uid:
+        conn.close()
+        flash('Acesso negado.', 'erro')
+        return redirect(url_for('painel_visitas'))
+
+    if visita['status'] in ('Realizada', 'Cancelada', 'Não Localizada'):
+        conn.close()
+        flash('Esta solicitação não pode ser redirecionada pois já foi finalizada.', 'erro')
+        return redirect(url_for('detalhe_visita', visita_id=visita_id))
+
+    as_id = request.form.get('assistente_social_id', '').strip()
+    if not as_id:
+        conn.close()
+        flash('Selecione uma Assistente Social.', 'erro')
+        return redirect(url_for('detalhe_visita', visita_id=visita_id))
+
+    as_user = _fetchone(conn, "SELECT id, nome FROM usuarios WHERE id=? AND perfil='assistente_social'", (as_id,))
+    if not as_user:
+        conn.close()
+        flash('Assistente Social inválida.', 'erro')
+        return redirect(url_for('detalhe_visita', visita_id=visita_id))
+
+    agora = datetime.now(_TZ_BELEM).isoformat()
+    _exec(conn,
+        "UPDATE solicitacoes_visita SET responsavel_id=?, atualizado_em=? WHERE id=?",
+        (as_user['id'], agora, visita_id)
+    )
+
+    num_vd = visita['numero_vd'] or f"#{visita_id}"
+    nome_rf = visita['nome_rf']
+    bairro = visita['bairro'] or ''
+
+    # Dispara notificação para a Assistente Social
+    if str(as_user['id']) != str(uid):
+        _criar_notificacao(
+            conn,
+            usuario_id=int(as_user['id']),
+            titulo=f"Visita Redirecionada ({num_vd})",
+            mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} direcionou a visita de {nome_rf} ({bairro}) para você.",
+            link=url_for('detalhe_visita', visita_id=visita_id),
+            tipo="visita_atribuida"
+        )
+
+    conn.commit()
+    conn.close()
+    audit('VISITA_DIRECIONADA_AS', f"id={visita_id} as_id={as_user['id']} as_nome={as_user['nome']}")
+    flash(f"Visita {num_vd} direcionada com sucesso para a Assistente Social {as_user['nome']}!", 'ok')
+    return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
 
 @app.route('/visitas/<int:visita_id>/parecer-tecnico', methods=['POST'])
@@ -5380,10 +5450,13 @@ def editar_visita(visita_id):
             flash('Acesso negado.', 'erro')
             return redirect(url_for('painel_visitas'))
 
-    # Admin pode atribuir responsável; entrevistador não
+    # Assistentes Sociais cadastradas
+    assistentes_sociais = _fetchall(conn, "SELECT id, nome, unidade FROM usuarios WHERE perfil='assistente_social' ORDER BY nome")
+
+    # Admin pode atribuir qualquer usuário
     usuarios = []
     if perfil == 'admin':
-        usuarios = _fetchall(conn, "SELECT id, nome FROM usuarios ORDER BY nome")
+        usuarios = _fetchall(conn, "SELECT id, nome, perfil FROM usuarios ORDER BY nome")
 
     if request.method == 'POST':
         # Verifica status terminal antes de processar POST
@@ -5405,11 +5478,19 @@ def editar_visita(visita_id):
         telefone2     = request.form.get('telefone2', '').strip() or None
         parecer_tecnico_txt = request.form.get('parecer_tecnico_txt', '').strip() or None
 
-        # Apenas admin pode alterar o responsável
-        if perfil == 'admin':
+        atribuir_as = request.form.get('atribuir_as') == '1'
+        as_id_escolhida = request.form.get('assistente_social_id', '').strip() or None
+
+        responsavel_id = visita['responsavel_id']
+        responsavel_anterior = visita['responsavel_id']
+
+        if atribuir_as:
+            if as_id_escolhida:
+                responsavel_id = as_id_escolhida
+            elif assistentes_sociais:
+                responsavel_id = str(assistentes_sociais[0]['id'])
+        elif perfil == 'admin' and request.form.get('responsavel_id') is not None:
             responsavel_id = request.form.get('responsavel_id', '').strip() or None
-        else:
-            responsavel_id = visita['responsavel_id']
 
         # Upload de novo anexo (se fornecido)
         anexo_url  = visita['anexo_url']
@@ -5430,6 +5511,8 @@ def editar_visita(visita_id):
             'referencia': referencia or '',
             'zona': zona,
             'motivo': motivo,
+            'atribuir_as': '1' if atribuir_as else '0',
+            'assistente_social_id': as_id_escolhida or '',
             'responsavel_id': responsavel_id,
             'observacoes': observacoes or '',
             'parecer_tecnico_txt': parecer_tecnico_txt or '',
@@ -5451,7 +5534,7 @@ def editar_visita(visita_id):
             conn.close()
             return render_template('editar_visita.html',
                                    visita=visita, erros=erros,
-                                   form=form, usuarios=usuarios)
+                                   form=form, usuarios=usuarios, assistentes_sociais=assistentes_sociais)
 
         agora = datetime.now(_TZ_BELEM).isoformat()
         _exec(conn,
@@ -5470,6 +5553,20 @@ def editar_visita(visita_id):
              telefone1, telefone2,
              agora, visita_id)
         )
+
+        # Se foi direcionada para uma Assistente Social, dispara notificação
+        num_vd = visita['numero_vd'] or f"#{visita_id}"
+        if responsavel_id and str(responsavel_id) != str(responsavel_anterior) and any(str(a['id']) == str(responsavel_id) for a in assistentes_sociais):
+            if str(responsavel_id) != str(session.get('usuario_id')):
+                _criar_notificacao(
+                    conn,
+                    usuario_id=int(responsavel_id),
+                    titulo=f"Visita Redirecionada ({num_vd})",
+                    mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} direcionou a visita de {nome_rf} ({bairro}) para você.",
+                    link=url_for('detalhe_visita', visita_id=visita_id),
+                    tipo="visita_atribuida"
+                )
+
         conn.commit()
         conn.close()
         audit('VISITA_EDITADA', f"id={visita_id} editado por {session['usuario_nome']}")
@@ -5483,6 +5580,7 @@ def editar_visita(visita_id):
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
     # Pré-preenche o formulário com os dados atuais
+    is_as_responsavel = any(str(a['id']) == str(visita['responsavel_id']) for a in assistentes_sociais) if visita['responsavel_id'] else False
     form = {
         'nome_rf':             visita['nome_rf'],
         'logradouro':          visita['logradouro'] or '',
@@ -5492,6 +5590,8 @@ def editar_visita(visita_id):
         'referencia':          visita['referencia'] or '',
         'zona':                visita['zona'] or 'Urbana',
         'motivo':              visita['motivo'],
+        'atribuir_as':         '1' if is_as_responsavel else '0',
+        'assistente_social_id': str(visita['responsavel_id']) if is_as_responsavel else '',
         'responsavel_id':      visita['responsavel_id'],
         'observacoes':         visita['observacoes'] or '',
         'parecer_tecnico_txt': visita['parecer_tecnico_txt'] or '',
@@ -5499,7 +5599,7 @@ def editar_visita(visita_id):
 
     conn.close()
     return render_template('editar_visita.html',
-                           visita=visita, erros=[], form=form, usuarios=usuarios)
+                           visita=visita, erros=[], form=form, usuarios=usuarios, assistentes_sociais=assistentes_sociais)
 
 
 @app.route('/visitas/nova', methods=['GET', 'POST'])

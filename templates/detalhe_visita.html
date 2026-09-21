@@ -198,7 +198,42 @@
 
   </div>{# /card principal #}
 
+  {# ── Card de Direcionamento para Assistente Social (Serviço Social) ────── #}
+  {% if pode_editar and visita.status not in ('Realizada', 'Cancelada', 'Não Localizada') %}
+  <div class="card" style="border:1.5px solid #DDD6FE; background:#FAF5FF;">
+    <div class="card-title" style="color:#581C87; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <span style="display:flex; align-items:center; gap:8px;">
+        👩‍💼 Direcionar Solicitação para a Assistente Social (Serviço Social)
+      </span>
+      {% if responsavel and responsavel.perfil == 'assistente_social' %}
+      <span class="badge" style="background:#783DB2; color:#FFF; font-size:0.8rem; padding:4px 10px; border-radius:6px;">
+        Atribuída a: {{ responsavel.nome }}
+      </span>
+      {% endif %}
+    </div>
 
+    <form method="POST" action="{{ url_for('direcionar_visita_as', visita_id=visita.id) }}">
+      <p style="font-size:0.86rem; color:#4C1D95; margin:0 0 12px 0;">
+        Se esta visita necessitar de averiguação ou parecer técnico privativo da Assistente Social, selecione a profissional abaixo para encaminhar a demanda:
+      </p>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <select name="assistente_social_id" style="flex:1; min-width:240px; background:#FFF; border-color:#C084FC;" required>
+          <option value="">— Selecione a Assistente Social —</option>
+          {% for as_u in assistentes_sociais %}
+          <option value="{{ as_u.id }}" {% if visita.responsavel_id|string == as_u.id|string %}selected{% endif %}>
+            👩‍💼 {{ as_u.nome }} {% if as_u.unidade %}({{ as_u.unidade }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+
+        <button type="submit" class="btn btn-primary" style="background:#783DB2; border-color:#6B21A8; font-weight:700; white-space:nowrap; padding:10px 18px;">
+          🚀 Encaminhar para Assistente Social
+        </button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
 
   {# ── Parecer da Assistente Social ─────────────────────────────────────── #}
   {% if visita.parecer_tecnico_txt or visita.parecer_as_url %}
