@@ -2716,8 +2716,8 @@ def dados_relatorio(mes):
     grafico_situacoes_enc = [{'nome': s, 'total': t} for s, t in situacoes_enc_quant.items() if t > 0]
 
     # Estatísticas de Visitas Domiciliares (Urbana vs Rural e Realizadas para o RMA)
-    filtro_vis_usuario = "" if session['perfil'] in ('admin', 'assistente_social') else f"AND (sv.solicitante_id={PH} OR sv.responsavel_id={PH})"
-    params_vis = [mes + '%', mes + '%'] + ([session['usuario_id'], session['usuario_id']] if session['perfil'] not in ('admin', 'assistente_social') else [])
+    filtro_vis_usuario = "" if session['perfil'] == 'admin' else f"AND (sv.solicitante_id={PH} OR sv.responsavel_id={PH})"
+    params_vis = [mes + '%', mes + '%'] + ([session['usuario_id'], session['usuario_id']] if session['perfil'] != 'admin' else [])
 
     vis_mes = _fetchall(conn,
         f"""SELECT sv.*, u_sol.nome as solicitante_nome, u_res.nome as responsavel_nome
@@ -5056,7 +5056,7 @@ def painel_visitas():
     por_pagina    = 20
 
     # ── Filtro de acesso por perfil ─────────────────────────────────────────
-    if perfil not in ('admin', 'assistente_social'):
+    if perfil != 'admin':
         filtro_acesso  = f"AND (sv.solicitante_id = {PH} OR sv.responsavel_id = {PH})"
         params_acesso  = [uid, uid]
     else:
