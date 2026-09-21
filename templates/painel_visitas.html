@@ -34,7 +34,7 @@
     
     <a href="{{ url_for('painel_visitas', status='Pendente') }}" style="text-decoration:none;">
       <div style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:var(--radius-lg); padding:18px 20px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
-        <span style="font-size:0.8rem; font-weight:700; color:#D97706; text-transform:uppercase; letter-spacing:0.3px;">Pendentes</span>
+        <span style="font-size:0.8rem; font-weight:700; color:#D97706; text-transform:uppercase; letter-spacing:0.3px;">📥 Novas Solicitações</span>
         <div style="font-size:2rem; font-weight:800; color:#B45309; margin-top:4px;">{{ contadores.get('Pendente', 0) }}</div>
       </div>
     </a>
@@ -76,8 +76,58 @@
 
   <!-- Main Card with Filters + Table -->
   <div class="card">
-    <div class="card-title">
-      <span>Solicitações Registradas</span>
+    <div class="card-title" style="margin-bottom:16px;">
+      <span>Solicitações de Visita</span>
+    </div>
+
+    <!-- Abas de Navegação Rápida de Status -->
+    <div class="visitas-tabs" style="display:flex; gap:8px; border-bottom:2px solid #E2E8F0; margin-bottom:20px; overflow-x:auto; padding-bottom:2px;">
+      {% set cur_st = filtros.get('status', '') %}
+      
+      <a href="{{ url_for('painel_visitas', status='Pendente', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
+         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if cur_st == 'Pendente' %}#D97706{% else %}transparent{% endif %}; background:{% if cur_st == 'Pendente' %}#FFFBEB{% else %}transparent{% endif %}; color:{% if cur_st == 'Pendente' %}#B45309{% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s;">
+        <span>📥 Novas Solicitações</span>
+        <span style="background:{% if cur_st == 'Pendente' %}#D97706{% else %}#E2E8F0{% endif %}; color:{% if cur_st == 'Pendente' %}#FFF{% else %}#475569{% endif %}; font-size:0.75rem; padding:2px 7px; border-radius:12px;">
+          {{ contadores.get('Pendente', 0) }}
+        </span>
+      </a>
+
+      <a href="{{ url_for('painel_visitas', status='Em Andamento', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
+         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if cur_st == 'Em Andamento' %}var(--cad-roxo){% else %}transparent{% endif %}; background:{% if cur_st == 'Em Andamento' %}#F5F3FF{% else %}transparent{% endif %}; color:{% if cur_st == 'Em Andamento' %}var(--cad-roxo){% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s;">
+        <span>⏳ Em Andamento</span>
+        <span style="background:{% if cur_st == 'Em Andamento' %}#783DB2{% else %}#E2E8F0{% endif %}; color:{% if cur_st == 'Em Andamento' %}#FFF{% else %}#475569{% endif %}; font-size:0.75rem; padding:2px 7px; border-radius:12px;">
+          {{ contadores.get('Em Andamento', 0) }}
+        </span>
+      </a>
+
+      <a href="{{ url_for('painel_visitas', status='Atrasada', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
+         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if cur_st == 'Atrasada' %}#DC2626{% else %}transparent{% endif %}; background:{% if cur_st == 'Atrasada' %}#FEF2F2{% else %}transparent{% endif %}; color:{% if cur_st == 'Atrasada' %}#DC2626{% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s;">
+        <span>⚠️ Em Atraso</span>
+        <span style="background:{% if cur_st == 'Atrasada' %}#DC2626{% else %}#FEE2E2{% endif %}; color:{% if cur_st == 'Atrasada' %}#FFF{% else %}#991B1B{% endif %}; font-size:0.75rem; padding:2px 7px; border-radius:12px;">
+          {{ total_visitas_atrasadas }}
+        </span>
+      </a>
+
+      <a href="{{ url_for('painel_visitas', status='Realizada', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
+         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if cur_st == 'Realizada' %}var(--cad-verde){% else %}transparent{% endif %}; background:{% if cur_st == 'Realizada' %}#F0FDF4{% else %}transparent{% endif %}; color:{% if cur_st == 'Realizada' %}var(--cad-verde){% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s;">
+        <span>✅ Realizadas</span>
+        <span style="background:{% if cur_st == 'Realizada' %}#00883A{% else %}#E2E8F0{% endif %}; color:{% if cur_st == 'Realizada' %}#FFF{% else %}#475569{% endif %}; font-size:0.75rem; padding:2px 7px; border-radius:12px;">
+          {{ contadores.get('Realizada', 0) }}
+        </span>
+      </a>
+
+      <a href="{{ url_for('painel_visitas', status='Cancelada', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
+         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if cur_st == 'Cancelada' %}#991B1B{% else %}transparent{% endif %}; background:{% if cur_st == 'Cancelada' %}#FEF2F2{% else %}transparent{% endif %}; color:{% if cur_st == 'Cancelada' %}#991B1B{% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s;">
+        <span>🚫 Canceladas</span>
+        <span style="background:{% if cur_st == 'Cancelada' %}#B91C1C{% else %}#E2E8F0{% endif %}; color:{% if cur_st == 'Cancelada' %}#FFF{% else %}#475569{% endif %}; font-size:0.75rem; padding:2px 7px; border-radius:12px;">
+          {{ contadores.get('Cancelada', 0) }}
+        </span>
+      </a>
+
+      <a href="{{ url_for('painel_visitas', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
+         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if not cur_st %}#334155{% else %}transparent{% endif %}; background:{% if not cur_st %}#F1F5F9{% else %}transparent{% endif %}; color:{% if not cur_st %}#0F172A{% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s; margin-left:auto;">
+        <span>📋 Todas as Visitas</span>
+      </a>
     </div>
 
     {% if session.get('perfil') == 'assistente_social' %}
@@ -93,9 +143,11 @@
     <form method="GET" action="{{ url_for('painel_visitas') }}" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
       <select name="status" style="max-width:170px;">
         <option value="">Todos os status</option>
-        {% for s in ['Pendente', 'Em Andamento', 'Realizada', 'Cancelada'] %}
-          <option value="{{ s }}" {% if filtros.get('status') == s %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
+        <option value="Pendente" {% if filtros.get('status') == 'Pendente' %}selected{% endif %}>📥 Novas Solicitações (Pendentes)</option>
+        <option value="Em Andamento" {% if filtros.get('status') == 'Em Andamento' %}selected{% endif %}>⏳ Em Andamento</option>
+        <option value="Atrasada" {% if filtros.get('status') == 'Atrasada' %}selected{% endif %}>⚠️ Em Atraso</option>
+        <option value="Realizada" {% if filtros.get('status') == 'Realizada' %}selected{% endif %}>✅ Realizadas</option>
+        <option value="Cancelada" {% if filtros.get('status') == 'Cancelada' %}selected{% endif %}>🚫 Canceladas</option>
       </select>
 
       <select name="zona" style="max-width:140px;">
