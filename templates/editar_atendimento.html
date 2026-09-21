@@ -80,12 +80,12 @@
       </div>
 
       <!-- Resumo do Encaminhamento (Badge) -->
-      {% set val_orgao = form.get('orgao_encaminhador', at.get('orgao_encaminhador')) if form.get else at.get('orgao_encaminhador') %}
-      {% set val_outro = form.get('orgao_outro', at.get('orgao_outro')) if form.get else at.get('orgao_outro') %}
-      {% set val_oficio = form.get('numero_oficio', at.get('numero_oficio')) if form.get else at.get('numero_oficio') %}
-      {% set val_serv = form.get('servidor_encaminhador', at.get('servidor_encaminhador')) if form.get else at.get('servidor_encaminhador') %}
-      {% set val_motivo = form.get('motivo_encaminhamento', at.get('motivo_encaminhamento')) if form.get else at.get('motivo_encaminhamento') %}
-      {% set val_sit = form.get('situacao_encaminhamento', at.get('situacao_encaminhamento', 'Atendido')) if form.get else at.get('situacao_encaminhamento', 'Atendido') %}
+      {% set val_orgao = form.get('orgao_encaminhador', at['orgao_encaminhador']) if form.get else at['orgao_encaminhador'] %}
+      {% set val_outro = form.get('orgao_outro', at['orgao_outro']) if form.get else at['orgao_outro'] %}
+      {% set val_oficio = form.get('numero_oficio', at['numero_oficio']) if form.get else at['numero_oficio'] %}
+      {% set val_serv = form.get('servidor_encaminhador', at['servidor_encaminhador']) if form.get else at['servidor_encaminhador'] %}
+      {% set val_motivo = form.get('motivo_encaminhamento', at['motivo_encaminhamento']) if form.get else at['motivo_encaminhamento'] %}
+      {% set val_sit = form.get('situacao_encaminhamento', at['situacao_encaminhamento'] or 'Atendido') if form.get else (at['situacao_encaminhamento'] or 'Atendido') %}
 
       <div id="resumo-encaminhamento" style="display:{% if origem_atual == 'Encaminhado' %}flex{% else %}none{% endif %}; margin-top:16px; padding:12px 16px; background:#F5F3FF; border:1px solid #DDD6FE; border-radius:10px; align-items:center; justify-content:space-between;">
         <div>
@@ -106,10 +106,10 @@
     <input type="hidden" id="orgao_encaminhador" name="orgao_encaminhador" value="{{ val_orgao or '' }}">
     <input type="hidden" id="orgao_outro" name="orgao_outro" value="{{ val_outro or '' }}">
     <input type="hidden" id="numero_oficio" name="numero_oficio" value="{{ val_oficio or '' }}">
-    <input type="hidden" id="data_encaminhamento" name="data_encaminhamento" value="{{ form.get('data_encaminhamento', at.get('data_encaminhamento', '')) if form.get else at.get('data_encaminhamento', '') }}">
+    <input type="hidden" id="data_encaminhamento" name="data_encaminhamento" value="{{ form.get('data_encaminhamento', at['data_encaminhamento']) if form.get else (at['data_encaminhamento'] or '') }}">
     <input type="hidden" id="servidor_encaminhador" name="servidor_encaminhador" value="{{ val_serv or '' }}">
     <input type="hidden" id="motivo_encaminhamento" name="motivo_encaminhamento" value="{{ val_motivo or '' }}">
-    <input type="hidden" id="obs_encaminhamento" name="obs_encaminhamento" value="{{ form.get('obs_encaminhamento', at.get('obs_encaminhamento', '')) if form.get else at.get('obs_encaminhamento', '') }}">
+    <input type="hidden" id="obs_encaminhamento" name="obs_encaminhamento" value="{{ form.get('obs_encaminhamento', at['obs_encaminhamento']) if form.get else (at['obs_encaminhamento'] or '') }}">
     <input type="hidden" id="situacao_encaminhamento" name="situacao_encaminhamento" value="{{ val_sit or 'Atendido' }}">
 
     <!-- Card Tipos de Atendimento -->
@@ -120,7 +120,7 @@
       {% set user_perfil = perfil or session.get('perfil') %}
       {% if user_perfil == 'assistente_social' %}
       <div style="margin-bottom:14px; padding:10px 14px; background:#FAF5FF; border-left:4px solid var(--cad-roxo); border-radius:6px; font-size:0.88rem; color:#581C87; font-weight:600;">
-        ✨ Atendimentos Principais do Serviço Social:
+        ✨ Atendimentos do Serviço Social:
       </div>
       {% endif %}
       <div class="checks-grid">
@@ -128,7 +128,7 @@
         {% for tipo in tipos %}
           {% set is_as = tipo in tipos_assistente_social %}
           {% set is_sibec = tipo in tipos_sibec %}
-          {% set can_show = not is_sibec or acesso_sibec %}
+          {% set can_show = (user_perfil != 'assistente_social' or is_as) and (not is_sibec or acesso_sibec) %}
           {% if can_show %}
           <label class="check-item {% if is_sibec %}sibec{% endif %}" style="{% if is_as and user_perfil == 'assistente_social' %}background:#FAF5FF; border-color:#C084FC; font-weight:700;{% endif %}">
             <input type="checkbox" name="tipos" value="{{ tipo }}"

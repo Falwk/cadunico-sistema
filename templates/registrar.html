@@ -104,7 +104,7 @@
       {% set user_perfil = perfil or session.get('perfil') %}
       {% if user_perfil == 'assistente_social' %}
       <div style="margin-bottom:14px; padding:10px 14px; background:#FAF5FF; border-left:4px solid var(--cad-roxo); border-radius:6px; font-size:0.88rem; color:#581C87; font-weight:600;">
-        ✨ Atendimentos Principais do Serviço Social:
+        ✨ Atendimentos do Serviço Social:
       </div>
       {% endif %}
       <div class="checks-grid">
@@ -112,7 +112,7 @@
         {% for tipo in tipos %}
           {% set is_as = tipo in tipos_assistente_social %}
           {% set is_sibec = tipo in tipos_sibec %}
-          {% set can_show = not is_sibec or acesso_sibec %}
+          {% set can_show = (user_perfil != 'assistente_social' or is_as) and (not is_sibec or acesso_sibec) %}
           {% if can_show %}
           <label class="check-item {% if is_sibec %}sibec{% endif %}" style="{% if is_as and user_perfil == 'assistente_social' %}background:#FAF5FF; border-color:#C084FC; font-weight:700;{% endif %}">
             <input type="checkbox" name="tipos" value="{{ tipo }}"
