@@ -127,15 +127,52 @@
                   placeholder="Informações adicionais relevantes para a visita…">{{ form.get('observacoes', '') }}</textarea>
       </div>
 
+    {# ── Seção 5: Competência e Atribuição ──────────────────────────────── #}
+    <div class="card" style="border:1.5px solid #DDD6FE; background:#FAF5FF;">
+      <div class="card-title" style="color:#581C87; display:flex; align-items:center; gap:8px;">
+        <span>👩‍💼 Competência & Atribuição da Visita</span>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; font-weight:700; color:#581C87;">
+          <input type="checkbox" id="atribuir_as" name="atribuir_as" value="1"
+                 {% if form.get('atribuir_as') == '1' %}checked{% endif %}
+                 onchange="document.getElementById('bloco-escolha-as').style.display = this.checked ? 'block' : 'none';"
+                 style="width:18px; height:18px; margin-top:2px; accent-color:var(--cad-roxo);">
+          <div>
+            <span>Atribuir visita para a Assistente Social (Serviço Social)</span>
+            <span class="text-muted" style="font-weight:400; font-size:0.8rem; display:block; margin-top:2px;">
+              Marque esta opção quando a visita for de competência obrigatória da Assistente Social. Uma notificação interna será enviada automaticamente para o perfil dela.
+            </span>
+          </div>
+        </label>
+      </div>
+
+      <div id="bloco-escolha-as" style="display:{% if form.get('atribuir_as') == '1' %}block{% else %}none{% endif %}; margin-top:14px; padding-top:12px; border-top:1px dashed #DDD6FE;">
+        <label for="assistente_social_id" style="font-weight:700; color:#4C1D95; font-size:0.88rem;">
+          Selecione a Assistente Social Responsável:
+        </label>
+        <select id="assistente_social_id" name="assistente_social_id" style="margin-top:6px; background:#FFF; border-color:#C084FC;">
+          <option value="">— Todas as Assistentes Sociais (Equipe Geral) —</option>
+          {% for as_user in assistentes_sociais %}
+          <option value="{{ as_user.id }}" {% if form.get('assistente_social_id')|string == as_user.id|string %}selected{% endif %}>
+            👩‍💼 {{ as_user.nome }} {% if as_user.unidade %}({{ as_user.unidade }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
       {% if session.get('perfil') == 'admin' %}
-      <div class="form-group">
-        <label for="responsavel_id">Entrevistador Responsável <span class="text-muted">(opcional)</span></label>
-        <select id="responsavel_id" name="responsavel_id">
-          <option value="">— Não atribuído —</option>
+      <div style="margin-top:14px; padding-top:12px; border-top:1px dashed #CBD5E1;">
+        <label for="responsavel_id" style="font-weight:600; font-size:0.85rem; color:#475569;">
+          Atribuir a outro Entrevistador específico (Modo Admin):
+        </label>
+        <select id="responsavel_id" name="responsavel_id" style="margin-top:4px;">
+          <option value="">— Não atribuído / Autoatribuição —</option>
           {% for u in usuarios %}
           <option value="{{ u.id }}"
             {% if form.get('responsavel_id', session['usuario_id']|string)|string == u.id|string %}selected{% endif %}>
-            {{ u.nome }}
+            {{ u.nome }} ({{ u.perfil }})
           </option>
           {% endfor %}
         </select>

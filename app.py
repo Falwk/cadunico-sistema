@@ -5511,10 +5511,13 @@ def nova_visita():
     erros = []
     form = {}
 
-    # Admin pode atribuir um responsável na criação
+    # Assistentes Sociais cadastradas no sistema
+    assistentes_sociais = _fetchall(conn, "SELECT id, nome, unidade FROM usuarios WHERE perfil='assistente_social' ORDER BY nome")
+
+    # Admin pode atribuir qualquer usuário
     usuarios = []
     if session.get('perfil') == 'admin':
-        usuarios = _fetchall(conn, "SELECT id, nome FROM usuarios ORDER BY nome")
+        usuarios = _fetchall(conn, "SELECT id, nome, perfil FROM usuarios ORDER BY nome")
 
     if request.method == 'POST':
         cpf_rf      = request.form.get('cpf_rf', '').strip()
@@ -5527,11 +5530,21 @@ def nova_visita():
         zona        = request.form.get('zona', 'Urbana').strip()
         motivo      = request.form.get('motivo', '').strip()
         motivo_especificado = request.form.get('motivo_especificado', '').strip() or None
-        responsavel_id = request.form.get('responsavel_id', '').strip() or None
+        
+        atribuir_as = request.form.get('atribuir_as') == '1'
+        as_id_escolhida = request.form.get('assistente_social_id', '').strip() or None
+        responsavel_id = None
 
-        # Entrevistador sempre se autoatribui como responsável
-        if session.get('perfil') != 'admin':
+        if atribuir_as:
+            if as_id_escolhida:
+                responsavel_id = as_id_escolhida
+            elif assistentes_sociais:
+                responsavel_id = str(assistentes_sociais[0]['id'])
+        elif session.get('perfil') == 'admin' and request.form.get('responsavel_id'):
+            responsavel_id = request.form.get('responsavel_id').strip()
+        elif session.get('perfil') != 'admin':
             responsavel_id = str(session['usuario_id'])
+
         observacoes = request.form.get('observacoes', '').strip() or None
         telefone1   = request.form.get('telefone1', '').strip() or None
         telefone2   = request.form.get('telefone2', '').strip() or None
@@ -5556,7 +5569,9 @@ def nova_visita():
             'referencia': referencia or '',
             'zona': zona,
             'motivo': motivo,
-            'responsavel_id': responsavel_id,
+            'atribuir_as': '1' if atribuir_as else '0',
+            'assistente_social_id': as_id_escolhida or '',
+            'responsavel_id': responsavel_id or '',
             'observacoes': observacoes or '',
             'telefone1': telefone1 or '',
             'telefone2': telefone2 or '',
@@ -5614,20 +5629,35 @@ def nova_visita():
                          telefone1, telefone2, agora, agora, numero_vd)
                     )
                     novo_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+                # Notifica a Assistente Social atribuída (ou equipe de Assistentes Sociais)
+                if atribuir_as or (responsavel_id and any(str(a['id']) == str(responsavel_id) for a in assistentes_sociais)):
+                    alvos_as = [as_id_escolhida] if (atribuir_as and as_id_escolhida) else ([responsavel_id] if responsavel_id else [a['id'] for a in assistentes_sociais])
+                    for target_as in alvos_as:
+                        if target_as and str(target_as) != str(session.get('usuario_id')):
+                            _criar_notificacao(
+                                conn,
+                                usuario_id=int(target_as),
+                                titulo=f"Nova Visita Atribuída ({numero_vd})",
+                                mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} atribuiu uma solicitação de visita para {nome_rf} ({bairro}).",
+                                link=url_for('detalhe_visita', visita_id=novo_id),
+                                tipo="visita_atribuida"
+                            )
+
             except ValueError as e:
                 if str(e) == 'limite_anual':
                     conn.close()
                     flash('Limite de solicitações para o ano atingido. Contate o administrador.', 'erro')
-                    return render_template('nova_visita.html', erros=[], form=form, usuarios=usuarios)
+                    return render_template('nova_visita.html', erros=[], form=form, usuarios=usuarios, assistentes_sociais=assistentes_sociais)
                 conn.rollback()
                 conn.close()
                 flash('Erro ao gerar número da solicitação. Tente novamente.', 'erro')
-                return render_template('nova_visita.html', erros=[], form=form, usuarios=usuarios)
+                return render_template('nova_visita.html', erros=[], form=form, usuarios=usuarios, assistentes_sociais=assistentes_sociais)
             except Exception:
                 conn.rollback()
                 conn.close()
                 flash('Erro ao gerar número da solicitação. Tente novamente.', 'erro')
-                return render_template('nova_visita.html', erros=[], form=form, usuarios=usuarios)
+                return render_template('nova_visita.html', erros=[], form=form, usuarios=usuarios, assistentes_sociais=assistentes_sociais)
 
             conn.commit()
             conn.close()
@@ -5636,7 +5666,7 @@ def nova_visita():
             return redirect(url_for('detalhe_visita', visita_id=novo_id, imprimir=1))
 
         conn.close()
-        return render_template('nova_visita.html', erros=erros, form=form, usuarios=usuarios)
+        return render_template('nova_visita.html', erros=erros, form=form, usuarios=usuarios, assistentes_sociais=assistentes_sociais)
 
     # GET — pré-preencher nome_rf a partir do CPF se fornecido na query string
     cpf_qs = request.args.get('cpf', '').strip()
@@ -5650,7 +5680,7 @@ def nova_visita():
             form['nome_rf'] = atendimento_recente['nome_rf']
 
     conn.close()
-    return render_template('nova_visita.html', erros=erros, form=form, usuarios=usuarios)
+    return render_template('nova_visita.html', erros=erros, form=form, usuarios=usuarios, assistentes_sociais=assistentes_sociais)
 
 
 @app.route('/visitas/<int:visita_id>/status', methods=['POST'])
