@@ -222,15 +222,38 @@
             <td>
               {% if v.responsavel_nome %}
                 {% if v.responsavel_perfil == 'assistente_social' %}
-                  <div style="font-weight:700; color:#6B21A8; display:flex; flex-direction:column; gap:2px;">
-                    <span style="display:inline-flex; align-items:center; gap:4px; font-size:0.88rem;">👩‍💼 {{ v.responsavel_nome }}</span>
-                    <span class="badge" style="background:#FAF5FF; color:#783DB2; border:1px solid #DDD6FE; font-size:0.72rem; padding:1px 6px; border-radius:4px; font-weight:700; width:fit-content;">Serviço Social</span>
+                  <div style="display:flex; flex-direction:column; gap:3px;">
+                    <span style="font-weight:700; color:#6B21A8; display:inline-flex; align-items:center; gap:4px; font-size:0.88rem;">
+                      👩‍💼 {{ v.responsavel_nome }}
+                    </span>
+                    <span class="badge" style="background:#FAF5FF; color:#783DB2; border:1px solid #DDD6FE; font-size:0.72rem; padding:1px 6px; border-radius:4px; font-weight:700; width:fit-content;">
+                      Serviço Social
+                    </span>
+                    {% if v.solicitante_nome and v.solicitante_nome != v.responsavel_nome %}
+                    <span style="font-size:0.75rem; color:#64748B; margin-top:2px;">
+                      <strong style="color:#475569;">Solicitante:</strong> {{ v.solicitante_nome }}
+                    </span>
+                    {% endif %}
                   </div>
                 {% else %}
-                  <span style="font-size:0.88rem;">{{ v.responsavel_nome }}</span>
+                  <div style="display:flex; flex-direction:column; gap:2px;">
+                    <span style="font-size:0.88rem; font-weight:600; color:#1E293B;">{{ v.responsavel_nome }}</span>
+                    {% if v.solicitante_nome and v.solicitante_nome != v.responsavel_nome %}
+                    <span style="font-size:0.75rem; color:#64748B;">
+                      <strong style="color:#475569;">Solicitante:</strong> {{ v.solicitante_nome }}
+                    </span>
+                    {% endif %}
+                  </div>
                 {% endif %}
               {% else %}
-                <span class="text-muted">—</span>
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                  <span class="text-muted">—</span>
+                  {% if v.solicitante_nome %}
+                  <span style="font-size:0.75rem; color:#64748B;">
+                    <strong style="color:#475569;">Solicitante:</strong> {{ v.solicitante_nome }}
+                  </span>
+                  {% endif %}
+                </div>
               {% endif %}
             </td>
             <td style="text-align:center;">

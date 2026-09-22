@@ -5498,6 +5498,9 @@ def editar_visita(visita_id):
                 responsavel_id = str(assistentes_sociais[0]['id'])
         elif perfil == 'admin' and request.form.get('responsavel_id') is not None:
             responsavel_id = request.form.get('responsavel_id', '').strip() or None
+        elif not atribuir_as:
+            # Se o usuário desmarcou o direcionamento para AS, volta a atribuir ao entrevistador/solicitante
+            responsavel_id = visita['solicitante_id'] or str(session['usuario_id'])
 
         # Upload de novo anexo (se fornecido)
         anexo_url  = visita['anexo_url']
