@@ -12,7 +12,59 @@
         Gestão e agendamento de visitas de verificação em campo
       </p>
     </div>
-    <div style="display:flex; gap:10px;">
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <!-- Dropdown de Impressão de Resumos de Visitas -->
+      <div class="dropdown" style="position:relative; display:inline-block;">
+        <button type="button" class="btn btn-outline" style="border-color:#00883A; color:#00542A; font-weight:700; background:#F0FDF4; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleDropdownResumos(event)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+          <span>🖨️ Imprimir Resumo</span>
+          <span style="font-size:0.75rem; margin-left:2px;">▼</span>
+        </button>
+        <div id="dropdown-resumos-menu" style="display:none; position:absolute; right:0; top:calc(100% + 6px); background:#FFFFFF; border:1px solid #CBD5E1; border-radius:10px; box-shadow:0 10px 25px rgba(0,0,0,0.14); min-width:300px; z-index:1000; padding:8px 0;">
+          <div style="padding:8px 16px; font-size:0.75rem; font-weight:800; color:#64748B; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #F1F5F9;">
+            Impressão de Resumos em PDF
+          </div>
+          
+          <a href="{{ url_for('pdf_resumo_visitas', tipo='solicitadas', data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro','')) }}" target="_blank"
+             style="display:flex; align-items:center; gap:12px; padding:10px 16px; color:#1E293B; text-decoration:none; font-size:0.88rem; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='#FFFBEB'" onmouseout="this.style.background='transparent'">
+            <span style="font-size:1.2rem;">📥</span>
+            <div>
+              <div style="color:#B45309; font-weight:700;">Visitas Solicitadas</div>
+              <div style="font-size:0.75rem; color:#64748B; font-weight:400;">Novas solicitações pendentes</div>
+            </div>
+          </a>
+
+          <a href="{{ url_for('pdf_resumo_visitas', tipo='atrasadas', data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro','')) }}" target="_blank"
+             style="display:flex; align-items:center; gap:12px; padding:10px 16px; color:#1E293B; text-decoration:none; font-size:0.88rem; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='transparent'">
+            <span style="font-size:1.2rem;">⚠️</span>
+            <div>
+              <div style="color:#DC2626; font-weight:700;">Visitas em Atraso</div>
+              <div style="font-size:0.75rem; color:#64748B; font-weight:400;">Solicitações com SLA excedido</div>
+            </div>
+          </a>
+
+          <a href="{{ url_for('pdf_resumo_visitas', tipo='realizadas', data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro','')) }}" target="_blank"
+             style="display:flex; align-items:center; gap:12px; padding:10px 16px; color:#1E293B; text-decoration:none; font-size:0.88rem; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='#F0FDF4'" onmouseout="this.style.background='transparent'">
+            <span style="font-size:1.2rem;">✅</span>
+            <div>
+              <div style="color:#00542A; font-weight:700;">Visitas Realizadas</div>
+              <div style="font-size:0.75rem; color:#64748B; font-weight:400;">Visitas concluídas e registradas</div>
+            </div>
+          </a>
+
+          <div style="border-top:1px solid #F1F5F9; margin:4px 0;"></div>
+
+          <a href="{{ url_for('pdf_resumo_visitas', tipo='geral', status=filtros.get('status',''), data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}" target="_blank"
+             style="display:flex; align-items:center; gap:12px; padding:10px 16px; color:#1E293B; text-decoration:none; font-size:0.88rem; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='#F8FAFC'" onmouseout="this.style.background='transparent'">
+            <span style="font-size:1.2rem;">📋</span>
+            <div>
+              <div style="color:#0F172A; font-weight:700;">Resumo Completo / Filtro Atual</div>
+              <div style="font-size:0.75rem; color:#64748B; font-weight:400;">Exportar PDF com filtros da tela</div>
+            </div>
+          </a>
+        </div>
+      </div>
+
       <a href="{{ url_for('nova_visita') }}" class="btn btn-success">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         <span>+ Nova Solicitação</span>
@@ -171,6 +223,11 @@
 
       <button type="submit" class="btn btn-outline btn-sm">🔍 Filtrar / Buscar</button>
 
+      <a href="{{ url_for('pdf_resumo_visitas', status=filtros.get('status',''), data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
+         target="_blank" class="btn btn-outline btn-sm" style="border-color:#00883A; color:#00542A; font-weight:700; background:#F0FDF4; display:inline-flex; align-items:center; gap:6px;">
+        🖨️ Imprimir Resumo Atual (PDF)
+      </a>
+
       {% if filtros.get('status') or filtros.get('data_ini') or filtros.get('data_fim') or filtros.get('busca') or filtros.get('zona') or filtros.get('bairro') %}
         <a href="{{ url_for('painel_visitas') }}" class="btn btn-outline btn-sm">Limpar</a>
       {% endif %}
@@ -293,4 +350,21 @@
 
   </div>
 </div>
+
+<script>
+  function toggleDropdownResumos(e) {
+    if (e) e.stopPropagation();
+    var m = document.getElementById('dropdown-resumos-menu');
+    if (m) {
+      m.style.display = (m.style.display === 'none' || m.style.display === '') ? 'block' : 'none';
+    }
+  }
+
+  document.addEventListener('click', function(e) {
+    var m = document.getElementById('dropdown-resumos-menu');
+    if (m && m.style.display === 'block') {
+      m.style.display = 'none';
+    }
+  });
+</script>
 {% endblock %}

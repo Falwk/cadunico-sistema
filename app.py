@@ -1200,6 +1200,346 @@ def gerar_pdf_visita(visita_id: int):
     return buf.getvalue(), numero_vd
 
 
+def gerar_pdf_resumo_visitas(visitas, tipo_resumo: str, filtros: dict, usuario_emissor: dict, cfg: dict, totais: dict) -> bytes:
+    """Gera o PDF de resumo das solicitações de visita (Solicitadas, Em Atraso, Realizadas ou Geral)."""
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, KeepTogether
+    from reportlab.platypus import Image as RLImage
+    from reportlab.lib import colors as rl_colors
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(
+        output,
+        pagesize=landscape(A4),
+        leftMargin=1.0*cm,
+        rightMargin=1.0*cm,
+        topMargin=0.8*cm,
+        bottomMargin=0.8*cm
+    )
+
+    verde_escuro = rl_colors.HexColor('#00542A')
+    vermelho = rl_colors.HexColor('#991B1B')
+    ambar = rl_colors.HexColor('#B45309')
+    roxo = rl_colors.HexColor('#783DB2')
+    cinza_fundo = rl_colors.HexColor('#F8FAFC')
+    cinza_texto = rl_colors.HexColor('#475569')
+    cinza_borda = rl_colors.HexColor('#CBD5E1')
+    branco = rl_colors.white
+
+    styles = getSampleStyleSheet()
+    
+    st_title = ParagraphStyle('RTitle', fontName='Helvetica-Bold', fontSize=11.5, leading=13.5, alignment=TA_CENTER)
+    st_subtitle = ParagraphStyle('RSubtitle', fontName='Helvetica', fontSize=7.5, leading=9.5, textColor=cinza_texto, alignment=TA_CENTER)
+    st_kpi_num = ParagraphStyle('RKpiNum', fontName='Helvetica-Bold', fontSize=12, leading=14, alignment=TA_CENTER)
+    st_kpi_lbl = ParagraphStyle('RKpiLbl', fontName='Helvetica-Bold', fontSize=6.5, leading=8, alignment=TA_CENTER)
+    
+    st_th = ParagraphStyle('RTh', fontName='Helvetica-Bold', fontSize=7.5, leading=9, textColor=branco, alignment=TA_CENTER)
+    st_td = ParagraphStyle('RTd', fontName='Helvetica', fontSize=7, leading=8.5, textColor=rl_colors.HexColor('#0F172A'))
+    st_td_bold = ParagraphStyle('RTdBold', fontName='Helvetica-Bold', fontSize=7, leading=8.5, textColor=rl_colors.HexColor('#0F172A'))
+    st_td_center = ParagraphStyle('RTdCenter', fontName='Helvetica', fontSize=7, leading=8.5, alignment=TA_CENTER, textColor=rl_colors.HexColor('#0F172A'))
+
+    story = []
+
+    # 1. Cabeçalho Oficial (Timbrado)
+    img_hdr_path = os.path.join(app.root_path, 'static', 'report_assets', 'image3.png')
+    if not os.path.exists(img_hdr_path):
+        img_hdr_path = os.path.join(BASE_DIR, 'static', 'report_assets', 'image3.png')
+    if os.path.exists(img_hdr_path):
+        try:
+            story.append(RLImage(img_hdr_path, width=27.7*cm, height=2.4*cm))
+            story.append(Spacer(1, 0.2*cm))
+        except Exception:
+            pass
+
+    # 2. Título & Tema
+    tipo_clean = (tipo_resumo or '').lower().strip()
+    if tipo_clean in ('solicitadas', 'pendente', 'pendentes'):
+        titulo_doc = "RESUMO DE VISITAS DOMICILIARES SOLICITADAS (NOVAS SOLICITAÇÕES)"
+        cor_tema = ambar
+    elif tipo_clean in ('atrasadas', 'atrasada', 'atraso'):
+        titulo_doc = "RESUMO DE VISITAS DOMICILIARES EM ATRASO (SLA EXCEDIDO)"
+        cor_tema = vermelho
+    elif tipo_clean in ('realizadas', 'realizada'):
+        titulo_doc = "RESUMO DE VISITAS DOMICILIARES REALIZADAS"
+        cor_tema = verde_escuro
+    elif tipo_clean in ('em_andamento', 'andamento'):
+        titulo_doc = "RESUMO DE VISITAS DOMICILIARES EM ANDAMENTO"
+        cor_tema = roxo
+    elif tipo_clean in ('canceladas', 'cancelada'):
+        titulo_doc = "RESUMO DE VISITAS DOMICILIARES CANCELADAS"
+        cor_tema = vermelho
+    else:
+        titulo_doc = "RELATÓRIO RESUMO DE SOLICITAÇÕES DE VISITAS DOMICILIARES"
+        cor_tema = verde_escuro
+
+    agora_belem = datetime.now(_TZ_BELEM)
+    data_emissao_str = agora_belem.strftime('%d/%m/%Y às %H:%M')
+    emissor_nome = usuario_emissor.get('nome', 'Usuário do Sistema')
+    emissor_perfil = usuario_emissor.get('perfil', '').replace('_', ' ').title()
+
+    filtros_ativos = []
+    if filtros.get('data_ini') and filtros.get('data_fim'):
+        try:
+            d_ini = datetime.strptime(filtros['data_ini'], '%Y-%m-%d').strftime('%d/%m/%Y')
+            d_fim = datetime.strptime(filtros['data_fim'], '%Y-%m-%d').strftime('%d/%m/%Y')
+            filtros_ativos.append(f"Período: {d_ini} a {d_fim}")
+        except Exception:
+            filtros_ativos.append(f"Período: {filtros['data_ini']} a {filtros['data_fim']}")
+    elif filtros.get('data_ini'):
+        try:
+            d_ini = datetime.strptime(filtros['data_ini'], '%Y-%m-%d').strftime('%d/%m/%Y')
+            filtros_ativos.append(f"A partir de: {d_ini}")
+        except Exception:
+            pass
+    elif filtros.get('data_fim'):
+        try:
+            d_fim = datetime.strptime(filtros['data_fim'], '%Y-%m-%d').strftime('%d/%m/%Y')
+            filtros_ativos.append(f"Até: {d_fim}")
+        except Exception:
+            pass
+        
+    if filtros.get('zona'):
+        filtros_ativos.append(f"Zona: {filtros['zona']}")
+    if filtros.get('bairro'):
+        filtros_ativos.append(f"Bairro: {filtros['bairro']}")
+    if filtros.get('busca'):
+        filtros_ativos.append(f"Busca: \"{filtros['busca']}\"")
+        
+    subtitulo_info = f"Emissão: {data_emissao_str}  |  Emitido por: {emissor_nome} ({emissor_perfil})"
+    if filtros_ativos:
+        subtitulo_info += f"  |  Filtros: {' · '.join(filtros_ativos)}"
+
+    title_p = Paragraph(f"<font color='{cor_tema.hexval()}'>{titulo_doc}</font>", st_title)
+    sub_p = Paragraph(subtitulo_info, st_subtitle)
+    
+    title_tbl = Table([[title_p], [sub_p]], colWidths=[27.7*cm])
+    title_tbl.setStyle(TableStyle([
+        ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 1),
+        ('TOPPADDING', (0,0), (-1,-1), 1),
+    ]))
+    story.append(title_tbl)
+    story.append(Spacer(1, 0.25*cm))
+
+    # 3. Bloco de Indicadores KPI
+    tot_listado = len(visitas)
+    tot_sol = totais.get('Pendente', 0)
+    tot_atr = totais.get('Atrasada', 0)
+    tot_rea = totais.get('Realizada', 0)
+    tot_and = totais.get('Em Andamento', 0)
+
+    kpi_data = [
+        [
+            Paragraph(f"<font color='#1E3A8A'>{tot_listado}</font>", st_kpi_num),
+            Paragraph(f"<font color='#B45309'>{tot_sol}</font>", st_kpi_num),
+            Paragraph(f"<font color='#B91C1C'>{tot_atr}</font>", st_kpi_num),
+            Paragraph(f"<font color='#00542A'>{tot_rea}</font>", st_kpi_num),
+            Paragraph(f"<font color='#581C87'>{tot_and}</font>", st_kpi_num),
+        ],
+        [
+            Paragraph("<font color='#1E3A8A'>TOTAL NO RESUMO</font>", st_kpi_lbl),
+            Paragraph("<font color='#B45309'>SOLICITADAS (PENDENTES)</font>", st_kpi_lbl),
+            Paragraph("<font color='#B91C1C'>EM ATRASO (SLA)</font>", st_kpi_lbl),
+            Paragraph("<font color='#00542A'>VISITAS REALIZADAS</font>", st_kpi_lbl),
+            Paragraph("<font color='#581C87'>EM ANDAMENTO</font>", st_kpi_lbl),
+        ]
+    ]
+    kpi_tbl = Table(kpi_data, colWidths=[5.54*cm]*5)
+    kpi_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), rl_colors.HexColor('#EFF6FF')),
+        ('BACKGROUND', (1, 0), (1, -1), rl_colors.HexColor('#FFFBEB')),
+        ('BACKGROUND', (2, 0), (2, -1), rl_colors.HexColor('#FEF2F2')),
+        ('BACKGROUND', (3, 0), (3, -1), rl_colors.HexColor('#F0FDF4')),
+        ('BACKGROUND', (4, 0), (4, -1), rl_colors.HexColor('#FAF5FF')),
+        ('BOX', (0, 0), (0, -1), 0.5, rl_colors.HexColor('#BFDBFE')),
+        ('BOX', (1, 0), (1, -1), 0.5, rl_colors.HexColor('#FDE68A')),
+        ('BOX', (2, 0), (2, -1), 0.5, rl_colors.HexColor('#FCA5A5')),
+        ('BOX', (3, 0), (3, -1), 0.5, rl_colors.HexColor('#86EFAC')),
+        ('BOX', (4, 0), (4, -1), 0.5, rl_colors.HexColor('#DDD6FE')),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    story.append(kpi_tbl)
+    story.append(Spacer(1, 0.3*cm))
+
+    # 4. Tabela de Solicitações de Visita
+    headers = [
+        Paragraph("<b>Nº VD</b>", st_th),
+        Paragraph("<b>DATA</b>", st_th),
+        Paragraph("<b>CPF DO RF</b>", st_th),
+        Paragraph("<b>RESPONSÁVEL FAMILIAR (RF)</b>", st_th),
+        Paragraph("<b>BAIRRO / ZONA</b>", st_th),
+        Paragraph("<b>MOTIVO DA VISITA</b>", st_th),
+        Paragraph("<b>SOLICITANTE</b>", st_th),
+        Paragraph("<b>RESPONSÁVEL</b>", st_th),
+        Paragraph("<b>SITUAÇÃO</b>", st_th),
+    ]
+    
+    table_rows = [headers]
+    col_widths = [2.6*cm, 1.8*cm, 2.6*cm, 4.8*cm, 3.4*cm, 4.3*cm, 2.9*cm, 3.1*cm, 2.2*cm]
+
+    if not visitas:
+        table_rows.append([
+            Paragraph("Nenhuma solicitação de visita encontrada para os critérios selecionados.", st_td_center),
+            "", "", "", "", "", "", "", ""
+        ])
+    else:
+        for v in visitas:
+            v_dict = dict(v)
+            num_vd = v_dict.get('numero_vd') or f"#{v_dict.get('id', '')}"
+            criado_raw = str(v_dict.get('criado_em', ''))[:10]
+            try:
+                dt_c = datetime.strptime(criado_raw, '%Y-%m-%d')
+                data_sol_fmt = dt_c.strftime('%d/%m/%Y')
+            except Exception:
+                data_sol_fmt = criado_raw or '—'
+
+            cpf_fmt = v_dict.get('cpf_rf', '—')
+            nome_rf = v_dict.get('nome_rf', '—')
+            bairro_str = f"{v_dict.get('bairro') or '—'}<br/><font color='#64748B' size=6>({v_dict.get('zona') or 'Urbana'})</font>"
+            motivo_str = v_dict.get('motivo') or '—'
+            solicitante_str = v_dict.get('solicitante_nome') or '—'
+            
+            resp_nome = v_dict.get('responsavel_nome') or 'Não atribuído'
+            if v_dict.get('responsavel_perfil') == 'assistente_social':
+                resp_str = f"<b>{resp_nome}</b><br/><font color='#783DB2' size=6><b>[Serviço Social]</b></font>"
+            else:
+                resp_str = resp_nome
+
+            st_val = v_dict.get('status', 'Pendente')
+            if st_val == 'Realizada':
+                dt_real = str(v_dict.get('data_realizada', ''))[:10]
+                dt_real_fmt = ''
+                if dt_real:
+                    try:
+                        dt_real_fmt = datetime.strptime(dt_real, '%Y-%m-%d').strftime('%d/%m/%Y')
+                    except Exception:
+                        dt_real_fmt = dt_real
+                status_cell = f"<font color='#00542A'><b>Realizada</b></font>" + (f"<br/><font color='#64748B' size=6>{dt_real_fmt}</font>" if dt_real_fmt else "")
+            elif v_dict.get('atrasada'):
+                dias_atr = v_dict.get('dias_atraso', 0)
+                status_cell = f"<font color='#B91C1C'><b>Atrasada</b></font><br/><font color='#B91C1C' size=6><b>({dias_atr}d atraso)</b></font>"
+            elif st_val == 'Pendente':
+                status_cell = "<font color='#B45309'><b>Pendente</b></font>"
+            elif st_val == 'Em Andamento':
+                status_cell = "<font color='#5E2D91'><b>Em Andamento</b></font>"
+            elif st_val == 'Cancelada':
+                status_cell = "<font color='#991B1B'><b>Cancelada</b></font>"
+            else:
+                status_cell = st_val
+
+            table_rows.append([
+                Paragraph(f"<b>{num_vd}</b>", st_td_bold),
+                Paragraph(data_sol_fmt, st_td_center),
+                Paragraph(cpf_fmt, st_td_center),
+                Paragraph(nome_rf, st_td_bold),
+                Paragraph(bairro_str, st_td),
+                Paragraph(motivo_str, st_td),
+                Paragraph(solicitante_str, st_td),
+                Paragraph(resp_str, st_td),
+                Paragraph(status_cell, st_td_center),
+            ])
+
+    visitas_tbl = Table(table_rows, colWidths=col_widths, repeatRows=1)
+    
+    t_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), cor_tema),
+        ('GRID', (0, 0), (-1, -1), 0.3, cinza_borda),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+    ]
+
+    for row_idx in range(1, len(table_rows)):
+        if row_idx % 2 == 0:
+            t_style.append(('BACKGROUND', (0, row_idx), (-1, row_idx), cinza_fundo))
+        if visitas and row_idx - 1 < len(visitas):
+            v_cur = dict(visitas[row_idx - 1])
+            if v_cur.get('atrasada') and tipo_clean not in ('atrasadas', 'atrasada', 'atraso'):
+                t_style.append(('BACKGROUND', (0, row_idx), (-1, row_idx), rl_colors.HexColor('#FEF2F2')))
+
+    if not visitas:
+        t_style.append(('SPAN', (0, 1), (-1, 1)))
+        t_style.append(('ALIGN', (0, 1), (-1, 1), 'CENTER'))
+
+    visitas_tbl.setStyle(TableStyle(t_style))
+    story.append(visitas_tbl)
+    story.append(Spacer(1, 0.4*cm))
+
+    # 5. Distribuição por Motivo & Assinaturas
+    por_motivo = {}
+    for v in visitas:
+        m = dict(v).get('motivo') or 'Não informado'
+        por_motivo[m] = por_motivo.get(m, 0) + 1
+
+    motivos_rows = [
+        [Paragraph("<b>DISTRIBUIÇÃO POR MOTIVO</b>", st_th), Paragraph("<b>QTD</b>", st_th)]
+    ]
+    for m_nome, m_qtd in sorted(por_motivo.items(), key=lambda x: x[1], reverse=True):
+        motivos_rows.append([
+            Paragraph(m_nome, st_td),
+            Paragraph(f"<b>{m_qtd:02d}</b>", st_td_center)
+        ])
+    if not por_motivo:
+        motivos_rows.append([Paragraph("Nenhum dado", st_td_center), Paragraph("0", st_td_center)])
+
+    motivos_tbl = Table(motivos_rows, colWidths=[9.0*cm, 2.0*cm])
+    motivos_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), cor_tema),
+        ('GRID', (0, 0), (-1, -1), 0.3, cinza_borda),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]))
+
+    lbl_sig1 = f"{emissor_nome}<br/><font color='#64748B' size=6.5>Responsável pela Emissão ({emissor_perfil})</font>"
+    lbl_sig2 = "Coordenação do Cadastro Único / SETAS<br/><font color='#64748B' size=6.5>Visto da Gestão Municipal</font>"
+    
+    sig_tbl = Table([
+        [Paragraph("", st_td_center), Paragraph("", st_td_center)],
+        [Paragraph(lbl_sig1, st_td_center), Paragraph(lbl_sig2, st_td_center)]
+    ], colWidths=[7.5*cm, 7.5*cm])
+    sig_tbl.setStyle(TableStyle([
+        ('LINEBELOW', (0, 0), (0, 0), 0.8, verde_escuro),
+        ('LINEBELOW', (1, 0), (1, 0), 0.8, verde_escuro),
+        ('TOPPADDING', (0, 0), (-1, 0), 16),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 2),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+    ]))
+
+    bottom_tbl = Table([
+        [motivos_tbl, Paragraph("", st_td), sig_tbl]
+    ], colWidths=[11.0*cm, 1.7*cm, 15.0*cm])
+    bottom_tbl.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+
+    story.append(KeepTogether([bottom_tbl]))
+
+    # 6. Rodapé Oficial
+    img_ftr_path = os.path.join(app.root_path, 'static', 'report_assets', 'image4.png')
+    if not os.path.exists(img_ftr_path):
+        img_ftr_path = os.path.join(BASE_DIR, 'static', 'report_assets', 'image4.png')
+    if os.path.exists(img_ftr_path):
+        try:
+            story.append(Spacer(1, 0.3*cm))
+            story.append(RLImage(img_ftr_path, width=27.7*cm, height=1.2*cm))
+        except Exception:
+            pass
+
+    doc.build(story)
+    output.seek(0)
+    return output.getvalue()
+
+
 def _gerar_numero_vd(conn, ano: int) -> str:
     """
     Incrementa atomicamente o contador de VD para o ano e retorna
@@ -5904,6 +6244,164 @@ def pdf_visita(visita_id):
         mimetype='application/pdf',
         as_attachment=True,
         download_name=f"{numero_vd}.pdf",
+    )
+
+
+@app.route('/visitas/resumo/pdf', methods=['GET'])
+def pdf_resumo_visitas():
+    """Gera o relatório resumo em PDF das visitas solicitadas, em atraso, realizadas ou geral."""
+    if _requer_login():
+        return redirect(url_for('login'))
+
+    conn = get_db()
+    uid = session['usuario_id']
+    perfil = session.get('perfil')
+
+    # Parâmetros de filtro
+    tipo_resumo   = request.args.get('tipo', '').strip().lower()
+    status_filtro = request.args.get('status', '').strip()
+    data_ini      = request.args.get('data_ini', '').strip()
+    data_fim      = request.args.get('data_fim', '').strip()
+    busca         = request.args.get('busca', '').strip()
+    zona_filtro   = request.args.get('zona', '').strip()
+    bairro_filtro = request.args.get('bairro', '').strip()
+
+    # Mapeamento do tipo de resumo para status padrão caso não venha status_filtro
+    if tipo_resumo in ('solicitadas', 'pendente', 'pendentes') and not status_filtro:
+        status_filtro = 'Pendente'
+    elif tipo_resumo in ('atrasadas', 'atrasada', 'atraso') and not status_filtro:
+        status_filtro = 'Atrasada'
+    elif tipo_resumo in ('realizadas', 'realizada') and not status_filtro:
+        status_filtro = 'Realizada'
+    elif tipo_resumo in ('em_andamento', 'andamento') and not status_filtro:
+        status_filtro = 'Em Andamento'
+    elif tipo_resumo in ('canceladas', 'cancelada') and not status_filtro:
+        status_filtro = 'Cancelada'
+
+    # Filtro de acesso por perfil
+    if perfil != 'admin':
+        filtro_acesso = f"AND (sv.solicitante_id = {PH} OR sv.responsavel_id = {PH})"
+        params_acesso = [uid, uid]
+    else:
+        filtro_acesso = ""
+        params_acesso = []
+
+    # Contadores gerais para o resumo
+    where_acesso = f"WHERE 1=1 {filtro_acesso}"
+    todas_visitas = _fetchall(conn,
+        f"""SELECT sv.id, sv.status, sv.motivo, sv.criado_em FROM solicitacoes_visita sv {where_acesso}""",
+        params_acesso
+    )
+    cfg = get_config()
+    todas_proc, total_atrasadas_geral = _processar_sla_visitas(todas_visitas, cfg)
+    
+    totais = {
+        'Pendente': sum(1 for v in todas_proc if v.get('status') == 'Pendente'),
+        'Atrasada': total_atrasadas_geral,
+        'Realizada': sum(1 for v in todas_proc if v.get('status') == 'Realizada'),
+        'Em Andamento': sum(1 for v in todas_proc if v.get('status') == 'Em Andamento'),
+        'Cancelada': sum(1 for v in todas_proc if v.get('status') == 'Cancelada'),
+    }
+
+    # Monta filtros para a listagem
+    filtro_status = ""
+    params_status = []
+    if status_filtro and status_filtro != 'Atrasada':
+        filtro_status = f"AND sv.status = {PH}"
+        params_status = [status_filtro]
+
+    filtro_data = ""
+    params_data = []
+    if data_ini and data_fim:
+        filtro_data = f"AND sv.criado_em BETWEEN {PH} AND {PH}"
+        params_data = [data_ini, data_fim + 'T23:59:59']
+    elif data_ini:
+        filtro_data = f"AND sv.criado_em >= {PH}"
+        params_data = [data_ini]
+    elif data_fim:
+        filtro_data = f"AND sv.criado_em <= {PH}"
+        params_data = [data_fim + 'T23:59:59']
+
+    filtro_busca = ""
+    params_busca = []
+    if busca:
+        filtro_busca = f"AND (sv.cpf_rf LIKE {PH} OR LOWER(sv.nome_rf) LIKE LOWER({PH}) OR sv.numero_vd LIKE {PH} OR CAST(sv.id AS TEXT) LIKE {PH})"
+        params_busca = [f"%{busca}%", f"%{busca}%", f"%{busca}%", f"%{busca}%"]
+
+    filtro_zona = ""
+    params_zona = []
+    if zona_filtro:
+        filtro_zona = f"AND sv.zona = {PH}"
+        params_zona = [zona_filtro]
+
+    filtro_bairro = ""
+    params_bairro = []
+    if bairro_filtro:
+        filtro_bairro = f"AND LOWER(sv.bairro) LIKE LOWER({PH})"
+        params_bairro = [f"%{bairro_filtro}%"]
+
+    where = f"WHERE 1=1 {filtro_acesso} {filtro_status} {filtro_data} {filtro_busca} {filtro_zona} {filtro_bairro}"
+    params_where = params_acesso + params_status + params_data + params_busca + params_zona + params_bairro
+
+    if status_filtro == 'Atrasada' or tipo_resumo in ('atrasadas', 'atrasada', 'atraso'):
+        where_atr = f"WHERE 1=1 {filtro_acesso} AND sv.status = 'Pendente' {filtro_data} {filtro_busca} {filtro_zona} {filtro_bairro}"
+        params_atr = params_acesso + params_data + params_busca + params_zona + params_bairro
+        visitas_raw = _fetchall(conn,
+            f"""SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2,
+                       sol.nome AS solicitante_nome,
+                       res.nome AS responsavel_nome,
+                       res.perfil AS responsavel_perfil
+                FROM solicitacoes_visita sv
+                JOIN usuarios sol ON sv.solicitante_id = sol.id
+                LEFT JOIN usuarios res ON sv.responsavel_id = res.id
+                {where_atr}
+                ORDER BY sv.criado_em ASC""",
+            params_atr
+        )
+        visitas_proc, _ = _processar_sla_visitas(visitas_raw, cfg)
+        visitas = [v for v in visitas_proc if v.get('atrasada')]
+    else:
+        visitas_raw = _fetchall(conn,
+            f"""SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2,
+                       sol.nome AS solicitante_nome,
+                       res.nome AS responsavel_nome,
+                       res.perfil AS responsavel_perfil
+                FROM solicitacoes_visita sv
+                JOIN usuarios sol ON sv.solicitante_id = sol.id
+                LEFT JOIN usuarios res ON sv.responsavel_id = res.id
+                {where}
+                ORDER BY sv.criado_em DESC""",
+            params_where
+        )
+        visitas, _ = _processar_sla_visitas(visitas_raw, cfg)
+
+    conn.close()
+
+    filtros_dict = {
+        'tipo': tipo_resumo,
+        'status': status_filtro,
+        'data_ini': data_ini,
+        'data_fim': data_fim,
+        'zona': zona_filtro,
+        'bairro': bairro_filtro,
+        'busca': busca
+    }
+    usuario_emissor = {
+        'id': uid,
+        'nome': session.get('usuario_nome') or session.get('nome') or 'Usuário',
+        'perfil': perfil
+    }
+
+    pdf_bytes = gerar_pdf_resumo_visitas(visitas, tipo_resumo or status_filtro, filtros_dict, usuario_emissor, cfg, totais)
+
+    tipo_slug = (tipo_resumo or status_filtro or 'geral').lower().replace(' ', '_')
+    nome_arquivo = f"resumo-visitas-{tipo_slug}-{datetime.now(_TZ_BELEM).strftime('%Y%m%d-%H%M')}.pdf"
+
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype='application/pdf',
+        as_attachment=False,
+        download_name=nome_arquivo,
     )
 
 
