@@ -195,14 +195,18 @@ class _PGRow:
         return self._d.keys()
 
 
-def _exec(conn, sql, params=()):
+def _exec(conn, sql, params=None):
     """Executa uma query adaptando o SQL e retornando cursor."""
     cur = conn.cursor()
-    cur.execute(_adapt_sql(sql), params)
+    adapted = _adapt_sql(sql)
+    if params is not None and len(params) > 0:
+        cur.execute(adapted, params)
+    else:
+        cur.execute(adapted)
     return cur
 
 
-def _fetchone(conn, sql, params=()):
+def _fetchone(conn, sql, params=None):
     """Executa SELECT e retorna a primeira linha como Row-like."""
     cur = _exec(conn, sql, params)
     row = cur.fetchone()
@@ -213,13 +217,25 @@ def _fetchone(conn, sql, params=()):
     return row
 
 
-def _fetchall(conn, sql, params=()):
+def _fetchall(conn, sql, params=None):
     """Executa SELECT e retorna todas as linhas como lista de Row-like."""
     cur = _exec(conn, sql, params)
     rows = cur.fetchall()
     if _is_pg():
         return [_PGRow(dict(r)) for r in rows]
     return rows
+
+
+def _get_assistentes_sociais(conn):
+    """Busca todas as assistentes sociais priorizando Rosicláudia de forma segura no SQLite e PostgreSQL."""
+    p1 = '%rosiclaudia%'
+    p2 = '%rosicláudia%'
+    sql = f"""
+        SELECT id, nome, unidade, perfil FROM usuarios
+        WHERE perfil='assistente_social' OR LOWER(nome) LIKE {PH} OR LOWER(nome) LIKE {PH}
+        ORDER BY CASE WHEN LOWER(nome) LIKE {PH} OR LOWER(nome) LIKE {PH} THEN 0 ELSE 1 END, nome ASC
+    """
+    return _fetchall(conn, sql, (p1, p2, p1, p2))
 
 
 def _logo_url(filename):
@@ -5560,11 +5576,7 @@ def painel_visitas():
         contadores['Realizada'] = contadores.get('Realizada', 0) + contadores.get('concluida_social', 0)
 
     # ── Lista de Assistentes Sociais (para modal de encaminhamento rápido) ───
-    assistentes_sociais = _fetchall(conn, """
-        SELECT id, nome, unidade, perfil FROM usuarios
-        WHERE perfil='assistente_social' OR LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%'
-        ORDER BY CASE WHEN LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%' THEN 0 ELSE 1 END, nome ASC
-    """)
+    assistentes_sociais = _get_assistentes_sociais(conn)
 
     # ── Lista de usuários (apenas para admin) ───────────────────────────────
     usuarios = []
@@ -5608,7 +5620,7 @@ def detalhe_visita(visita_id):
 
     # Busca a solicitação; se não existir, flash de erro e redireciona
     visita = _fetchone(conn,
-        "SELECT * FROM solicitacoes_visita WHERE id=?",
+        f"SELECT * FROM solicitacoes_visita WHERE id={PH}",
         (visita_id,)
     )
     if not visita:
@@ -5625,13 +5637,13 @@ def detalhe_visita(visita_id):
 
     # Busca dados do solicitante e do responsável
     solicitante = _fetchone(conn,
-        "SELECT * FROM usuarios WHERE id=?",
+        f"SELECT * FROM usuarios WHERE id={PH}",
         (visita['solicitante_id'],)
     )
     responsavel = None
     if visita['responsavel_id']:
         responsavel = _fetchone(conn,
-            "SELECT * FROM usuarios WHERE id=?",
+            f"SELECT * FROM usuarios WHERE id={PH}",
             (visita['responsavel_id'],)
         )
 
@@ -5647,7 +5659,7 @@ def detalhe_visita(visita_id):
 
     # Busca fotos da residência
     fotos = _fetchall(conn,
-        "SELECT * FROM visita_fotos WHERE solicitacao_id=? ORDER BY criado_em",
+        f"SELECT * FROM visita_fotos WHERE solicitacao_id={PH} ORDER BY criado_em",
         (visita_id,)
     )
 
@@ -5658,11 +5670,7 @@ def detalhe_visita(visita_id):
     )
 
     # Busca lista de Assistentes Sociais para direcionamento rápido
-    assistentes_sociais = _fetchall(conn, """
-        SELECT id, nome, unidade, perfil FROM usuarios
-        WHERE perfil='assistente_social' OR LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%'
-        ORDER BY CASE WHEN LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%' THEN 0 ELSE 1 END, nome ASC
-    """)
+    assistentes_sociais = _get_assistentes_sociais(conn)
 
     conn.close()
 
@@ -5691,7 +5699,7 @@ def direcionar_visita_as(visita_id):
     uid = session['usuario_id']
     perfil = session.get('perfil')
 
-    visita = _fetchone(conn, "SELECT * FROM solicitacoes_visita WHERE id=?", (visita_id,))
+    visita = _fetchone(conn, f"SELECT * FROM solicitacoes_visita WHERE id={PH}", (visita_id,))
     if not visita:
         conn.close()
         flash('Solicitação não encontrada.', 'erro')
@@ -5710,13 +5718,14 @@ def direcionar_visita_as(visita_id):
     as_id = request.form.get('assistente_social_id', '').strip() or request.form.get('atribuido_para', '').strip()
     motivo_encaminhamento = request.form.get('motivo_encaminhamento', '').strip() or request.form.get('motivo', '').strip() or None
 
+    p1, p2 = '%rosiclaudia%', '%rosicláudia%'
     if not as_id:
         # Se não forneceu ID, busca Rosicláudia dinamicamente ou a primeira assistente social disponível
-        as_user = _fetchone(conn, "SELECT id, nome FROM usuarios WHERE LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%' LIMIT 1")
+        as_user = _fetchone(conn, f"SELECT id, nome FROM usuarios WHERE LOWER(nome) LIKE {PH} OR LOWER(nome) LIKE {PH} LIMIT 1", (p1, p2))
         if not as_user:
             as_user = _fetchone(conn, "SELECT id, nome FROM usuarios WHERE perfil='assistente_social' LIMIT 1")
     else:
-        as_user = _fetchone(conn, "SELECT id, nome FROM usuarios WHERE id=? AND (perfil='assistente_social' OR LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%')", (as_id,))
+        as_user = _fetchone(conn, f"SELECT id, nome FROM usuarios WHERE id={PH} AND (perfil='assistente_social' OR LOWER(nome) LIKE {PH} OR LOWER(nome) LIKE {PH})", (as_id, p1, p2))
 
     if not as_user:
         conn.close()
@@ -5862,7 +5871,7 @@ def editar_visita(visita_id):
             return redirect(url_for('painel_visitas'))
 
     # Assistentes Sociais cadastradas
-    assistentes_sociais = _fetchall(conn, "SELECT id, nome, unidade FROM usuarios WHERE perfil='assistente_social' ORDER BY nome")
+    assistentes_sociais = _get_assistentes_sociais(conn)
 
     # Admin pode atribuir qualquer usuário
     usuarios = []
@@ -6040,11 +6049,7 @@ def nova_visita():
     form = {}
 
     # Assistentes Sociais cadastradas no sistema (com prioridade dinâmica para Rosicláudia)
-    assistentes_sociais = _fetchall(conn, """
-        SELECT id, nome, unidade, perfil FROM usuarios
-        WHERE perfil='assistente_social' OR LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%'
-        ORDER BY CASE WHEN LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%' THEN 0 ELSE 1 END, nome ASC
-    """)
+    assistentes_sociais = _get_assistentes_sociais(conn)
 
     # Admin pode atribuir qualquer usuário
     usuarios = []
