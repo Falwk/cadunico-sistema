@@ -2554,7 +2554,7 @@ def dashboard():
 
     # Total de visitas pendentes e cálculo de atrasadas (SLA)
     cfg = get_config()
-    if session['perfil'] == 'admin':
+    if session['perfil'] in ('admin', 'assistente_social'):
         visitas_pendentes_list = _fetchall(conn, "SELECT * FROM solicitacoes_visita WHERE status='Pendente'")
     else:
         visitas_pendentes_list = _fetchall(conn,
@@ -5402,12 +5402,12 @@ def painel_visitas():
     por_pagina    = 20
 
     # ── Filtro de acesso por perfil ─────────────────────────────────────────
-    if perfil != 'admin':
-        filtro_acesso  = f"AND (sv.solicitante_id = {PH} OR sv.responsavel_id = {PH})"
-        params_acesso  = [uid, uid]
-    else:
+    if perfil in ('admin', 'assistente_social'):
         filtro_acesso  = ""
         params_acesso  = []
+    else:
+        filtro_acesso  = f"AND (sv.solicitante_id = {PH} OR sv.responsavel_id = {PH})"
+        params_acesso  = [uid, uid]
 
     # ── Filtros opcionais ───────────────────────────────────────────────────
     filtro_status = ""
@@ -5566,7 +5566,7 @@ def detalhe_visita(visita_id):
         return redirect(url_for('painel_visitas'))
 
     # Verifica permissão: entrevistador só acessa se for solicitante ou responsável
-    if perfil != 'admin':
+    if perfil not in ('admin', 'assistente_social'):
         if visita['solicitante_id'] != uid and visita['responsavel_id'] != uid:
             conn.close()
             flash('Acesso negado.', 'erro')
@@ -5587,7 +5587,7 @@ def detalhe_visita(visita_id):
     # Calcula flags de permissão
     STATUS_TERMINAIS = ('Realizada', 'Cancelada', 'Não Localizada')
     status_nao_terminal = visita['status'] not in STATUS_TERMINAIS
-    tem_permissao = (perfil == 'admin') or (
+    tem_permissao = (perfil in ('admin', 'assistente_social')) or (
         visita['solicitante_id'] == uid or visita['responsavel_id'] == uid
     )
     pode_editar = status_nao_terminal and tem_permissao
@@ -5641,7 +5641,7 @@ def direcionar_visita_as(visita_id):
         flash('Solicitação não encontrada.', 'erro')
         return redirect(url_for('painel_visitas'))
 
-    if perfil != 'admin' and visita['solicitante_id'] != uid and visita['responsavel_id'] != uid:
+    if perfil not in ('admin', 'assistente_social') and visita['solicitante_id'] != uid and visita['responsavel_id'] != uid:
         conn.close()
         flash('Acesso negado.', 'erro')
         return redirect(url_for('painel_visitas'))
@@ -5791,7 +5791,7 @@ def editar_visita(visita_id):
         return redirect(url_for('painel_visitas'))
 
     # Verifica permissão: entrevistador só edita se for solicitante ou responsável
-    if perfil != 'admin':
+    if perfil not in ('admin', 'assistente_social'):
         if visita['solicitante_id'] != uid and visita['responsavel_id'] != uid:
             conn.close()
             flash('Acesso negado.', 'erro')
@@ -6151,7 +6151,7 @@ def atualizar_status_visita(visita_id):
         flash('Solicitação não encontrada.', 'erro')
         return redirect(url_for('painel_visitas'))
 
-    if perfil != 'admin':
+    if perfil not in ('admin', 'assistente_social'):
         if visita['solicitante_id'] != uid and visita['responsavel_id'] != uid:
             conn.close()
             flash('Acesso negado.', 'erro')
@@ -6279,12 +6279,12 @@ def pdf_resumo_visitas():
         status_filtro = 'Cancelada'
 
     # Filtro de acesso por perfil
-    if perfil != 'admin':
-        filtro_acesso = f"AND (sv.solicitante_id = {PH} OR sv.responsavel_id = {PH})"
-        params_acesso = [uid, uid]
-    else:
+    if perfil in ('admin', 'assistente_social'):
         filtro_acesso = ""
         params_acesso = []
+    else:
+        filtro_acesso = f"AND (sv.solicitante_id = {PH} OR sv.responsavel_id = {PH})"
+        params_acesso = [uid, uid]
 
     # Contadores gerais para o resumo
     where_acesso = f"WHERE 1=1 {filtro_acesso}"
@@ -6430,7 +6430,7 @@ def resultado_visita(visita_id):
         flash('Esta solicitação já foi finalizada.', 'erro')
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
-    tem_permissao = (perfil == 'admin' or
+    tem_permissao = (perfil in ('admin', 'assistente_social') or
                      visita['solicitante_id'] == uid or
                      visita['responsavel_id'] == uid)
     if not tem_permissao:
@@ -6529,7 +6529,7 @@ def upload_fotos_visita(visita_id):
         flash('Não é possível adicionar fotos a uma solicitação finalizada.', 'erro')
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
-    tem_permissao = (perfil == 'admin' or
+    tem_permissao = (perfil in ('admin', 'assistente_social') or
                      visita['solicitante_id'] == uid or
                      visita['responsavel_id'] == uid)
     if not tem_permissao:
@@ -6599,7 +6599,7 @@ def historico_familia(cpf):
     uid    = session['usuario_id']
     perfil = session.get('perfil')
 
-    if perfil == 'admin':
+    if perfil in ('admin', 'assistente_social'):
         visitas = _fetchall(conn, """
             SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, u.nome as responsavel_nome, u.perfil as responsavel_perfil
             FROM solicitacoes_visita sv
