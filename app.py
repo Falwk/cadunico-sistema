@@ -170,9 +170,19 @@ def _lastrowid(conn):
 
 
 class _PGRow:
-    """Wrapper para dict do psycopg2 se comportar como sqlite3.Row."""
+    """Wrapper unificado para sqlite3.Row e dict do psycopg2 com suporte a .get(), [], in, iter etc."""
     def __init__(self, d):
-        self._d = dict(d) if hasattr(d, 'keys') else {}
+        if d is None:
+            self._d = {}
+        elif hasattr(d, 'keys'):
+            try:
+                self._d = {k: d[k] for k in d.keys()}
+            except Exception:
+                self._d = dict(d)
+        elif isinstance(d, dict):
+            self._d = dict(d)
+        else:
+            self._d = {}
 
     def __getitem__(self, key):
         if isinstance(key, int):
@@ -188,11 +198,29 @@ class _PGRow:
         except KeyError:
             raise AttributeError(key)
 
+    def __contains__(self, key):
+        return key in self._d
+
+    def __iter__(self):
+        return iter(self._d)
+
+    def __len__(self):
+        return len(self._d)
+
+    def __bool__(self):
+        return bool(self._d)
+
     def get(self, key, default=None):
         return self._d.get(key, default)
 
     def keys(self):
         return self._d.keys()
+
+    def values(self):
+        return self._d.values()
+
+    def items(self):
+        return self._d.items()
 
 
 def _exec(conn, sql, params=None):
@@ -212,18 +240,14 @@ def _fetchone(conn, sql, params=None):
     row = cur.fetchone()
     if row is None:
         return None
-    if _is_pg():
-        return _PGRow(dict(row))
-    return row
+    return _PGRow(row)
 
 
 def _fetchall(conn, sql, params=None):
     """Executa SELECT e retorna todas as linhas como lista de Row-like."""
     cur = _exec(conn, sql, params)
     rows = cur.fetchall()
-    if _is_pg():
-        return [_PGRow(dict(r)) for r in rows]
-    return rows
+    return [_PGRow(r) for r in rows]
 
 
 def _get_assistentes_sociais(conn):
@@ -1715,7 +1739,12 @@ def init_db():
             criado_em       TEXT NOT NULL
         )''')
         cur.execute('''CREATE INDEX IF NOT EXISTS idx_notificacoes_usuario_uid ON notificacoes_usuario(usuario_id)''')
-        # Migrações seguras para PostgreSQL — cada uma em savepoint individual
+        # Migrações seguras para PostgreSQL — executa com autocommit individual para garantir persistência imediata
+        try:
+            conn.autocommit = True
+        except Exception:
+            pass
+
         migracoes = [
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT",
@@ -1758,41 +1787,43 @@ def init_db():
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS atribuido_para INTEGER",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS data_encaminhamento TEXT",
         ]
-        for i, col_sql in enumerate(migracoes):
-            sp = f"sp_mig_{i}"
+        for col_sql in migracoes:
             try:
-                cur.execute(f"SAVEPOINT {sp}")
                 cur.execute(col_sql)
-                cur.execute(f"RELEASE SAVEPOINT {sp}")
-            except Exception:
-                try:
-                    cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
-                except Exception:
-                    conn.rollback()
-                    cur = conn.cursor()
+            except Exception as ex_m:
+                app.logger.warning(f"[MIGRATION PG] {col_sql} ignorado/falhou: {ex_m}")
+
         # Insere configurações padrão do relatório se não existirem
         defaults = _config_defaults()
         for chave, valor in defaults.items():
-            cur.execute(
-                "INSERT INTO config_relatorio (chave, valor) VALUES (%s, %s) ON CONFLICT (chave) DO NOTHING",
-                (chave, valor)
-            )
-        row = _fetchone(conn, "SELECT COUNT(*) as n FROM usuarios WHERE login='admin'")
-        if row['n'] == 0:
-            cur.execute(
-                "INSERT INTO usuarios (nome,login,senha,perfil,acesso_sibec,trocar_senha) VALUES (%s,%s,%s,%s,%s,%s)",
-                ('Administrador', 'admin', generate_password_hash('admin123'), 'admin', 1, 1)
-            )
+            try:
+                cur.execute(
+                    "INSERT INTO config_relatorio (chave, valor) VALUES (%s, %s) ON CONFLICT (chave) DO NOTHING",
+                    (chave, valor)
+                )
+            except Exception:
+                pass
+
+        try:
+            cur.execute("SELECT COUNT(*) as n FROM usuarios WHERE login='admin'")
+            row = cur.fetchone()
+            if not row or row.get('n', 0) == 0:
+                cur.execute(
+                    "INSERT INTO usuarios (nome,login,senha,perfil,acesso_sibec,trocar_senha) VALUES (%s,%s,%s,%s,%s,%s)",
+                    ('Administrador', 'admin', generate_password_hash('admin123'), 'admin', 1, 1)
+                )
+        except Exception:
+            pass
 
         # Sincroniza sequências SERIAL do PostgreSQL para MAX(id)
         tabelas_seq = [
             'usuarios', 'atendimentos', 'solicitacoes_visita',
-            'audit_log', 'visita_contadores', 'visita_fotos', 'documentos_editaveis',
+            'audit_log', 'visita_fotos', 'documentos_editaveis',
             'arquivos_anexos'
         ]
         for t in tabelas_seq:
             try:
-                cur.execute(f"SELECT setval(pg_get_serial_sequence('{t}', 'id'), COALESCE((SELECT MAX(id) FROM {t}), 1));")
+                cur.execute(f"DO $$ BEGIN IF pg_get_serial_sequence('{t}', 'id') IS NOT NULL THEN PERFORM setval(pg_get_serial_sequence('{t}', 'id'), COALESCE((SELECT MAX(id) FROM {t}), 1)); END IF; END $$;")
             except Exception:
                 pass
 
@@ -1808,7 +1839,10 @@ def init_db():
             except Exception:
                 pass
 
-        conn.commit()
+        try:
+            conn.commit()
+        except Exception:
+            pass
         conn.close()
     else:
         c = conn.cursor()
@@ -5699,69 +5733,123 @@ def direcionar_visita_as(visita_id):
     uid = session['usuario_id']
     perfil = session.get('perfil')
 
-    visita = _fetchone(conn, f"SELECT * FROM solicitacoes_visita WHERE id={PH}", (visita_id,))
-    if not visita:
-        conn.close()
-        flash('Solicitação não encontrada.', 'erro')
-        return redirect(url_for('painel_visitas'))
+    try:
+        visita = _fetchone(conn, f"SELECT * FROM solicitacoes_visita WHERE id={PH}", (visita_id,))
+        if not visita:
+            conn.close()
+            flash('Solicitação não encontrada.', 'erro')
+            return redirect(url_for('painel_visitas'))
 
-    if perfil not in ('admin', 'assistente_social') and visita['solicitante_id'] != uid and visita['responsavel_id'] != uid:
-        conn.close()
-        flash('Acesso negado.', 'erro')
-        return redirect(url_for('painel_visitas'))
+        if perfil not in ('admin', 'assistente_social') and str(visita.get('solicitante_id')) != str(uid) and str(visita.get('responsavel_id')) != str(uid):
+            conn.close()
+            flash('Acesso negado.', 'erro')
+            return redirect(url_for('painel_visitas'))
 
-    if visita['status'] in ('Realizada', 'concluida_social', 'Cancelada', 'Não Localizada'):
-        conn.close()
-        flash('Esta solicitação não pode ser redirecionada pois já foi finalizada.', 'erro')
-        return redirect(url_for('detalhe_visita', visita_id=visita_id))
+        if visita.get('status') in ('Realizada', 'concluida_social', 'Cancelada', 'Não Localizada'):
+            conn.close()
+            flash('Esta solicitação não pode ser redirecionada pois já foi finalizada.', 'erro')
+            return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
-    as_id = request.form.get('assistente_social_id', '').strip() or request.form.get('atribuido_para', '').strip()
-    motivo_encaminhamento = request.form.get('motivo_encaminhamento', '').strip() or request.form.get('motivo', '').strip() or None
+        as_id = request.form.get('assistente_social_id', '').strip() or request.form.get('atribuido_para', '').strip()
+        motivo_encaminhamento = request.form.get('motivo_encaminhamento', '').strip() or request.form.get('motivo', '').strip() or None
 
-    p1, p2 = '%rosiclaudia%', '%rosicláudia%'
-    if not as_id:
-        # Se não forneceu ID, busca Rosicláudia dinamicamente ou a primeira assistente social disponível
-        as_user = _fetchone(conn, f"SELECT id, nome FROM usuarios WHERE LOWER(nome) LIKE {PH} OR LOWER(nome) LIKE {PH} LIMIT 1", (p1, p2))
+        p1, p2 = '%rosiclaudia%', '%rosicláudia%'
+        if not as_id:
+            as_user = _fetchone(conn, f"SELECT id, nome FROM usuarios WHERE LOWER(nome) LIKE {PH} OR LOWER(nome) LIKE {PH} LIMIT 1", (p1, p2))
+            if not as_user:
+                as_user = _fetchone(conn, "SELECT id, nome FROM usuarios WHERE perfil='assistente_social' LIMIT 1")
+        else:
+            try:
+                as_id_int = int(as_id)
+                as_user = _fetchone(conn, f"SELECT id, nome FROM usuarios WHERE id={PH}", (as_id_int,))
+            except Exception:
+                as_user = _fetchone(conn, f"SELECT id, nome FROM usuarios WHERE LOWER(nome) LIKE {PH} OR LOWER(nome) LIKE {PH} LIMIT 1", (p1, p2))
+
         if not as_user:
-            as_user = _fetchone(conn, "SELECT id, nome FROM usuarios WHERE perfil='assistente_social' LIMIT 1")
-    else:
-        as_user = _fetchone(conn, f"SELECT id, nome FROM usuarios WHERE id={PH} AND (perfil='assistente_social' OR LOWER(nome) LIKE {PH} OR LOWER(nome) LIKE {PH})", (as_id, p1, p2))
+            conn.close()
+            flash('Assistente Social não encontrada ou não cadastrada.', 'erro')
+            return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
-    if not as_user:
+        agora = datetime.now(_TZ_BELEM).isoformat()
+        as_user_id = int(as_user['id'])
+
+        # Executa a atualização com proteção e auto-migração de colunas
+        try:
+            _exec(conn,
+                f"""UPDATE solicitacoes_visita
+                   SET responsavel_id={PH}, atribuido_para={PH}, tipo_competencia='tecnica_social',
+                       motivo_encaminhamento={PH}, data_encaminhamento={PH}, status='encaminhada_social',
+                       atualizado_em={PH}
+                   WHERE id={PH}""",
+                (as_user_id, as_user_id, motivo_encaminhamento, agora, agora, visita_id)
+            )
+        except Exception as ex_up:
+            app.logger.warning(f"[ENCAMINHAR_AS] Tentando fallback de colunas: {ex_up}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            if _is_pg():
+                for c_sql in [
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS tipo_competencia TEXT DEFAULT 'cadastral'",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS motivo_encaminhamento TEXT",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_social TEXT",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS atribuido_para INTEGER",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS data_encaminhamento TEXT",
+                ]:
+                    try:
+                        cur_f = conn.cursor()
+                        cur_f.execute(c_sql)
+                        conn.commit()
+                    except Exception:
+                        pass
+            _exec(conn,
+                f"""UPDATE solicitacoes_visita
+                   SET responsavel_id={PH}, atribuido_para={PH}, tipo_competencia='tecnica_social',
+                       motivo_encaminhamento={PH}, data_encaminhamento={PH}, status='encaminhada_social',
+                       atualizado_em={PH}
+                   WHERE id={PH}""",
+                (as_user_id, as_user_id, motivo_encaminhamento, agora, agora, visita_id)
+            )
+
+        num_vd = visita.get('numero_vd') or f"#{visita_id}"
+        nome_rf = visita.get('nome_rf') or 'Família'
+        bairro = visita.get('bairro') or ''
+
+        # Dispara notificação para a Assistente Social
+        if str(as_user_id) != str(uid):
+            try:
+                _criar_notificacao(
+                    conn,
+                    usuario_id=as_user_id,
+                    titulo=f"Visita Técnica Encaminhada ({num_vd})",
+                    mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} encaminhou a visita técnica de {nome_rf} ({bairro}) para você. Motivo: {motivo_encaminhamento or 'Avaliação Social'}.",
+                    link=url_for('detalhe_visita', visita_id=visita_id),
+                    tipo="visita_atribuida"
+                )
+            except Exception:
+                pass
+
+        conn.commit()
         conn.close()
-        flash('Assistente Social não encontrada ou não cadastrada.', 'erro')
+
+        try:
+            audit('VISITA_ENCAMINHADA_SOCIAL', f"id={visita_id} as_id={as_user_id} as_nome={as_user.get('nome')} motivo={motivo_encaminhamento}")
+        except Exception:
+            pass
+
+        flash(f"Visita {num_vd} encaminhada com sucesso para a Assistente Social {as_user.get('nome')}!", 'ok')
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
-    agora = datetime.now(_TZ_BELEM).isoformat()
-    _exec(conn,
-        """UPDATE solicitacoes_visita
-           SET responsavel_id=?, atribuido_para=?, tipo_competencia='tecnica_social',
-               motivo_encaminhamento=?, data_encaminhamento=?, status='encaminhada_social',
-               atualizado_em=?
-           WHERE id=?""",
-        (as_user['id'], as_user['id'], motivo_encaminhamento, agora, agora, visita_id)
-    )
-
-    num_vd = visita['numero_vd'] or f"#{visita_id}"
-    nome_rf = visita['nome_rf']
-    bairro = visita['bairro'] or ''
-
-    # Dispara notificação para a Assistente Social
-    if str(as_user['id']) != str(uid):
-        _criar_notificacao(
-            conn,
-            usuario_id=int(as_user['id']),
-            titulo=f"Visita Técnica Encaminhada ({num_vd})",
-            mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} encaminhou a visita técnica de {nome_rf} ({bairro}) para você. Motivo: {motivo_encaminhamento or 'Avaliação Social'}.",
-            link=url_for('detalhe_visita', visita_id=visita_id),
-            tipo="visita_atribuida"
-        )
-
-    conn.commit()
-    conn.close()
-    audit('VISITA_ENCAMINHADA_SOCIAL', f"id={visita_id} as_id={as_user['id']} as_nome={as_user['nome']} motivo={motivo_encaminhamento}")
-    flash(f"Visita {num_vd} encaminhada com sucesso para a Assistente Social {as_user['nome']}!", 'ok')
-    return redirect(url_for('detalhe_visita', visita_id=visita_id))
+    except Exception as ex_main:
+        app.logger.error(f"[DIRECIONAR_AS] Erro ao encaminhar visita: {ex_main}", exc_info=True)
+        try:
+            conn.rollback()
+            conn.close()
+        except Exception:
+            pass
+        flash(f"Atenção ao encaminhar visita: {ex_main}", 'erro')
+        return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
 
 @app.route('/visitas/<int:visita_id>/parecer-tecnico', methods=['POST'])
@@ -5770,76 +5858,123 @@ def emitir_parecer_tecnico_visita(visita_id):
         return redirect(url_for('login'))
 
     conn = get_db()
-    visita = _fetchone(conn, "SELECT * FROM solicitacoes_visita WHERE id=?", (visita_id,))
-    if not visita:
-        conn.close()
-        flash('Solicitação não encontrada.', 'erro')
-        return redirect(url_for('painel_visitas'))
+    try:
+        visita = _fetchone(conn, f"SELECT * FROM solicitacoes_visita WHERE id={PH}", (visita_id,))
+        if not visita:
+            conn.close()
+            flash('Solicitação não encontrada.', 'erro')
+            return redirect(url_for('painel_visitas'))
 
-    parecer_txt = request.form.get('parecer_tecnico_txt', '').strip() or request.form.get('parecer_social', '').strip()
-    if not parecer_txt:
+        parecer_txt = request.form.get('parecer_tecnico_txt', '').strip() or request.form.get('parecer_social', '').strip()
+        if not parecer_txt:
+            conn.close()
+            flash('Por favor, informe o texto do Parecer Técnico Assistencial.', 'erro')
+            return redirect(url_for('detalhe_visita', visita_id=visita_id))
+
+        agora = datetime.now(_TZ_BELEM).isoformat()
+        hoje_str = date.today().isoformat()
+
+        cpf_rf  = visita['cpf_rf']
+        nome_rf = visita['nome_rf']
+        atendimento_id = visita['atendimento_id']
+
+        if not atendimento_id:
+            try:
+                if _USE_PG:
+                    cur = _exec(conn,
+                        """INSERT INTO atendimentos
+                            (data, cpf, nome_rf, origem, tipos, usuario_id, criado_em, bairro)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                        (hoje_str, cpf_rf, nome_rf,
+                         'Visita Domiciliar', 'Visita Domiciliar', session['usuario_id'], agora, visita['bairro'])
+                    )
+                    atendimento_id = cur.fetchone()['id']
+                else:
+                    _exec(conn,
+                        """INSERT INTO atendimentos
+                            (data, cpf, nome_rf, origem, tipos, usuario_id, criado_em, bairro)
+                           VALUES (?,?,?,?,?,?,?,?)""",
+                        (hoje_str, cpf_rf, nome_rf,
+                         'Visita Domiciliar', 'Visita Domiciliar', session['usuario_id'], agora, visita['bairro'])
+                    )
+                    atendimento_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+            except Exception as e:
+                app.logger.warning(f"[PARECER] Erro ao criar atendimento para parecer: {e}")
+
+        try:
+            _exec(conn,
+                f"""UPDATE solicitacoes_visita
+                   SET parecer_tecnico_txt={PH}, parecer_social={PH},
+                       status='concluida_social', data_realizada={PH}, responsavel_id={PH}, atribuido_para={PH},
+                       atendimento_id={PH}, atualizado_em={PH}
+                   WHERE id={PH}""",
+                (parecer_txt, parecer_txt, hoje_str, session['usuario_id'], session['usuario_id'], atendimento_id, agora, visita_id)
+            )
+        except Exception as ex_up_par:
+            app.logger.warning(f"[PARECER] Fallback de colunas: {ex_up_par}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            if _is_pg():
+                for c_sql in [
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS tipo_competencia TEXT DEFAULT 'cadastral'",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS motivo_encaminhamento TEXT",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_social TEXT",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS atribuido_para INTEGER",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS data_encaminhamento TEXT",
+                ]:
+                    try:
+                        cur_f = conn.cursor()
+                        cur_f.execute(c_sql)
+                        conn.commit()
+                    except Exception:
+                        pass
+            _exec(conn,
+                f"""UPDATE solicitacoes_visita
+                   SET parecer_tecnico_txt={PH}, parecer_social={PH},
+                       status='concluida_social', data_realizada={PH}, responsavel_id={PH}, atribuido_para={PH},
+                       atendimento_id={PH}, atualizado_em={PH}
+                   WHERE id={PH}""",
+                (parecer_txt, parecer_txt, hoje_str, session['usuario_id'], session['usuario_id'], atendimento_id, agora, visita_id)
+            )
+
+        # Notifica o entrevistador que solicitou a visita
+        num_vd = visita['numero_vd'] or f"#{visita_id}"
+        solicitante_id = visita['solicitante_id']
+        if solicitante_id and str(solicitante_id) != str(session.get('usuario_id')):
+            try:
+                _criar_notificacao(
+                    conn,
+                    usuario_id=int(solicitante_id),
+                    titulo=f"Visita Concluída ({num_vd})",
+                    mensagem=f"A Assistente Social {session.get('usuario_nome', 'Assistente Social')} registrou o parecer técnico social da visita para {nome_rf}.",
+                    link=url_for('detalhe_visita', visita_id=visita_id),
+                    tipo="visita_concluida"
+                )
+            except Exception:
+                pass
+
+        conn.commit()
         conn.close()
-        flash('Por favor, informe o texto do Parecer Técnico Assistencial.', 'erro')
+
+        try:
+            audit('PARECER_TECNICO_EMITIDO', f"id={visita_id} por {session['usuario_nome']}")
+        except Exception:
+            pass
+
+        flash('Parecer Técnico Assistencial registrado e visita concluída com sucesso!', 'ok')
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
-    agora = datetime.now(_TZ_BELEM).isoformat()
-    hoje_str = date.today().isoformat()
-
-    cpf_rf  = visita['cpf_rf']
-    nome_rf = visita['nome_rf']
-    atendimento_id = visita['atendimento_id']
-
-    if not atendimento_id:
+    except Exception as ex_main:
+        app.logger.error(f"[PARECER] Erro ao emitir parecer: {ex_main}", exc_info=True)
         try:
-            if _USE_PG:
-                cur = _exec(conn,
-                    """INSERT INTO atendimentos
-                        (data, cpf, nome_rf, origem, tipos, usuario_id, criado_em, bairro)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
-                    (hoje_str, cpf_rf, nome_rf,
-                     'Visita Domiciliar', 'Visita Domiciliar', session['usuario_id'], agora, visita['bairro'])
-                )
-                atendimento_id = cur.fetchone()['id']
-            else:
-                _exec(conn,
-                    """INSERT INTO atendimentos
-                        (data, cpf, nome_rf, origem, tipos, usuario_id, criado_em, bairro)
-                       VALUES (?,?,?,?,?,?,?,?)""",
-                    (hoje_str, cpf_rf, nome_rf,
-                     'Visita Domiciliar', 'Visita Domiciliar', session['usuario_id'], agora, visita['bairro'])
-                )
-                atendimento_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-        except Exception as e:
-            app.logger.warning(f"[PARECER] Erro ao criar atendimento para parecer: {e}")
-
-    _exec(conn,
-        """UPDATE solicitacoes_visita
-           SET parecer_tecnico_txt=?, parecer_social=?,
-               status='concluida_social', data_realizada=?, responsavel_id=?, atribuido_para=?,
-               atendimento_id=?, atualizado_em=?
-           WHERE id=?""",
-        (parecer_txt, parecer_txt, hoje_str, session['usuario_id'], session['usuario_id'], atendimento_id, agora, visita_id)
-    )
-
-    # Notifica o entrevistador que solicitou a visita
-    num_vd = visita['numero_vd'] or f"#{visita_id}"
-    solicitante_id = visita['solicitante_id']
-    if solicitante_id and str(solicitante_id) != str(session.get('usuario_id')):
-        _criar_notificacao(
-            conn,
-            usuario_id=int(solicitante_id),
-            titulo=f"Visita Concluída ({num_vd})",
-            mensagem=f"A Assistente Social {session.get('usuario_nome', 'Assistente Social')} registrou o parecer técnico social da visita para {nome_rf}.",
-            link=url_for('detalhe_visita', visita_id=visita_id),
-            tipo="visita_concluida"
-        )
-
-    conn.commit()
-    conn.close()
-
-    audit('PARECER_TECNICO_EMITIDO', f"id={visita_id} por {session['usuario_nome']}")
-    flash('Parecer Técnico Assistencial registrado e visita concluída com sucesso!', 'ok')
-    return redirect(url_for('detalhe_visita', visita_id=visita_id))
+            conn.rollback()
+            conn.close()
+        except Exception:
+            pass
+        flash(f"Atenção ao registrar parecer: {ex_main}", 'erro')
+        return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
 
 @app.route('/visitas/<int:visita_id>/editar', methods=['GET', 'POST'])
@@ -5971,41 +6106,86 @@ def editar_visita(visita_id):
         elif not atribuir_as and status_atual == 'encaminhada_social':
             status_atual = 'Pendente'
 
-        _exec(conn,
-            """UPDATE solicitacoes_visita
-               SET nome_rf=?, logradouro=?, numero=?, complemento=?, bairro=?,
-                   referencia=?, zona=?, motivo=?,
-                   responsavel_id=?, observacoes=?, anexo_url=?, anexo_nome=?,
-                   parecer_tecnico_txt=?,
-                   telefone1=?, telefone2=?,
-                   tipo_competencia=?, motivo_encaminhamento=?, atribuido_para=?, data_encaminhamento=?, status=?,
-                   atualizado_em=?
-               WHERE id=?""",
-            (nome_rf, logradouro, numero, complemento, bairro,
-             referencia, zona, motivo,
-             responsavel_id, observacoes, anexo_url, anexo_nome,
-             parecer_tecnico_txt,
-             telefone1, telefone2,
-             tipo_competencia, motivo_encaminhamento, atribuido_para, data_encaminhamento, status_atual,
-             agora, visita_id)
-        )
+        try:
+            _exec(conn,
+                f"""UPDATE solicitacoes_visita
+                   SET nome_rf={PH}, logradouro={PH}, numero={PH}, complemento={PH}, bairro={PH},
+                       referencia={PH}, zona={PH}, motivo={PH},
+                       responsavel_id={PH}, observacoes={PH}, anexo_url={PH}, anexo_nome={PH},
+                       parecer_tecnico_txt={PH},
+                       telefone1={PH}, telefone2={PH},
+                       tipo_competencia={PH}, motivo_encaminhamento={PH}, atribuido_para={PH}, data_encaminhamento={PH}, status={PH},
+                       atualizado_em={PH}
+                   WHERE id={PH}""",
+                (nome_rf, logradouro, numero, complemento, bairro,
+                 referencia, zona, motivo,
+                 responsavel_id, observacoes, anexo_url, anexo_nome,
+                 parecer_tecnico_txt,
+                 telefone1, telefone2,
+                 tipo_competencia, motivo_encaminhamento, atribuido_para, data_encaminhamento, status_atual,
+                 agora, visita_id)
+            )
+        except Exception as ex_ed:
+            app.logger.warning(f"[EDITAR_VISITA] Fallback de colunas: {ex_ed}")
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            if _is_pg():
+                for c_sql in [
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS tipo_competencia TEXT DEFAULT 'cadastral'",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS motivo_encaminhamento TEXT",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_social TEXT",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS atribuido_para INTEGER",
+                    "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS data_encaminhamento TEXT",
+                ]:
+                    try:
+                        cur_f = conn.cursor()
+                        cur_f.execute(c_sql)
+                        conn.commit()
+                    except Exception:
+                        pass
+            _exec(conn,
+                f"""UPDATE solicitacoes_visita
+                   SET nome_rf={PH}, logradouro={PH}, numero={PH}, complemento={PH}, bairro={PH},
+                       referencia={PH}, zona={PH}, motivo={PH},
+                       responsavel_id={PH}, observacoes={PH}, anexo_url={PH}, anexo_nome={PH},
+                       parecer_tecnico_txt={PH},
+                       telefone1={PH}, telefone2={PH},
+                       tipo_competencia={PH}, motivo_encaminhamento={PH}, atribuido_para={PH}, data_encaminhamento={PH}, status={PH},
+                       atualizado_em={PH}
+                   WHERE id={PH}""",
+                (nome_rf, logradouro, numero, complemento, bairro,
+                 referencia, zona, motivo,
+                 responsavel_id, observacoes, anexo_url, anexo_nome,
+                 parecer_tecnico_txt,
+                 telefone1, telefone2,
+                 tipo_competencia, motivo_encaminhamento, atribuido_para, data_encaminhamento, status_atual,
+                 agora, visita_id)
+            )
 
         # Se foi direcionada para uma Assistente Social, dispara notificação
         num_vd = visita['numero_vd'] or f"#{visita_id}"
         if responsavel_id and str(responsavel_id) != str(responsavel_anterior) and any(str(a['id']) == str(responsavel_id) for a in assistentes_sociais):
             if str(responsavel_id) != str(session.get('usuario_id')):
-                _criar_notificacao(
-                    conn,
-                    usuario_id=int(responsavel_id),
-                    titulo=f"Visita Redirecionada ({num_vd})",
-                    mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} direcionou a visita técnica de {nome_rf} ({bairro}) para você. Motivo: {motivo_encaminhamento or 'Avaliação Social'}.",
-                    link=url_for('detalhe_visita', visita_id=visita_id),
-                    tipo="visita_atribuida"
-                )
+                try:
+                    _criar_notificacao(
+                        conn,
+                        usuario_id=int(responsavel_id),
+                        titulo=f"Visita Redirecionada ({num_vd})",
+                        mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} direcionou a visita técnica de {nome_rf} ({bairro}) para você. Motivo: {motivo_encaminhamento or 'Avaliação Social'}.",
+                        link=url_for('detalhe_visita', visita_id=visita_id),
+                        tipo="visita_atribuida"
+                    )
+                except Exception:
+                    pass
 
         conn.commit()
         conn.close()
-        audit('VISITA_EDITADA', f"id={visita_id} editado por {session['usuario_nome']}")
+        try:
+            audit('VISITA_EDITADA', f"id={visita_id} editado por {session['usuario_nome']}")
+        except Exception:
+            pass
         flash('Solicitação atualizada com sucesso!', 'ok')
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
@@ -6145,24 +6325,62 @@ def nova_visita():
             try:
                 numero_vd = _gerar_numero_vd(conn, ano_belem)
                 if _USE_PG:
-                    cur = _exec(conn,
-                        """INSERT INTO solicitacoes_visita
+                    try:
+                        cur = _exec(conn,
+                            """INSERT INTO solicitacoes_visita
+                                (cpf_rf, nome_rf, logradouro, numero, complemento, bairro,
+                                 referencia, zona, motivo, status, solicitante_id,
+                                 responsavel_id, observacoes, anexo_url, anexo_nome,
+                                 telefone1, telefone2, tipo_competencia, motivo_encaminhamento,
+                                 atribuido_para, data_encaminhamento,
+                                 criado_em, atualizado_em, numero_vd)
+                               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                               RETURNING id""",
                             (cpf_rf, nome_rf, logradouro, numero, complemento, bairro,
-                             referencia, zona, motivo, status, solicitante_id,
+                             referencia, zona, motivo, status_inicial, session['usuario_id'],
                              responsavel_id, observacoes, anexo_url, anexo_nome,
                              telefone1, telefone2, tipo_competencia, motivo_encaminhamento,
                              atribuido_para, data_encaminhamento,
-                             criado_em, atualizado_em, numero_vd)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                           RETURNING id""",
-                        (cpf_rf, nome_rf, logradouro, numero, complemento, bairro,
-                         referencia, zona, motivo, status_inicial, session['usuario_id'],
-                         responsavel_id, observacoes, anexo_url, anexo_nome,
-                         telefone1, telefone2, tipo_competencia, motivo_encaminhamento,
-                         atribuido_para, data_encaminhamento,
-                         agora, agora, numero_vd)
-                    )
-                    novo_id = cur.fetchone()['id']
+                             agora, agora, numero_vd)
+                        )
+                        novo_id = cur.fetchone()['id']
+                    except Exception as ex_ins_pg:
+                        app.logger.warning(f"[NOVA_VISITA] Fallback de colunas: {ex_ins_pg}")
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        for c_sql in [
+                            "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS tipo_competencia TEXT DEFAULT 'cadastral'",
+                            "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS motivo_encaminhamento TEXT",
+                            "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_social TEXT",
+                            "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS atribuido_para INTEGER",
+                            "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS data_encaminhamento TEXT",
+                        ]:
+                            try:
+                                cur_f = conn.cursor()
+                                cur_f.execute(c_sql)
+                                conn.commit()
+                            except Exception:
+                                pass
+                        cur = _exec(conn,
+                            """INSERT INTO solicitacoes_visita
+                                (cpf_rf, nome_rf, logradouro, numero, complemento, bairro,
+                                 referencia, zona, motivo, status, solicitante_id,
+                                 responsavel_id, observacoes, anexo_url, anexo_nome,
+                                 telefone1, telefone2, tipo_competencia, motivo_encaminhamento,
+                                 atribuido_para, data_encaminhamento,
+                                 criado_em, atualizado_em, numero_vd)
+                               VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                               RETURNING id""",
+                            (cpf_rf, nome_rf, logradouro, numero, complemento, bairro,
+                             referencia, zona, motivo, status_inicial, session['usuario_id'],
+                             responsavel_id, observacoes, anexo_url, anexo_nome,
+                             telefone1, telefone2, tipo_competencia, motivo_encaminhamento,
+                             atribuido_para, data_encaminhamento,
+                             agora, agora, numero_vd)
+                        )
+                        novo_id = cur.fetchone()['id']
                 else:
                     _exec(conn,
                         """INSERT INTO solicitacoes_visita
