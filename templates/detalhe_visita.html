@@ -50,24 +50,34 @@
   </div>
 
   {# ── Card principal: dados da solicitação ────────────────────────────── #}
-  {% if responsavel and responsavel.perfil == 'assistente_social' and visita.status == 'Pendente' %}
+  {% if visita.tipo_competencia == 'tecnica_social' or (responsavel and responsavel.perfil == 'assistente_social') or visita.status == 'encaminhada_social' %}
     {% if session.get('perfil') in ('assistente_social', 'admin') %}
-    <div style="margin-bottom:16px; padding:12px 16px; background:#FFFBEB; border:1.5px solid #FDE68A; border-radius:10px; display:flex; align-items:center; gap:12px;">
-      <span style="font-size:1.6rem;">📥</span>
-      <div>
-        <div style="font-weight:700; color:#B45309; font-size:0.92rem;">Demanda Recebida do Serviço Social</div>
-        <div style="font-size:0.84rem; color:#92400E; margin-top:2px;">
-          Solicitada pelo entrevistador <strong>{{ solicitante.nome if solicitante else 'Entrevistador' }}</strong>. Registre as averiguações em campo e emita o Parecer Técnico Assistencial abaixo para concluir a demanda.
+    <div style="margin-bottom:16px; padding:14px 18px; background:#FFFBEB; border:1.5px solid #FDE68A; border-radius:12px; display:flex; align-items:flex-start; gap:12px; box-shadow:0 2px 8px rgba(217,119,6,0.08);">
+      <span style="font-size:1.8rem; line-height:1;">📥</span>
+      <div style="flex:1;">
+        <div style="font-weight:800; color:#B45309; font-size:0.95rem;">Demanda Técnica Encaminhada para o Serviço Social</div>
+        <div style="font-size:0.86rem; color:#92400E; margin-top:3px; line-height:1.5;">
+          Solicitada pelo entrevistador <strong>{{ solicitante.nome if solicitante else 'Entrevistador' }}</strong>{% if visita.data_encaminhamento %} em <strong>{{ visita.data_encaminhamento[:10][8:] }}/{{ visita.data_encaminhamento[:10][5:7] }}/{{ visita.data_encaminhamento[:10][:4] }}</strong>{% endif %}.
+          {% if visita.motivo_encaminhamento %}
+          <div style="margin-top:6px; background:#FEF3C7; padding:8px 12px; border-radius:6px; border:1px dashed #F59E0B; font-weight:600; color:#78350F;">
+            📌 Motivo do Encaminhamento: {{ visita.motivo_encaminhamento }}
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>
     {% else %}
-    <div style="margin-bottom:16px; padding:12px 16px; background:#FAF5FF; border:1.5px solid #DDD6FE; border-radius:10px; display:flex; align-items:center; gap:12px;">
-      <span style="font-size:1.6rem;">📤</span>
-      <div>
-        <div style="font-weight:700; color:#581C87; font-size:0.92rem;">Visita Transmitida para a Assistente Social</div>
-        <div style="font-size:0.84rem; color:#6B21A8; margin-top:2px;">
-          Esta solicitação foi encaminhada para parecer do Serviço Social com a profissional <strong>{{ responsavel.nome }}</strong>. A visita permanece no seu histórico para acompanhamento.
+    <div style="margin-bottom:16px; padding:14px 18px; background:#FAF5FF; border:1.5px solid #DDD6FE; border-radius:12px; display:flex; align-items:flex-start; gap:12px; box-shadow:0 2px 8px rgba(107,33,168,0.08);">
+      <span style="font-size:1.8rem; line-height:1;">📤</span>
+      <div style="flex:1;">
+        <div style="font-weight:800; color:#581C87; font-size:0.95rem;">Visita Técnica Transmitida para a Assistente Social</div>
+        <div style="font-size:0.86rem; color:#6B21A8; margin-top:3px; line-height:1.5;">
+          Esta solicitação foi direcionada para avaliação técnica do Serviço Social com a profissional <strong>{{ responsavel.nome if responsavel else 'Equipe de Serviço Social' }}</strong>. A visita permanece no seu histórico com o status <strong>📤 Transmitida para AS</strong>.
+          {% if visita.motivo_encaminhamento %}
+          <div style="margin-top:6px; background:#F3E8FF; padding:8px 12px; border-radius:6px; border:1px dashed #C084FC; font-weight:600; color:#581C87;">
+            📌 Justificativa Informada: {{ visita.motivo_encaminhamento }}
+          </div>
+          {% endif %}
         </div>
       </div>
     </div>
@@ -79,11 +89,15 @@
 
     {# Badge de status + número VD #}
     {% set s = visita.status %}
-    {% if s == 'Pendente' %}
-      {% set badge_bg = '#FFF3CD' %}{% set badge_color = '#856404' %}{% set badge_border = '#d4aa00' %}
+    {% if s in ('Pendente', 'encaminhada_social') %}
+      {% if visita.tipo_competencia == 'tecnica_social' or s == 'encaminhada_social' %}
+        {% set badge_bg = '#FAF5FF' %}{% set badge_color = '#6B21A8' %}{% set badge_border = '#DDD6FE' %}
+      {% else %}
+        {% set badge_bg = '#FFF3CD' %}{% set badge_color = '#856404' %}{% set badge_border = '#d4aa00' %}
+      {% endif %}
     {% elif s == 'Em Andamento' %}
       {% set badge_bg = '#BDD7EE' %}{% set badge_color = '#1F4E79' %}{% set badge_border = '#2E6FAD' %}
-    {% elif s == 'Realizada' %}
+    {% elif s in ('Realizada', 'concluida_social') %}
       {% set badge_bg = '#D4EDDA' %}{% set badge_color = '#1A6B3C' %}{% set badge_border = '#1A6B3C' %}
     {% elif s == 'Não Localizada' %}
       {% set badge_bg = '#FFF7ED' %}{% set badge_color = '#C2410C' %}{% set badge_border = '#FDBA74' %}
@@ -96,12 +110,18 @@
       <span style="display:inline-block;background:{{ badge_bg }};color:{{ badge_color }};
                    border:1.5px solid {{ badge_border }};border-radius:20px;
                    padding:4px 14px;font-size:.85rem;font-weight:700;letter-spacing:.3px">
-        {{ visita.status }}
+        {% if visita.status == 'encaminhada_social' %}
+          📤 Encaminhada ao Serviço Social
+        {% elif visita.status == 'concluida_social' %}
+          ✅ Parecer Técnico Concluído
+        {% else %}
+          {{ visita.status }}
+        {% endif %}
       </span>
       {% if visita.numero_vd %}
       <span style="font-weight:700;font-size:.95rem;color:#1F4E79">{{ visita.numero_vd }}</span>
       {% endif %}
-      {% if responsavel and responsavel.perfil == 'assistente_social' %}
+      {% if responsavel and (responsavel.perfil == 'assistente_social' or visita.tipo_competencia == 'tecnica_social') %}
       <span style="display:inline-flex;align-items:center;gap:6px;background:#FAF5FF;color:#6B21A8;
                    border:1.5px solid #DDD6FE;border-radius:20px;
                    padding:4px 14px;font-size:.85rem;font-weight:700;letter-spacing:.3px">
@@ -147,6 +167,20 @@
         <div style="font-size:.95rem">{{ visita.motivo }}</div>
       </div>
 
+      {% if visita.motivo_encaminhamento %}
+      <div style="grid-column:1 / -1; background:#FAF5FF; padding:12px 16px; border-radius:8px; border:1px solid #DDD6FE;">
+        <div style="font-size:.78rem; font-weight:700; text-transform:uppercase; color:#6B21A8; margin-bottom:4px;">
+          📌 Motivo / Justificativa do Encaminhamento Técnico (Serviço Social)
+        </div>
+        <div style="font-size:.92rem; color:#4C1D95; font-weight:600;">{{ visita.motivo_encaminhamento }}</div>
+        {% if visita.data_encaminhamento %}
+        <div style="font-size:.78rem; color:#7E22CE; margin-top:4px;">
+          Data do Encaminhamento: {{ visita.data_encaminhamento[:10][8:] }}/{{ visita.data_encaminhamento[:10][5:7] }}/{{ visita.data_encaminhamento[:10][:4] }} às {{ visita.data_encaminhamento[11:16] }}
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
       <div>
         <div class="text-muted" style="font-size:.78rem;font-weight:600;text-transform:uppercase;margin-bottom:4px">Data Realizada</div>
         <div style="font-size:.95rem">
@@ -179,7 +213,7 @@
 
       <div>
         <div class="text-muted" style="font-size:.78rem;font-weight:600;text-transform:uppercase;margin-bottom:4px">
-          {% if responsavel and responsavel.perfil == 'assistente_social' %}
+          {% if responsavel and (responsavel.perfil == 'assistente_social' or visita.tipo_competencia == 'tecnica_social') %}
             👩‍💼 Assistente Social Designada
           {% else %}
             Entrevistador / Responsável
@@ -187,7 +221,7 @@
         </div>
         <div style="font-size:.95rem">
           {% if responsavel %}
-            {% if responsavel.perfil == 'assistente_social' %}
+            {% if responsavel.perfil == 'assistente_social' or visita.tipo_competencia == 'tecnica_social' %}
               <div style="font-weight:700; color:#6B21A8; display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap;">
                 <span>👩‍💼 {{ responsavel.nome }}</span>
                 <span class="badge" style="background:#FAF5FF; color:#783DB2; border:1px solid #DDD6FE; font-size:0.75rem; padding:2px 8px; border-radius:4px; font-weight:700;">Serviço Social</span>
@@ -237,7 +271,7 @@
     </div>{# /grid #}
 
     {# Link para atendimento gerado #}
-    {% if visita.status == 'Realizada' and visita.atendimento_id %}
+    {% if visita.status in ('Realizada', 'concluida_social') and visita.atendimento_id %}
     <hr class="divider">
     <div class="flex" style="gap:10px;align-items:center">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--verde)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
@@ -252,13 +286,13 @@
   </div>{# /card principal #}
 
   {# ── Card de Direcionamento para Assistente Social (Serviço Social) ────── #}
-  {% if pode_editar and visita.status not in ('Realizada', 'Cancelada', 'Não Localizada') %}
+  {% if pode_editar and visita.status not in ('Realizada', 'concluida_social', 'Cancelada', 'Não Localizada') %}
   <div class="card" style="border:1.5px solid #DDD6FE; background:#FAF5FF;">
     <div class="card-title" style="color:#581C87; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
       <span style="display:flex; align-items:center; gap:8px;">
         👩‍💼 Direcionar Solicitação para a Assistente Social (Serviço Social)
       </span>
-      {% if responsavel and responsavel.perfil == 'assistente_social' %}
+      {% if responsavel and (responsavel.perfil == 'assistente_social' or visita.tipo_competencia == 'tecnica_social') %}
       <span class="badge" style="background:#783DB2; color:#FFF; font-size:0.8rem; padding:4px 10px; border-radius:6px;">
         Atribuída a: {{ responsavel.nome }}
       </span>
@@ -267,20 +301,35 @@
 
     <form method="POST" action="{{ url_for('direcionar_visita_as', visita_id=visita.id) }}">
       <p style="font-size:0.86rem; color:#4C1D95; margin:0 0 12px 0;">
-        Se esta visita necessitar de averiguação ou parecer técnico privativo da Assistente Social, selecione a profissional abaixo para encaminhar a demanda:
+        Se esta visita necessitar de averiguação ou parecer técnico privativo da Assistente Social, selecione a profissional e detalhe o motivo abaixo:
       </p>
 
-      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <select name="assistente_social_id" style="flex:1; min-width:240px; background:#FFF; border-color:#C084FC;" required>
-          <option value="">— Selecione a Assistente Social —</option>
-          {% for as_u in assistentes_sociais %}
-          <option value="{{ as_u.id }}" {% if visita.responsavel_id|string == as_u.id|string %}selected{% endif %}>
-            👩‍💼 {{ as_u.nome }} {% if as_u.unidade %}({{ as_u.unidade }}){% endif %}
-          </option>
-          {% endfor %}
-        </select>
+      <div style="display:grid; grid-template-columns:1fr; gap:12px; margin-bottom:12px;">
+        <div>
+          <label for="assistente_social_id" style="font-weight:700; color:#4C1D95; font-size:0.85rem; display:block; margin-bottom:4px;">
+            Assistente Social Responsável *
+          </label>
+          <select id="assistente_social_id" name="assistente_social_id" style="width:100%; background:#FFF; border-color:#C084FC;" required>
+            <option value="">— Selecione a Assistente Social —</option>
+            {% for as_u in assistentes_sociais %}
+            <option value="{{ as_u.id }}" {% if visita.responsavel_id|string == as_u.id|string or (loop.first and not visita.responsavel_id) %}selected{% endif %}>
+              👩‍💼 {{ as_u.nome }} {% if as_u.unidade %}({{ as_u.unidade }}){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
 
-        <button type="submit" class="btn btn-primary" style="background:#783DB2; border-color:#6B21A8; font-weight:700; white-space:nowrap; padding:10px 18px;">
+        <div>
+          <label for="motivo_encaminhamento" style="font-weight:700; color:#4C1D95; font-size:0.85rem; display:block; margin-bottom:4px;">
+            Motivo / Justificativa do Encaminhamento Técnico *
+          </label>
+          <textarea id="motivo_encaminhamento" name="motivo_encaminhamento" rows="3" style="width:100%; background:#FFF; border-color:#C084FC;"
+                    placeholder="Descreva o motivo do encaminhamento para a Assistente Social (ex: Averiguação unipessoal com suspeita de coabitação, relatório circunstanciado para benefício eventual...)" required>{{ visita.motivo_encaminhamento or '' }}</textarea>
+        </div>
+      </div>
+
+      <div style="text-align:right;">
+        <button type="submit" class="btn btn-primary" style="background:#783DB2; border-color:#6B21A8; font-weight:700; padding:10px 20px;">
           🚀 Encaminhar para Assistente Social
         </button>
       </div>
@@ -289,7 +338,7 @@
   {% endif %}
 
   {# ── Parecer da Assistente Social ─────────────────────────────────────── #}
-  {% if visita.parecer_tecnico_txt or visita.parecer_as_url %}
+  {% if visita.parecer_tecnico_txt or visita.parecer_social or visita.parecer_as_url %}
   <div class="card" style="border:1.5px solid var(--cad-verde); background:#F0FDF4;">
     <div class="card-title" style="color:var(--cad-verde-escuro); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
       <span style="display:flex; align-items:center; gap:8px;">
@@ -308,9 +357,9 @@
       </div>
       {% endif %}
     </div>
-    {% if visita.parecer_tecnico_txt %}
+    {% if visita.parecer_tecnico_txt or visita.parecer_social %}
       <div style="font-size:0.92rem; line-height:1.7; color:#1E293B; white-space:pre-line; background:#FFFFFF; padding:16px; border-radius:8px; border:1px solid #CBD5E1; margin-top:10px;">
-        {{ visita.parecer_tecnico_txt }}
+        {{ visita.parecer_social or visita.parecer_tecnico_txt }}
       </div>
     {% endif %}
   </div>
@@ -326,7 +375,7 @@
       <div class="form-group">
         <label for="parecer_tecnico_txt" style="font-weight:700;">Análise Técnica / Parecer do Serviço Social *</label>
         <textarea id="parecer_tecnico_txt" name="parecer_tecnico_txt" rows="6"
-                  placeholder="Descreva o parecer técnico assistencial, avaliação da família e providências adotadas pelo Serviço Social..." required>{{ visita.parecer_tecnico_txt or '' }}</textarea>
+                  placeholder="Descreva o parecer técnico assistencial, avaliação da família e providências adotadas pelo Serviço Social..." required>{{ visita.parecer_social or visita.parecer_tecnico_txt or '' }}</textarea>
       </div>
 
       <div style="text-align:right;">

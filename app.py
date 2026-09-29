@@ -1646,6 +1646,11 @@ def init_db():
             anexo_url           TEXT,
             anexo_nome          TEXT,
             atendimento_id      INTEGER,
+            tipo_competencia    TEXT NOT NULL DEFAULT 'cadastral',
+            motivo_encaminhamento TEXT,
+            parecer_social      TEXT,
+            atribuido_para      INTEGER REFERENCES usuarios(id),
+            data_encaminhamento TEXT,
             criado_em           TEXT NOT NULL,
             atualizado_em       TEXT NOT NULL
         )''')
@@ -1731,6 +1736,11 @@ def init_db():
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS renda_per_capita TEXT",
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tentativas_login INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_tecnico_txt TEXT",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS tipo_competencia TEXT DEFAULT 'cadastral'",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS motivo_encaminhamento TEXT",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_social TEXT",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS atribuido_para INTEGER",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS data_encaminhamento TEXT",
         ]
         for i, col_sql in enumerate(migracoes):
             sp = f"sp_mig_{i}"
@@ -1848,6 +1858,11 @@ def init_db():
             anexo_url           TEXT,
             anexo_nome          TEXT,
             atendimento_id      INTEGER,
+            tipo_competencia    TEXT NOT NULL DEFAULT 'cadastral',
+            motivo_encaminhamento TEXT,
+            parecer_social      TEXT,
+            atribuido_para      INTEGER REFERENCES usuarios(id),
+            data_encaminhamento TEXT,
             criado_em           TEXT NOT NULL,
             atualizado_em       TEXT NOT NULL,
             parecer_tecnico_txt TEXT
@@ -1919,6 +1934,11 @@ def init_db():
             "ALTER TABLE atendimentos ADD COLUMN codigo_familiar TEXT",
             "ALTER TABLE atendimentos ADD COLUMN qtd_membros INTEGER",
             "ALTER TABLE atendimentos ADD COLUMN renda_per_capita TEXT",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN tipo_competencia TEXT DEFAULT 'cadastral'",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN motivo_encaminhamento TEXT",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN parecer_social TEXT",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN atribuido_para INTEGER",
+            "ALTER TABLE solicitacoes_visita ADD COLUMN data_encaminhamento TEXT",
         ]:
             try:
                 c.execute(col_sql)
@@ -5413,8 +5433,15 @@ def painel_visitas():
     filtro_status = ""
     params_status = []
     if status_filtro:
-        filtro_status = f"AND sv.status = {PH}"
-        params_status = [status_filtro]
+        if status_filtro in ('encaminhada_social', 'tecnica_social'):
+            filtro_status = f"AND (sv.status = 'encaminhada_social' OR sv.tipo_competencia = 'tecnica_social')"
+        elif status_filtro == 'Pendente':
+            filtro_status = f"AND sv.status IN ('Pendente', 'encaminhada_social')"
+        elif status_filtro == 'Realizada':
+            filtro_status = f"AND sv.status IN ('Realizada', 'concluida_social')"
+        else:
+            filtro_status = f"AND sv.status = {PH}"
+            params_status = [status_filtro]
 
     filtro_data = ""
     params_data = []
@@ -5467,7 +5494,7 @@ def painel_visitas():
     # ── Buscar todas as pendentes para calcular total de atrasadas em todo o acervo
     where_acesso = f"WHERE 1=1 {filtro_acesso}"
     visitas_pendentes_all = _fetchall(conn,
-        f"""SELECT sv.* FROM solicitacoes_visita sv {where_acesso} AND sv.status='Pendente'""",
+        f"""SELECT sv.* FROM solicitacoes_visita sv {where_acesso} AND sv.status IN ('Pendente', 'encaminhada_social')""",
         params_acesso
     )
     _, total_visitas_atrasadas = _processar_sla_visitas(visitas_pendentes_all, cfg)
@@ -5475,11 +5502,13 @@ def painel_visitas():
     # ── Se o filtro de status for "Atrasada", busca todas as pendentes e filtra por SLA
     if status_filtro == 'Atrasada':
         visitas_raw = _fetchall(conn,
-            f"""SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2, sol.nome AS solicitante_nome, res.nome AS responsavel_nome, res.perfil AS responsavel_perfil
+            f"""SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2,
+                       sv.tipo_competencia, sv.motivo_encaminhamento, sv.parecer_social, sv.atribuido_para, sv.data_encaminhamento,
+                       sol.nome AS solicitante_nome, res.nome AS responsavel_nome, res.perfil AS responsavel_perfil
                 FROM solicitacoes_visita sv
                 JOIN usuarios sol ON sv.solicitante_id = sol.id
                 LEFT JOIN usuarios res ON sv.responsavel_id = res.id
-                {where_acesso} AND sv.status='Pendente'
+                {where_acesso} AND sv.status IN ('Pendente', 'encaminhada_social')
                 ORDER BY sv.criado_em DESC""",
             params_acesso
         )
@@ -5491,6 +5520,7 @@ def painel_visitas():
     else:
         visitas_raw = _fetchall(conn,
             f"""SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2,
+                       sv.tipo_competencia, sv.motivo_encaminhamento, sv.parecer_social, sv.atribuido_para, sv.data_encaminhamento,
                        sol.nome  AS solicitante_nome,
                        res.nome  AS responsavel_nome,
                        res.perfil AS responsavel_perfil
@@ -5512,10 +5542,29 @@ def painel_visitas():
             GROUP BY sv.status""",
         params_acesso
     )
-    contadores = {'Pendente': 0, 'Em Andamento': 0, 'Realizada': 0, 'Cancelada': 0}
+    contadores = {'Pendente': 0, 'Em Andamento': 0, 'Realizada': 0, 'Cancelada': 0, 'encaminhada_social': 0, 'concluida_social': 0}
     for row in contadores_rows:
         if row['status'] in contadores:
             contadores[row['status']] = row['total']
+
+    # Contagem de visitas técnicas de Serviço Social
+    total_tecnicas_encaminhadas = _fetchone(conn,
+        f"""SELECT COUNT(*) as n FROM solicitacoes_visita sv
+            {where_acesso} AND (sv.status='encaminhada_social' OR sv.tipo_competencia='tecnica_social')""",
+        params_acesso
+    )['n']
+    contadores['encaminhada_social'] = total_tecnicas_encaminhadas
+
+    # Se concluida_social somar em Realizadas para coerência
+    if contadores.get('concluida_social'):
+        contadores['Realizada'] = contadores.get('Realizada', 0) + contadores.get('concluida_social', 0)
+
+    # ── Lista de Assistentes Sociais (para modal de encaminhamento rápido) ───
+    assistentes_sociais = _fetchall(conn, """
+        SELECT id, nome, unidade, perfil FROM usuarios
+        WHERE perfil='assistente_social' OR LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%'
+        ORDER BY CASE WHEN LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%' THEN 0 ELSE 1 END, nome ASC
+    """)
 
     # ── Lista de usuários (apenas para admin) ───────────────────────────────
     usuarios = []
@@ -5542,6 +5591,8 @@ def painel_visitas():
         filtros=filtros,
         contadores=contadores,
         total_visitas_atrasadas=total_visitas_atrasadas,
+        total_tecnicas_encaminhadas=total_tecnicas_encaminhadas,
+        assistentes_sociais=assistentes_sociais,
         usuarios=usuarios,
     )
 
@@ -5607,7 +5658,11 @@ def detalhe_visita(visita_id):
     )
 
     # Busca lista de Assistentes Sociais para direcionamento rápido
-    assistentes_sociais = _fetchall(conn, "SELECT id, nome, unidade FROM usuarios WHERE perfil='assistente_social' ORDER BY nome")
+    assistentes_sociais = _fetchall(conn, """
+        SELECT id, nome, unidade, perfil FROM usuarios
+        WHERE perfil='assistente_social' OR LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%'
+        ORDER BY CASE WHEN LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%' THEN 0 ELSE 1 END, nome ASC
+    """)
 
     conn.close()
 
@@ -5626,8 +5681,9 @@ def detalhe_visita(visita_id):
 
 
 @app.route('/visitas/<int:visita_id>/direcionar-as', methods=['POST'])
+@app.route('/visitas/<int:visita_id>/encaminhar-social', methods=['POST'])
 def direcionar_visita_as(visita_id):
-    """Permite que o entrevistador ou admin direcione uma visita já solicitada para a Assistente Social."""
+    """Permite que o entrevistador ou admin direcione/encaminhe uma visita técnica para a Assistente Social (Rosicláudia / Serviço Social)."""
     if _requer_login():
         return redirect(url_for('login'))
 
@@ -5646,27 +5702,35 @@ def direcionar_visita_as(visita_id):
         flash('Acesso negado.', 'erro')
         return redirect(url_for('painel_visitas'))
 
-    if visita['status'] in ('Realizada', 'Cancelada', 'Não Localizada'):
+    if visita['status'] in ('Realizada', 'concluida_social', 'Cancelada', 'Não Localizada'):
         conn.close()
         flash('Esta solicitação não pode ser redirecionada pois já foi finalizada.', 'erro')
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
-    as_id = request.form.get('assistente_social_id', '').strip()
-    if not as_id:
-        conn.close()
-        flash('Selecione uma Assistente Social.', 'erro')
-        return redirect(url_for('detalhe_visita', visita_id=visita_id))
+    as_id = request.form.get('assistente_social_id', '').strip() or request.form.get('atribuido_para', '').strip()
+    motivo_encaminhamento = request.form.get('motivo_encaminhamento', '').strip() or request.form.get('motivo', '').strip() or None
 
-    as_user = _fetchone(conn, "SELECT id, nome FROM usuarios WHERE id=? AND perfil='assistente_social'", (as_id,))
+    if not as_id:
+        # Se não forneceu ID, busca Rosicláudia dinamicamente ou a primeira assistente social disponível
+        as_user = _fetchone(conn, "SELECT id, nome FROM usuarios WHERE LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%' LIMIT 1")
+        if not as_user:
+            as_user = _fetchone(conn, "SELECT id, nome FROM usuarios WHERE perfil='assistente_social' LIMIT 1")
+    else:
+        as_user = _fetchone(conn, "SELECT id, nome FROM usuarios WHERE id=? AND (perfil='assistente_social' OR LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%')", (as_id,))
+
     if not as_user:
         conn.close()
-        flash('Assistente Social inválida.', 'erro')
+        flash('Assistente Social não encontrada ou não cadastrada.', 'erro')
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
     agora = datetime.now(_TZ_BELEM).isoformat()
     _exec(conn,
-        "UPDATE solicitacoes_visita SET responsavel_id=?, atualizado_em=? WHERE id=?",
-        (as_user['id'], agora, visita_id)
+        """UPDATE solicitacoes_visita
+           SET responsavel_id=?, atribuido_para=?, tipo_competencia='tecnica_social',
+               motivo_encaminhamento=?, data_encaminhamento=?, status='encaminhada_social',
+               atualizado_em=?
+           WHERE id=?""",
+        (as_user['id'], as_user['id'], motivo_encaminhamento, agora, agora, visita_id)
     )
 
     num_vd = visita['numero_vd'] or f"#{visita_id}"
@@ -5678,16 +5742,16 @@ def direcionar_visita_as(visita_id):
         _criar_notificacao(
             conn,
             usuario_id=int(as_user['id']),
-            titulo=f"Visita Redirecionada ({num_vd})",
-            mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} direcionou a visita de {nome_rf} ({bairro}) para você.",
+            titulo=f"Visita Técnica Encaminhada ({num_vd})",
+            mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} encaminhou a visita técnica de {nome_rf} ({bairro}) para você. Motivo: {motivo_encaminhamento or 'Avaliação Social'}.",
             link=url_for('detalhe_visita', visita_id=visita_id),
             tipo="visita_atribuida"
         )
 
     conn.commit()
     conn.close()
-    audit('VISITA_DIRECIONADA_AS', f"id={visita_id} as_id={as_user['id']} as_nome={as_user['nome']}")
-    flash(f"Visita {num_vd} direcionada com sucesso para a Assistente Social {as_user['nome']}!", 'ok')
+    audit('VISITA_ENCAMINHADA_SOCIAL', f"id={visita_id} as_id={as_user['id']} as_nome={as_user['nome']} motivo={motivo_encaminhamento}")
+    flash(f"Visita {num_vd} encaminhada com sucesso para a Assistente Social {as_user['nome']}!", 'ok')
     return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
 
@@ -5703,7 +5767,7 @@ def emitir_parecer_tecnico_visita(visita_id):
         flash('Solicitação não encontrada.', 'erro')
         return redirect(url_for('painel_visitas'))
 
-    parecer_txt = request.form.get('parecer_tecnico_txt', '').strip()
+    parecer_txt = request.form.get('parecer_tecnico_txt', '').strip() or request.form.get('parecer_social', '').strip()
     if not parecer_txt:
         conn.close()
         flash('Por favor, informe o texto do Parecer Técnico Assistencial.', 'erro')
@@ -5741,11 +5805,11 @@ def emitir_parecer_tecnico_visita(visita_id):
 
     _exec(conn,
         """UPDATE solicitacoes_visita
-           SET parecer_tecnico_txt=?,
-               status='Realizada', data_realizada=?, responsavel_id=?,
+           SET parecer_tecnico_txt=?, parecer_social=?,
+               status='concluida_social', data_realizada=?, responsavel_id=?, atribuido_para=?,
                atendimento_id=?, atualizado_em=?
            WHERE id=?""",
-        (parecer_txt, hoje_str, session['usuario_id'], atendimento_id, agora, visita_id)
+        (parecer_txt, parecer_txt, hoje_str, session['usuario_id'], session['usuario_id'], atendimento_id, agora, visita_id)
     )
 
     # Notifica o entrevistador que solicitou a visita
@@ -5756,7 +5820,7 @@ def emitir_parecer_tecnico_visita(visita_id):
             conn,
             usuario_id=int(solicitante_id),
             titulo=f"Visita Concluída ({num_vd})",
-            mensagem=f"A Assistente Social {session.get('usuario_nome', 'Assistente Social')} registrou o parecer técnico da visita para {nome_rf}.",
+            mensagem=f"A Assistente Social {session.get('usuario_nome', 'Assistente Social')} registrou o parecer técnico social da visita para {nome_rf}.",
             link=url_for('detalhe_visita', visita_id=visita_id),
             tipo="visita_concluida"
         )
@@ -5827,6 +5891,7 @@ def editar_visita(visita_id):
 
         atribuir_as = request.form.get('atribuir_as') == '1'
         as_id_escolhida = request.form.get('assistente_social_id', '').strip() or None
+        motivo_encaminhamento = request.form.get('motivo_encaminhamento', '').strip() or None
 
         responsavel_id = visita['responsavel_id']
         responsavel_anterior = visita['responsavel_id']
@@ -5863,6 +5928,7 @@ def editar_visita(visita_id):
             'motivo': motivo,
             'atribuir_as': '1' if atribuir_as else '0',
             'assistente_social_id': as_id_escolhida or '',
+            'motivo_encaminhamento': motivo_encaminhamento or '',
             'responsavel_id': responsavel_id,
             'observacoes': observacoes or '',
             'parecer_tecnico_txt': parecer_tecnico_txt or '',
@@ -5887,6 +5953,15 @@ def editar_visita(visita_id):
                                    form=form, usuarios=usuarios, assistentes_sociais=assistentes_sociais)
 
         agora = datetime.now(_TZ_BELEM).isoformat()
+        tipo_competencia = 'tecnica_social' if atribuir_as else 'cadastral'
+        atribuido_para = responsavel_id if atribuir_as else None
+        data_encaminhamento = (visita['data_encaminhamento'] or agora) if atribuir_as else None
+        status_atual = visita['status']
+        if atribuir_as and status_atual == 'Pendente':
+            status_atual = 'encaminhada_social'
+        elif not atribuir_as and status_atual == 'encaminhada_social':
+            status_atual = 'Pendente'
+
         _exec(conn,
             """UPDATE solicitacoes_visita
                SET nome_rf=?, logradouro=?, numero=?, complemento=?, bairro=?,
@@ -5894,6 +5969,7 @@ def editar_visita(visita_id):
                    responsavel_id=?, observacoes=?, anexo_url=?, anexo_nome=?,
                    parecer_tecnico_txt=?,
                    telefone1=?, telefone2=?,
+                   tipo_competencia=?, motivo_encaminhamento=?, atribuido_para=?, data_encaminhamento=?, status=?,
                    atualizado_em=?
                WHERE id=?""",
             (nome_rf, logradouro, numero, complemento, bairro,
@@ -5901,6 +5977,7 @@ def editar_visita(visita_id):
              responsavel_id, observacoes, anexo_url, anexo_nome,
              parecer_tecnico_txt,
              telefone1, telefone2,
+             tipo_competencia, motivo_encaminhamento, atribuido_para, data_encaminhamento, status_atual,
              agora, visita_id)
         )
 
@@ -5912,7 +5989,7 @@ def editar_visita(visita_id):
                     conn,
                     usuario_id=int(responsavel_id),
                     titulo=f"Visita Redirecionada ({num_vd})",
-                    mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} direcionou a visita de {nome_rf} ({bairro}) para você.",
+                    mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} direcionou a visita técnica de {nome_rf} ({bairro}) para você. Motivo: {motivo_encaminhamento or 'Avaliação Social'}.",
                     link=url_for('detalhe_visita', visita_id=visita_id),
                     tipo="visita_atribuida"
                 )
@@ -5930,7 +6007,7 @@ def editar_visita(visita_id):
         return redirect(url_for('detalhe_visita', visita_id=visita_id))
 
     # Pré-preenche o formulário com os dados atuais
-    is_as_responsavel = any(str(a['id']) == str(visita['responsavel_id']) for a in assistentes_sociais) if visita['responsavel_id'] else False
+    is_as_responsavel = (visita['tipo_competencia'] == 'tecnica_social') or any(str(a['id']) == str(visita['responsavel_id']) for a in assistentes_sociais) if visita['responsavel_id'] else False
     form = {
         'nome_rf':             visita['nome_rf'],
         'logradouro':          visita['logradouro'] or '',
@@ -5941,7 +6018,8 @@ def editar_visita(visita_id):
         'zona':                visita['zona'] or 'Urbana',
         'motivo':              visita['motivo'],
         'atribuir_as':         '1' if is_as_responsavel else '0',
-        'assistente_social_id': str(visita['responsavel_id']) if is_as_responsavel else '',
+        'assistente_social_id': str(visita['responsavel_id'] or visita['atribuido_para'] or '') if is_as_responsavel else '',
+        'motivo_encaminhamento': visita['motivo_encaminhamento'] or '',
         'responsavel_id':      visita['responsavel_id'],
         'observacoes':         visita['observacoes'] or '',
         'parecer_tecnico_txt': visita['parecer_tecnico_txt'] or '',
@@ -5961,8 +6039,12 @@ def nova_visita():
     erros = []
     form = {}
 
-    # Assistentes Sociais cadastradas no sistema
-    assistentes_sociais = _fetchall(conn, "SELECT id, nome, unidade FROM usuarios WHERE perfil='assistente_social' ORDER BY nome")
+    # Assistentes Sociais cadastradas no sistema (com prioridade dinâmica para Rosicláudia)
+    assistentes_sociais = _fetchall(conn, """
+        SELECT id, nome, unidade, perfil FROM usuarios
+        WHERE perfil='assistente_social' OR LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%'
+        ORDER BY CASE WHEN LOWER(nome) LIKE '%rosiclaudia%' OR LOWER(nome) LIKE '%rosicláudia%' THEN 0 ELSE 1 END, nome ASC
+    """)
 
     # Admin pode atribuir qualquer usuário
     usuarios = []
@@ -5983,6 +6065,7 @@ def nova_visita():
         
         atribuir_as = request.form.get('atribuir_as') == '1'
         as_id_escolhida = request.form.get('assistente_social_id', '').strip() or None
+        motivo_encaminhamento = request.form.get('motivo_encaminhamento', '').strip() or None
         responsavel_id = None
 
         if atribuir_as:
@@ -6021,6 +6104,7 @@ def nova_visita():
             'motivo': motivo,
             'atribuir_as': '1' if atribuir_as else '0',
             'assistente_social_id': as_id_escolhida or '',
+            'motivo_encaminhamento': motivo_encaminhamento or '',
             'responsavel_id': responsavel_id or '',
             'observacoes': observacoes or '',
             'telefone1': telefone1 or '',
@@ -6048,6 +6132,11 @@ def nova_visita():
 
         if not erros:
             agora = datetime.now(_TZ_BELEM).isoformat()
+            tipo_competencia = 'tecnica_social' if atribuir_as else 'cadastral'
+            status_inicial = 'encaminhada_social' if atribuir_as else 'Pendente'
+            data_encaminhamento = agora if atribuir_as else None
+            atribuido_para = responsavel_id if atribuir_as else None
+
             try:
                 numero_vd = _gerar_numero_vd(conn, ano_belem)
                 if _USE_PG:
@@ -6056,13 +6145,17 @@ def nova_visita():
                             (cpf_rf, nome_rf, logradouro, numero, complemento, bairro,
                              referencia, zona, motivo, status, solicitante_id,
                              responsavel_id, observacoes, anexo_url, anexo_nome,
-                             telefone1, telefone2, criado_em, atualizado_em, numero_vd)
-                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'Pendente',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                             telefone1, telefone2, tipo_competencia, motivo_encaminhamento,
+                             atribuido_para, data_encaminhamento,
+                             criado_em, atualizado_em, numero_vd)
+                           VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                            RETURNING id""",
                         (cpf_rf, nome_rf, logradouro, numero, complemento, bairro,
-                         referencia, zona, motivo, session['usuario_id'],
+                         referencia, zona, motivo, status_inicial, session['usuario_id'],
                          responsavel_id, observacoes, anexo_url, anexo_nome,
-                         telefone1, telefone2, agora, agora, numero_vd)
+                         telefone1, telefone2, tipo_competencia, motivo_encaminhamento,
+                         atribuido_para, data_encaminhamento,
+                         agora, agora, numero_vd)
                     )
                     novo_id = cur.fetchone()['id']
                 else:
@@ -6071,12 +6164,16 @@ def nova_visita():
                             (cpf_rf, nome_rf, logradouro, numero, complemento, bairro,
                              referencia, zona, motivo, status, solicitante_id,
                              responsavel_id, observacoes, anexo_url, anexo_nome,
-                             telefone1, telefone2, criado_em, atualizado_em, numero_vd)
-                           VALUES (?,?,?,?,?,?,?,?,?,'Pendente',?,?,?,?,?,?,?,?,?,?)""",
+                             telefone1, telefone2, tipo_competencia, motivo_encaminhamento,
+                             atribuido_para, data_encaminhamento,
+                             criado_em, atualizado_em, numero_vd)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                         (cpf_rf, nome_rf, logradouro, numero, complemento, bairro,
-                         referencia, zona, motivo, session['usuario_id'],
+                         referencia, zona, motivo, status_inicial, session['usuario_id'],
                          responsavel_id, observacoes, anexo_url, anexo_nome,
-                         telefone1, telefone2, agora, agora, numero_vd)
+                         telefone1, telefone2, tipo_competencia, motivo_encaminhamento,
+                         atribuido_para, data_encaminhamento,
+                         agora, agora, numero_vd)
                     )
                     novo_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
@@ -6088,8 +6185,8 @@ def nova_visita():
                             _criar_notificacao(
                                 conn,
                                 usuario_id=int(target_as),
-                                titulo=f"Nova Visita Atribuída ({numero_vd})",
-                                mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} atribuiu uma solicitação de visita para {nome_rf} ({bairro}).",
+                                titulo=f"Nova Visita Técnica Atribuída ({numero_vd})",
+                                mensagem=f"O entrevistador {session.get('usuario_nome', 'Entrevistador')} encaminhou a visita técnica de {nome_rf} ({bairro}) para você. Motivo: {motivo_encaminhamento or 'Avaliação Social'}.",
                                 link=url_for('detalhe_visita', visita_id=novo_id),
                                 tipo="visita_atribuida"
                             )
@@ -6103,7 +6200,8 @@ def nova_visita():
                 conn.close()
                 flash('Erro ao gerar número da solicitação. Tente novamente.', 'erro')
                 return render_template('nova_visita.html', erros=[], form=form, usuarios=usuarios, assistentes_sociais=assistentes_sociais)
-            except Exception:
+            except Exception as e_ins:
+                app.logger.error(f"[NOVA_VISITA] Erro ao inserir solicitacao: {e_ins}", exc_info=True)
                 conn.rollback()
                 conn.close()
                 flash('Erro ao gerar número da solicitação. Tente novamente.', 'erro')
