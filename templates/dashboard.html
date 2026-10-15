@@ -1,47 +1,70 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="dashboard-page">
-  <!-- Top Bar & Title -->
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+  <!-- Título da página -->
+  <div class="page-head">
     <div>
-      <h1 style="font-size:1.45rem; font-weight:800; color:var(--cad-verde-escuro); letter-spacing:-0.3px; margin-bottom:4px;">
+      <h1 class="page-title">
         {% if session.perfil == 'admin' %}Painel Geral{% else %}Meus Atendimentos{% endif %}
       </h1>
-      <p style="font-size:0.86rem; color:var(--text-muted);">
+      <p class="page-subtitle">
         Acompanhamento em tempo real dos atendimentos do Cadastro Único e Bolsa Família
       </p>
     </div>
-    </div>
+  </div>
 
-  <!-- KPI Metric Cards (Cores Oficiais do Manual CadÚnico 25 Anos) -->
+  <!-- Banner Comemorativo Oficial: CadÚnico 25 Anos -->
+  <div class="card cadunico-banner-25" style="background: linear-gradient(135deg, var(--md-sys-color-surface-container-high) 0%, var(--md-sys-color-surface-container-low) 100%); padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; overflow: hidden; margin-bottom: 24px;">
+    <div style="max-width: 620px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <span class="chip chip-primary" style="height: 24px; font-size: 0.7rem; font-weight: 700;">
+          <span class="ms sm" style="font-size: 14px;">celebration</span> 25 ANOS
+        </span>
+        <span style="font-size: 0.8125rem; font-weight: 700; color: var(--md-sys-color-primary); letter-spacing: 0.4px; text-transform: uppercase;">
+          Conhecer para incluir
+        </span>
+      </div>
+      <h2 style="font-family: var(--md-ref-typeface-brand); font-size: 1.2rem; font-weight: 700; color: var(--md-sys-color-on-surface); margin: 0 0 4px 0;">
+        Sistema de Gestão &middot; Cadastro Único &amp; Bolsa Família
+      </h2>
+      <p style="font-size: 0.84rem; color: var(--md-sys-color-on-surface-variant); margin: 0; line-height: 1.45;">
+        Prefeitura Municipal de Tomé-Açu &middot; Secretaria Municipal de Trabalho e Assistência Social (SETAS)
+      </p>
+    </div>
+    <div class="cadunico-grafismo-wrap" style="flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+      <img src="{{ url_for('static', filename='logos/grafismo_cadunico_horizontal.png') }}" alt="Identidade Visual 25 Anos" style="height: 64px; max-width: 100%; object-fit: contain;">
+    </div>
+  </div>
+
+  <!-- KPIs (containers de cor do Material 3) -->
   <div class="kpi-grid">
-    <!-- Atendimentos / Mês (Verde Vibrante Oficial #00883A) -->
+    <!-- Atendimentos / Mês (primário - verde) -->
     <div class="kpi-card green">
       <div class="kpi-details">
         <span class="kpi-label">Atendimentos / Mês</span>
         <span class="kpi-number">{{ total_mes }}</span>
       </div>
       <div class="kpi-icon-badge">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="ms">groups</span>
       </div>
     </div>
 
-    <!-- Visitas Pendentes (Amarelo Sol Oficial #FAB614) -->
-    <a href="{{ url_for('painel_visitas', status='Pendente') }}" style="text-decoration:none;">
+    <!-- Visitas Pendentes (terciário - amarelo) -->
+    <a href="{{ url_for('painel_visitas', status='Pendente') }}" style="text-decoration:none; color:inherit;">
       <div class="kpi-card yellow">
         <div class="kpi-details">
           <span class="kpi-label">Visitas Pendentes</span>
           <span class="kpi-number">
             {{ total_visitas_pendentes|default(0) }}
             {% if total_visitas_atrasadas|default(0) > 0 %}
-              <small style="font-size:0.75rem; font-weight:800; color:#DC2626; display:block; margin-top:2px; background:#FEF2F2; border:1px solid #FCA5A5; padding:2px 8px; border-radius:12px; width:fit-content;">
-                ⚠️ {{ total_visitas_atrasadas }} em atraso
+              <small class="chip chip-error" style="display:flex; margin-top:6px; width:fit-content; letter-spacing:0; font-family:var(--md-ref-typeface-plain); letter-spacing:.3px;">
+                <span class="ms sm">warning</span> {{ total_visitas_atrasadas }} em atraso
               </small>
             {% endif %}
           </span>
         </div>
         <div class="kpi-icon-badge">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span class="ms">home_pin</span>
         </div>
       </div>
     </a>
@@ -49,45 +72,46 @@
 
   {% if session.perfil == 'admin' and grafico_bairros %}
   <!-- Card Exclusivo do Admin: Demanda por Bairro / Comunidade -->
-  <div class="card" style="margin-bottom: 24px;">
-    <div class="card-title" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-      <div style="display:flex; align-items:center; gap:8px; color:var(--cad-verde-escuro);">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        <span style="font-weight:700;">Demanda por Bairro / Comunidade</span>
+  <div class="card">
+    <div class="card-title">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span class="ms" style="color:var(--md-sys-color-primary);">location_on</span>
+        <span>Demanda por Bairro / Comunidade</span>
       </div>
-      <span style="background:#F0FDF4; color:#047857; border:1px solid #A7F3D0; font-size:0.75rem; font-weight:700; padding:4px 10px; border-radius:12px;">🔒 Exclusivo Administrador</span>
+      <span class="chip chip-primary"><span class="ms sm">lock</span> Exclusivo Administrador</span>
     </div>
 
     <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:20px; align-items:start;">
-      <!-- Ranking Bar Visual Chart -->
+      <!-- Ranking -->
       <div>
-        <h4 style="font-size:0.85rem; color:#64748B; margin:0 0 14px 0; font-weight:600;">📊 Ranking de Atendimentos por Bairro:</h4>
+        <h4 style="font-size:0.875rem; color:var(--md-sys-color-on-surface-variant); margin:0 0 14px 0; font-weight:600; display:flex; align-items:center; gap:6px;">
+          <span class="ms sm">bar_chart</span> Ranking de Atendimentos por Bairro
+        </h4>
         {% set max_total = grafico_bairros[0].total if grafico_bairros else 1 %}
-        <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; flex-direction:column; gap:14px;">
           {% for item in grafico_bairros %}
           {% set pct = (item.total / max_total * 100)|round(1) %}
           <div>
-            <div style="display:flex; justify-content:space-between; font-size:0.84rem; font-weight:600; color:#1E293B; margin-bottom:4px;">
-              <span>📍 {{ item.nome }}</span>
-              <span style="color:var(--cad-verde-escuro); font-weight:700;">{{ item.total }} {% if item.total == 1 %}registro{% else %}registros{% endif %}</span>
+            <div style="display:flex; justify-content:space-between; font-size:0.875rem; font-weight:500; margin-bottom:6px;">
+              <span style="display:flex; align-items:center; gap:4px;"><span class="ms sm" style="color:var(--md-sys-color-on-surface-variant);">pin_drop</span> {{ item.nome }}</span>
+              <span style="color:var(--md-sys-color-primary); font-weight:700;">{{ item.total }} {% if item.total == 1 %}registro{% else %}registros{% endif %}</span>
             </div>
-            <div style="width:100%; background:#E2E8F0; height:10px; border-radius:6px; overflow:hidden;">
-              <div style="width:{{ pct }}%; background:linear-gradient(90deg, #00883A, #047857); height:100%; border-radius:6px; transition:width 0.4s ease;"></div>
-            </div>
+            <div class="m3-progress"><span style="width:{{ pct }}%;"></span></div>
           </div>
           {% endfor %}
         </div>
       </div>
 
-      <!-- Quick Summary Cards -->
-      <div style="display:flex; flex-direction:column; justify-content:center; background:#F8FAFC; border:1px solid #E2E8F0; padding:18px; border-radius:12px;">
-        <div style="font-size:0.88rem; font-weight:700; color:#047857; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-          <span>💡 Resumo de Cobertura Territorial</span>
+      <!-- Resumo -->
+      <div class="m3-panel" style="display:flex; flex-direction:column; justify-content:center;">
+        <div style="font-size:0.9375rem; font-weight:600; color:var(--md-sys-color-primary); margin-bottom:8px; display:flex; align-items:center; gap:8px;">
+          <span class="ms fill">lightbulb</span>
+          <span>Resumo de Cobertura Territorial</span>
         </div>
-        <p style="font-size:0.84rem; color:#475569; line-height:1.55; margin:0 0 14px 0;">
-          Localidade com maior volume de demandas no período: <strong style="color:#0F172A;">{{ grafico_bairros[0].nome if grafico_bairros else 'N/A' }}</strong> com <strong style="color:#047857;">{{ grafico_bairros[0].total if grafico_bairros else 0 }}</strong> registros acumulados.
+        <p style="font-size:0.875rem; color:var(--md-sys-color-on-surface-variant); line-height:1.55; margin:0 0 14px 0;">
+          Localidade com maior volume de demandas no período: <strong style="color:var(--md-sys-color-on-surface);">{{ grafico_bairros[0].nome if grafico_bairros else 'N/A' }}</strong> com <strong style="color:var(--md-sys-color-primary);">{{ grafico_bairros[0].total if grafico_bairros else 0 }}</strong> registros acumulados.
         </p>
-        <div style="font-size:0.82rem; color:#64748B; border-top:1px dashed #CBD5E1; padding-top:10px;">
+        <div style="font-size:0.8125rem; color:var(--md-sys-color-on-surface-variant); border-top:1px solid var(--md-sys-color-outline-variant); padding-top:12px;">
           Total de localidades identificadas: <strong>{{ grafico_bairros|length }} bairros/comunidades</strong>.
         </div>
       </div>
@@ -95,21 +119,21 @@
   </div>
   {% endif %}
 
-  <!-- Full-width Histórico de Atendimentos (Sem registro rápido) -->
+  <!-- Histórico de Atendimentos -->
   <div class="card" style="margin-bottom:0;">
-    <div class="card-title" style="margin-bottom:18px;">
+    <div class="card-title">
       <span>Histórico de Atendimentos</span>
-      <a href="{{ url_for('exportar_relatorio', mes=mes, formato='excel') }}" class="btn btn-success btn-sm">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <a href="{{ url_for('exportar_relatorio', mes=mes, formato='excel') }}" class="btn btn-tonal btn-sm">
+        <span class="ms sm">download</span>
         <span>Exportar Excel</span>
       </a>
     </div>
 
-    <!-- Filters Form -->
-    <form method="GET" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px;">
-      <input type="month" name="mes" value="{{ mes }}" style="max-width:160px;">
+    <!-- Filtros -->
+    <form method="GET" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; align-items:center;">
+      <input type="month" name="mes" value="{{ mes }}" style="max-width:180px;">
       <input type="search" name="busca" value="{{ busca }}" placeholder="Buscar CPF ou nome..." style="flex:1; min-width:220px;">
-      <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
+      <button type="submit" class="btn btn-primary btn-sm"><span class="ms sm">filter_alt</span> Filtrar</button>
       {% if busca or mes != mes_atual %}
       <a href="{{ url_for('dashboard') }}" class="btn btn-outline btn-sm">Limpar</a>
       {% endif %}
@@ -126,70 +150,62 @@
             <th>Nome do RF</th>
             <th>Origem</th>
             <th>Tipos de Atendimento</th>
-            <th style="width:100px; text-align:center;">Ações</th>
+            <th style="width:110px; text-align:center;">Ações</th>
           </tr>
         </thead>
         <tbody>
           {% for at in atendimentos %}
           <tr>
-            <td style="white-space:nowrap; font-weight:600; font-size:0.85rem; color:var(--text-secondary);">
+            <td style="white-space:nowrap; font-weight:500; font-size:0.8125rem; color:var(--md-sys-color-on-surface-variant);">
               {{ at.data[8:] }}/{{ at.data[5:7] }}/{{ at.data[:4] }}
             </td>
             {% if session.perfil == 'admin' %}
-              <td style="font-size:0.85rem; font-weight:500;">{{ at.entrevistador }}</td>
+              <td style="font-size:0.8125rem;">{{ at.entrevistador }}</td>
             {% endif %}
             <td style="white-space:nowrap;">
-              <a href="{{ url_for('historico_cpf', cpf=at.cpf) }}" class="cpf-link" style="color:var(--cad-verde-escuro); font-weight:700; text-decoration:none;">{{ at.cpf }}</a>
+              <a href="{{ url_for('historico_cpf', cpf=at.cpf) }}" class="cpf-link">{{ at.cpf }}</a>
             </td>
-            <td style="font-weight:600; color:var(--text-primary);">
+            <td style="font-weight:600;">
               <div>{{ at.nome_rf }}</div>
-              <div style="font-size:0.75rem; color:#64748B; font-weight:500; margin-top:2px; display:flex; flex-wrap:wrap; gap:8px;">
-                {% if at.bairro %}<span>📍 {{ at.bairro }}</span>{% endif %}
-                {% if at.codigo_familiar %}<span>🆔 Cód: <strong>{{ at.codigo_familiar }}</strong></span>{% endif %}
-                {% if at.qtd_membros %}<span>👨‍👩‍👧‍👦 {{ at.qtd_membros }} memb.</span>{% endif %}
-                {% if at.renda_per_capita %}<span>💵 Rpc: <strong>{{ at.renda_per_capita }}</strong></span>{% endif %}
+              <div style="font-size:0.75rem; color:var(--md-sys-color-on-surface-variant); font-weight:400; margin-top:4px; display:flex; flex-wrap:wrap; gap:4px 12px;">
+                {% if at.bairro %}<span style="display:inline-flex; align-items:center; gap:2px;"><span class="ms sm" style="font-size:14px;">location_on</span> {{ at.bairro }}</span>{% endif %}
+                {% if at.codigo_familiar %}<span style="display:inline-flex; align-items:center; gap:2px;"><span class="ms sm" style="font-size:14px;">badge</span> Cód: <strong>{{ at.codigo_familiar }}</strong></span>{% endif %}
+                {% if at.qtd_membros %}<span style="display:inline-flex; align-items:center; gap:2px;"><span class="ms sm" style="font-size:14px;">family_restroom</span> {{ at.qtd_membros }} memb.</span>{% endif %}
+                {% if at.renda_per_capita %}<span style="display:inline-flex; align-items:center; gap:2px;"><span class="ms sm" style="font-size:14px;">payments</span> Rpc: <strong>{{ at.renda_per_capita }}</strong></span>{% endif %}
               </div>
             </td>
             <td>
               {% if at.origem == 'Demanda Espontânea' %}
-                <span style="display:inline-block; padding:5px 12px; border-radius:20px; font-size:0.76rem; font-weight:700; background:#FFFBEB; color:#B45309; border:1px solid #FDE68A;">
-                  Demanda Espontânea
-                </span>
+                <span class="chip chip-warning">Demanda Espontânea</span>
               {% elif at.origem == 'Visita Domiciliar' %}
-                <span style="display:inline-block; padding:5px 12px; border-radius:20px; font-size:0.76rem; font-weight:700; background:#F5F3FF; color:var(--cad-roxo); border:1px solid #DDD6FE;">
-                  Visita Domiciliar
-                </span>
+                <span class="chip chip-sibec">Visita Domiciliar</span>
               {% else %}
-                <span style="display:inline-block; padding:5px 12px; border-radius:20px; font-size:0.76rem; font-weight:700; background:#F0FDF4; color:var(--cad-verde); border:1px solid #86EFAC;">
-                  {{ at.origem }}
-                </span>
+                <span class="chip chip-primary">{{ at.origem }}</span>
               {% endif %}
             </td>
             <td>
               <div style="display:flex; flex-direction:column; gap:6px; align-items:flex-start;">
                 {% for t in at.tipos.split('|') %}
                   {% if 'SIBEC' in t %}
-                    <span style="display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:20px; font-size:0.78rem; font-weight:700; background:#F3E8FF; color:var(--cad-roxo); border:1px solid #E9D5FF;">
-                      <span style="font-size:0.65rem; background:var(--cad-roxo); color:#FFF; padding:1px 6px; border-radius:10px;">SIBEC</span>
+                    <span class="chip chip-sibec">
+                      <span class="chip-tag">SIBEC</span>
                       <span>{{ t.replace(' (SIBEC)', '') }}</span>
                     </span>
                   {% else %}
-                    <span style="display:inline-block; padding:4px 12px; border-radius:20px; font-size:0.78rem; font-weight:600; background:#EFF6FF; color:var(--cad-verde-escuro); border:1px solid #BFDBFE;">
-                      {{ t }}
-                    </span>
+                    <span class="chip chip-neutral">{{ t }}</span>
                   {% endif %}
                 {% endfor %}
               </div>
             </td>
             <td style="text-align:center;">
               {% if session.perfil == 'admin' or at.usuario_id == session.usuario_id %}
-              <div style="display:flex; justify-content:center; gap:6px;">
-                <a href="{{ url_for('editar_atendimento', at_id=at.id) }}" style="color:var(--cad-verde); padding:6px; border-radius:6px; background:#F0FDF4;" title="Editar">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <div style="display:flex; justify-content:center; gap:4px;">
+                <a href="{{ url_for('editar_atendimento', at_id=at.id) }}" class="icon-btn" style="color:var(--md-sys-color-primary);" title="Editar" aria-label="Editar">
+                  <span class="ms">edit</span>
                 </a>
                 <form method="POST" action="{{ url_for('excluir_atendimento', at_id=at.id) }}" onsubmit="return confirm('Excluir este atendimento?')" style="display:inline;">
-                  <button type="submit" class="btn-danger" style="border:none; cursor:pointer; padding:6px; border-radius:6px;" title="Excluir">
-                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <button type="submit" class="icon-btn" style="color:var(--md-sys-color-error);" title="Excluir" aria-label="Excluir">
+                    <span class="ms">delete</span>
                   </button>
                 </form>
               </div>
@@ -201,9 +217,9 @@
       </table>
     </div>
 
-    <!-- Pagination -->
+    <!-- Paginação -->
     {% if total_paginas > 1 %}
-    <nav class="pagination" style="display:flex; gap:6px; justify-content:center; margin-top:20px;">
+    <nav class="pagination">
       <a href="?mes={{ mes }}&busca={{ busca }}&pagina={{ pagina - 1 }}" class="page-btn {% if pagina == 1 %}disabled{% endif %}">‹</a>
       {% for p in range(1, total_paginas + 1) %}
         {% if p == pagina or p == 1 or p == total_paginas or (p >= pagina - 2 and p <= pagina + 2) %}
@@ -217,8 +233,8 @@
     {% endif %}
 
     {% else %}
-    <div style="text-align:center; padding:40px 20px; color:var(--text-muted);">
-      <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.4; margin-bottom:12px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <div style="text-align:center; padding:48px 20px; color:var(--md-sys-color-on-surface-variant);">
+      <span class="ms" style="font-size:48px; opacity:.5; margin-bottom:8px;">search_off</span>
       <p>{% if busca %}Nenhum resultado para "<strong>{{ busca }}</strong>".{% else %}Nenhum atendimento registrado neste mês.{% endif %}</p>
     </div>
     {% endif %}

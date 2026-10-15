@@ -1,0 +1,134 @@
+/* ARQUIVO GERADO por scripts/gerar_tokens_m3.py - nao editar manualmente.
+   Paleta Material Design 3 a partir do Manual de Marca Cadastro Unico 25 Anos. */
+
+:root,
+:root[data-theme="light"] {
+  /* Tema claro */
+  --md-sys-color-primary: #006E2D;
+  --md-sys-color-on-primary: #FFFFFF;
+  --md-sys-color-primary-container: #8BFA9D;
+  --md-sys-color-on-primary-container: #002109;
+  --md-sys-color-secondary: #7B40B5;
+  --md-sys-color-on-secondary: #FFFFFF;
+  --md-sys-color-secondary-container: #F0DBFF;
+  --md-sys-color-on-secondary-container: #2C0051;
+  --md-sys-color-tertiary: #7C5800;
+  --md-sys-color-on-tertiary: #FFFFFF;
+  --md-sys-color-tertiary-container: #FFDEA7;
+  --md-sys-color-on-tertiary-container: #271900;
+  --md-sys-color-error: #B4271F;
+  --md-sys-color-on-error: #FFFFFF;
+  --md-sys-color-error-container: #FFDAD5;
+  --md-sys-color-on-error-container: #410001;
+  --md-sys-color-surface: #F7FBF2;
+  --md-sys-color-surface-dim: #D7DBD3;
+  --md-sys-color-surface-bright: #F7FBF2;
+  --md-sys-color-surface-container-lowest: #FFFFFF;
+  --md-sys-color-surface-container-low: #F1F5EC;
+  --md-sys-color-surface-container: #EBEFE7;
+  --md-sys-color-surface-container-high: #E5E9E1;
+  --md-sys-color-surface-container-highest: #E0E4DB;
+  --md-sys-color-on-surface: #181D18;
+  --md-sys-color-on-surface-variant: #40493F;
+  --md-sys-color-outline: #707A6E;
+  --md-sys-color-outline-variant: #BFC9BC;
+  --md-sys-color-inverse-surface: #2D322C;
+  --md-sys-color-inverse-on-surface: #EEF2EA;
+  --md-sys-color-inverse-primary: #6FDD83;
+  --md-sys-color-scrim: #000000;
+  --md-sys-color-shadow: #000000;
+  --md-sys-color-success: #006E2D;
+  --md-sys-color-success-container: #8BFA9D;
+  --md-sys-color-on-success-container: #002109;
+  --md-sys-color-warning: #7C5800;
+  --md-sys-color-warning-container: #FFDEA7;
+  --md-sys-color-on-warning-container: #271900;
+}
+
+:root[data-theme="dark"] {
+  /* Tema escuro */
+  --md-sys-color-primary: #6FDD83;
+  --md-sys-color-on-primary: #003914;
+  --md-sys-color-primary-container: #005320;
+  --md-sys-color-on-primary-container: #8BFA9D;
+  --md-sys-color-secondary: #DDB8FF;
+  --md-sys-color-on-secondary: #490081;
+  --md-sys-color-secondary-container: #62249B;
+  --md-sys-color-on-secondary-container: #F0DBFF;
+  --md-sys-color-tertiary: #FFBB1D;
+  --md-sys-color-on-tertiary: #412D00;
+  --md-sys-color-tertiary-container: #5E4200;
+  --md-sys-color-on-tertiary-container: #FFDEA7;
+  --md-sys-color-error: #FFB4AA;
+  --md-sys-color-on-error: #690003;
+  --md-sys-color-error-container: #910809;
+  --md-sys-color-on-error-container: #FFDAD5;
+  --md-sys-color-surface: #101510;
+  --md-sys-color-surface-dim: #101510;
+  --md-sys-color-surface-bright: #363A35;
+  --md-sys-color-surface-container-lowest: #0B0F0B;
+  --md-sys-color-surface-container-low: #181D18;
+  --md-sys-color-surface-container: #1C211C;
+  --md-sys-color-surface-container-high: #262B26;
+  --md-sys-color-surface-container-highest: #313630;
+  --md-sys-color-on-surface: #E0E4DB;
+  --md-sys-color-on-surface-variant: #BFC9BC;
+  --md-sys-color-outline: #899487;
+  --md-sys-color-outline-variant: #40493F;
+  --md-sys-color-inverse-surface: #E0E4DB;
+  --md-sys-color-inverse-on-surface: #2D322C;
+  --md-sys-color-inverse-primary: #006E2D;
+  --md-sys-color-scrim: #000000;
+  --md-sys-color-shadow: #000000;
+  --md-sys-color-success: #6FDD83;
+  --md-sys-color-success-container: #005320;
+  --md-sys-color-on-success-container: #8BFA9D;
+  --md-sys-color-warning: #FFBB1D;
+  --md-sys-color-warning-container: #5E4200;
+  --md-sys-color-on-warning-container: #FFDEA7;
+}
+
+@media (prefers-color-scheme: dark) {
+:root:not([data-theme="light"]) {
+    /* Tema escuro automatico (preferencia do sistema) */
+    --md-sys-color-primary: #6FDD83;
+    --md-sys-color-on-primary: #003914;
+    --md-sys-color-primary-container: #005320;
+    --md-sys-color-on-primary-container: #8BFA9D;
+    --md-sys-color-secondary: #DDB8FF;
+    --md-sys-color-on-secondary: #490081;
+    --md-sys-color-secondary-container: #62249B;
+    --md-sys-color-on-secondary-container: #F0DBFF;
+    --md-sys-color-tertiary: #FFBB1D;
+    --md-sys-color-on-tertiary: #412D00;
+    --md-sys-color-tertiary-container: #5E4200;
+    --md-sys-color-on-tertiary-container: #FFDEA7;
+    --md-sys-color-error: #FFB4AA;
+    --md-sys-color-on-error: #690003;
+    --md-sys-color-error-container: #910809;
+    --md-sys-color-on-error-container: #FFDAD5;
+    --md-sys-color-surface: #101510;
+    --md-sys-color-surface-dim: #101510;
+    --md-sys-color-surface-bright: #363A35;
+    --md-sys-color-surface-container-lowest: #0B0F0B;
+    --md-sys-color-surface-container-low: #181D18;
+    --md-sys-color-surface-container: #1C211C;
+    --md-sys-color-surface-container-high: #262B26;
+    --md-sys-color-surface-container-highest: #313630;
+    --md-sys-color-on-surface: #E0E4DB;
+    --md-sys-color-on-surface-variant: #BFC9BC;
+    --md-sys-color-outline: #899487;
+    --md-sys-color-outline-variant: #40493F;
+    --md-sys-color-inverse-surface: #E0E4DB;
+    --md-sys-color-inverse-on-surface: #2D322C;
+    --md-sys-color-inverse-primary: #006E2D;
+    --md-sys-color-scrim: #000000;
+    --md-sys-color-shadow: #000000;
+    --md-sys-color-success: #6FDD83;
+    --md-sys-color-success-container: #005320;
+    --md-sys-color-on-success-container: #8BFA9D;
+    --md-sys-color-warning: #FFBB1D;
+    --md-sys-color-warning-container: #5E4200;
+    --md-sys-color-on-warning-container: #FFDEA7;
+}
+}

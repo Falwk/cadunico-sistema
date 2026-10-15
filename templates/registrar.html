@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="container" style="max-width:800px">
-  <h1 class="page-title" style="color:var(--cad-verde-escuro);">Registrar Atendimento</h1>
+  <div class="page-head"><h1 class="page-title">Registrar Atendimento</h1></div>
   {% for e in erros %}<div class="alerta alerta-erro">{{ e }}</div>{% endfor %}
   
   <form method="POST" id="form-atendimento" novalidate>
@@ -77,12 +77,12 @@
       </div>
 
       <!-- Resumo do Encaminhamento (Badge) -->
-      <div id="resumo-encaminhamento" style="display:none; margin-top:16px; padding:12px 16px; background:#F5F3FF; border:1px solid #DDD6FE; border-radius:10px; align-items:center; justify-content:space-between;">
+      <div id="resumo-encaminhamento" class="m3-callout row" style="display:none; margin-top:16px;">
         <div>
-          <span style="font-weight:700; color:var(--cad-roxo); font-size:0.9rem;" id="resumo-txt-orgao">📩 Encaminhamento Recebido</span>
-          <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;" id="resumo-txt-detalhes"></div>
+          <span style="font-weight:700; font-size:0.9375rem;" id="resumo-txt-orgao">📩 Encaminhamento Recebido</span>
+          <div style="font-size:0.8125rem; opacity:.85; margin-top:2px;" id="resumo-txt-detalhes"></div>
         </div>
-        <button type="button" class="btn btn-outline btn-sm" onclick="abrirModalEncaminhamento()" style="color:var(--cad-roxo); border-color:#8B5CF6;">✏️ Editar Ofício / Origem</button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="abrirModalEncaminhamento()"><span class="ms sm">edit</span> Editar Ofício / Origem</button>
       </div>
     </div>
 
@@ -103,8 +103,8 @@
       </div>
       {% set user_perfil = perfil or session.get('perfil') %}
       {% if user_perfil == 'assistente_social' %}
-      <div style="margin-bottom:14px; padding:10px 14px; background:#FAF5FF; border-left:4px solid var(--cad-roxo); border-radius:6px; font-size:0.88rem; color:#581C87; font-weight:600;">
-        ✨ Atendimentos do Serviço Social:
+      <div class="m3-callout" style="margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+        <span class="ms fill">volunteer_activism</span> Atendimentos do Serviço Social
       </div>
       {% endif %}
       <div class="checks-grid">
@@ -114,12 +114,12 @@
           {% set is_sibec = tipo in tipos_sibec %}
           {% set can_show = (user_perfil != 'assistente_social' or is_as) and (not is_sibec or acesso_sibec) %}
           {% if can_show %}
-          <label class="check-item {% if is_sibec %}sibec{% endif %}" style="{% if is_as and user_perfil == 'assistente_social' %}background:#FAF5FF; border-color:#C084FC; font-weight:700;{% endif %}">
+          <label class="check-item {% if is_sibec %}sibec{% endif %}{% if is_as and user_perfil == 'assistente_social' %} as-only{% endif %}">
             <input type="checkbox" name="tipos" value="{{ tipo }}"
                    {% if tipo in tipos_selecionados %}checked{% endif %}>
             <span>
               {{ tipo }}
-              {% if is_as and user_perfil == 'assistente_social' %}<span class="badge" style="background:#783DB2; color:#fff; font-size:0.7rem; padding:2px 6px; border-radius:4px; margin-left:4px;">Serviço Social</span>{% endif %}
+              {% if is_as and user_perfil == 'assistente_social' %}<span class="chip-tag" style="margin-left:4px;">Serviço Social</span>{% endif %}
               {% if is_sibec %}<span class="badge-sibec">SIBEC</span>{% endif %}
             </span>
           </label>
@@ -130,7 +130,7 @@
 
     <div class="flex">
       <a href="{{ url_for('dashboard') }}" class="btn btn-outline">Cancelar</a>
-      <button type="submit" class="btn btn-primary" style="margin-left:auto; padding:12px 28px; font-size:1rem; font-weight:700;">Salvar Atendimento</button>
+      <button type="submit" class="btn btn-primary" style="margin-left:auto; height:56px; padding:0 32px; font-size:1rem;"><span class="ms">save</span> Salvar Atendimento</button>
     </div>
   </form>
 </div>
@@ -138,27 +138,23 @@
 <!-- ========================================================================= -->
 <!-- MODAL / POP-UP: ENCAMINHAMENTO RECEBIDO -->
 <!-- ========================================================================= -->
-<div id="modal-encaminhamento" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.65); backdrop-filter:blur(4px); z-index:9999; justify-content:center; align-items:center; padding:16px;">
-  <div style="background:#FFFFFF; border-radius:16px; max-width:620px; width:100%; max-height:90vh; overflow-y:auto; box-shadow:0 20px 25px -5px rgba(0,0,0,0.3); border:1px solid #E2E8F0;">
-    
-    <!-- Modal Header -->
-    <div style="background:linear-gradient(135deg, #783DB2, #00542A); color:#FFF; padding:18px 24px; border-top-left-radius:16px; border-top-right-radius:16px; display:flex; justify-content:space-between; align-items:center;">
+<div id="modal-encaminhamento" class="m3-scrim">
+  <div class="m3-dialog" role="dialog" aria-modal="true" aria-labelledby="modal-enc-titulo">
+
+    <div class="m3-dialog-header">
       <div>
-        <h3 style="margin:0; font-size:1.15rem; font-weight:800; color:#FFFFFF; display:flex; align-items:center; gap:8px;">
-          <span>📩</span> Detalhes do Encaminhamento Recebido / Ofício
-        </h3>
-        <p style="margin:2px 0 0 0; font-size:0.8rem; color:#E9D5FF;">Informe a origem do ofício e o órgão demandante</p>
+        <h3 id="modal-enc-titulo"><span class="ms fill" style="color:var(--md-sys-color-secondary);">forward_to_inbox</span> Encaminhamento Recebido</h3>
+        <p>Informe a origem do ofício e o órgão demandante</p>
       </div>
-      <button type="button" onclick="fecharModalEncaminhamento()" style="background:transparent; border:none; color:#FFF; font-size:1.4rem; cursor:pointer; font-weight:700;">&times;</button>
+      <button type="button" class="icon-btn" onclick="fecharModalEncaminhamento()" aria-label="Fechar"><span class="ms">close</span></button>
     </div>
 
-    <!-- Modal Body -->
-    <div style="padding:24px;">
-      
+    <div class="m3-dialog-body">
+
       <!-- Órgão Encaminhador (Dropdown) -->
       <div class="form-group">
-        <label for="modal_orgao_select" style="font-weight:700; color:var(--cad-verde-escuro);">Órgão / Instituição Encaminhadora *</label>
-        <select id="modal_orgao_select" class="form-control" style="width:100%; padding:10px;" onchange="toggleOrgaoOutro(this.value)">
+        <label for="modal_orgao_select">Órgão / Instituição Encaminhadora *</label>
+        <select id="modal_orgao_select" class="form-control" onchange="toggleOrgaoOutro(this.value)">
           <option value="">-- Selecione o Órgão --</option>
           {% for org in orgaos_enc %}
           <option value="{{ org }}">{{ org }}</option>
@@ -167,33 +163,33 @@
       </div>
 
       <!-- Se "Outro" for selecionado -->
-      <div class="form-group" id="group-orgao-outro" style="display:none; background:#F8FAFC; padding:12px; border-radius:8px; border:1px solid #CBD5E1;">
-        <label for="modal_orgao_outro_txt" style="font-weight:700; color:#334155;">Especifique o Órgão / Instituição *</label>
+      <div class="form-group" id="group-orgao-outro" style="display:none;">
+        <label for="modal_orgao_outro_txt">Especifique o Órgão / Instituição *</label>
         <input type="text" id="modal_orgao_outro_txt" placeholder="Digite o nome completo do órgão demandante">
       </div>
 
       <!-- Número do Ofício & Data -->
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
         <div class="form-group">
-          <label for="modal_numero_oficio_txt" style="font-weight:700;">Número do Ofício / Encaminhamento:</label>
+          <label for="modal_numero_oficio_txt">Número do Ofício / Encaminhamento</label>
           <input type="text" id="modal_numero_oficio_txt" placeholder="Ex: Ofício Nº 123/2026">
         </div>
         <div class="form-group">
-          <label for="modal_data_enc_txt" style="font-weight:700;">Data do Encaminhamento:</label>
+          <label for="modal_data_enc_txt">Data do Encaminhamento</label>
           <input type="date" id="modal_data_enc_txt">
         </div>
       </div>
 
       <!-- Servidor / Profissional -->
       <div class="form-group">
-        <label for="modal_servidor_txt" style="font-weight:700;">Servidor / Profissional que Encaminhou:</label>
+        <label for="modal_servidor_txt">Servidor / Profissional que Encaminhou</label>
         <input type="text" id="modal_servidor_txt" placeholder="Nome do assistente social, técnico ou servidor">
       </div>
 
       <!-- Motivo do Encaminhamento (Dropdown) -->
       <div class="form-group">
-        <label for="modal_motivo_select" style="font-weight:700; color:var(--cad-verde-escuro);">Motivo do Encaminhamento *</label>
-        <select id="modal_motivo_select" class="form-control" style="width:100%; padding:10px;">
+        <label for="modal_motivo_select">Motivo do Encaminhamento *</label>
+        <select id="modal_motivo_select" class="form-control">
           <option value="">-- Selecione o Motivo --</option>
           {% for mot in motivos_enc %}
           <option value="{{ mot }}">{{ mot }}</option>
@@ -203,8 +199,8 @@
 
       <!-- Situação do Encaminhamento -->
       <div class="form-group">
-        <label for="modal_situacao_select" style="font-weight:700;">Situação do Encaminhamento:</label>
-        <select id="modal_situacao_select" class="form-control" style="width:100%; padding:10px;">
+        <label for="modal_situacao_select">Situação do Encaminhamento</label>
+        <select id="modal_situacao_select" class="form-control">
           {% for sit in situacoes_enc %}
           <option value="{{ sit }}" {% if sit == 'Atendido' %}selected{% endif %}>{{ sit }}</option>
           {% endfor %}
@@ -213,17 +209,16 @@
 
       <!-- Observações do Encaminhamento -->
       <div class="form-group mb-0">
-        <label for="modal_obs_txt" style="font-weight:700;">Observações do Encaminhamento:</label>
+        <label for="modal_obs_txt">Observações do Encaminhamento</label>
         <textarea id="modal_obs_txt" rows="3" placeholder="Informações adicionais do ofício ou determinação legal..."></textarea>
       </div>
 
     </div>
 
-    <!-- Modal Footer -->
-    <div style="background:#F8FAFC; padding:16px 24px; border-bottom-left-radius:16px; border-bottom-right-radius:16px; display:flex; justify-content:flex-end; gap:12px; border-top:1px solid #E2E8F0;">
-      <button type="button" class="btn btn-outline" onclick="fecharModalEncaminhamento()">Cancelar</button>
-      <button type="button" class="btn btn-primary" onclick="confirmarEncaminhamentoModal()" style="background:var(--cad-roxo); border-color:var(--cad-roxo); font-weight:700; padding:10px 22px;">
-        ✓ Confirmar Encaminhamento
+    <div class="m3-dialog-actions">
+      <button type="button" class="btn btn-text" onclick="fecharModalEncaminhamento()">Cancelar</button>
+      <button type="button" class="btn btn-purple" onclick="confirmarEncaminhamentoModal()">
+        <span class="ms sm">check</span> Confirmar Encaminhamento
       </button>
     </div>
 
@@ -336,7 +331,7 @@ cpfInput.addEventListener('input', function(e) {
       .then(data => {
         if (data.nome_rf && !nomeInput.value) {
           nomeInput.value = data.nome_rf;
-          nomeInput.style.background = '#EBF3FB';
+          nomeInput.style.background = 'var(--md-sys-color-primary-container)';
           nomeInput.title = 'Preenchido automaticamente pelo histórico';
           setTimeout(() => nomeInput.style.background = '', 2000);
         }

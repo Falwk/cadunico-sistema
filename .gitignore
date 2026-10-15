@@ -1,4 +1,13 @@
 database.db
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+backups_locais/
+*.zip
+static/logos/*backup*
 __pycache__/
 *.pyc
 *.pyo
@@ -7,4 +16,3 @@ __pycache__/
 dist/
 build/
 .DS_Store
-

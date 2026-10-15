@@ -4,766 +4,132 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CadÚnico 25 Anos - Sistema de Gestão</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-  
-  :root {
-    /* Cores Oficiais do Manual de Marca do Cadastro Único 25 Anos */
-    --cad-verde-escuro: #00542A;
-    --cad-verde: #00883A;
-    --cad-roxo: #783DB2;
-    --cad-lilas: #AD89CF;
-    --cad-amarelo: #FAB614;
-    --cad-bg: #F4F6F9;
-    
-    --sidebar-bg: #00542A;
-    --sidebar-hover: #006B36;
-    --sidebar-active: #00883A;
-    --sidebar-text: #E2E8F0;
-    
-    --header-bg: #FFFFFF;
-    --header-border: #E2E8F0;
-    
-    --text-primary: #0F172A;
-    --text-secondary: #475569;
-    --text-muted: #64748B;
-    
-    --card-bg: #FFFFFF;
-    --card-border: #E2E8F0;
-    --card-shadow: 0 4px 20px rgba(0, 84, 42, 0.06);
-    
-    --primary: #00542A;
-    --primary-light: #00883A;
-    --success: #00883A;
-    --warning: #FAB614;
-    --danger: #DC2626;
-    --purple: #783DB2;
-    
-    --radius-sm: 8px;
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --radius-xl: 20px;
-  }
-  
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', sans-serif; background: var(--cad-bg); color: var(--text-primary); min-height: 100vh; display: flex; }
-  
-  /* Layout Architecture */
-  .app-layout { display: flex; width: 100%; min-height: 100vh; }
-  
-  /* Sidebar */
-  aside.sidebar {
-    width: 240px;
-    background: var(--sidebar-bg);
-    color: #FFF;
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    z-index: 100;
-    box-shadow: 4px 0 15px rgba(0,0,0,0.10);
-    transition: all 0.2s ease;
-  }
-  
-  .sidebar-brand {
-    height: 72px;
-    padding: 0 14px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-  }
-  
-  .sidebar-brand-box {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #FFFFFF;
-    padding: 6px 12px;
-    border-radius: 10px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    width: 100%;
-    height: 48px;
-    text-decoration: none;
-    transition: all 0.2s ease;
-  }
 
-  .sidebar-brand-box:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.22);
-  }
+<!-- Tema (claro/escuro): aplicado antes da renderização para evitar "flash" -->
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('tema');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<meta name="theme-color" content="#006E2D">
 
-  .sidebar-brand-box img {
-    max-height: 38px;
-    max-width: 100%;
-    object-fit: contain;
-  }
-  
-  .sidebar-menu {
-    padding: 20px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    flex: 1;
-    overflow-y: auto;
-  }
-  
-  .sidebar-link {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 11px 14px;
-    color: rgba(255,255,255,0.85);
-    text-decoration: none;
-    font-size: 0.9rem;
-    font-weight: 500;
-    border-radius: var(--radius-md);
-    transition: all 0.16s ease;
-  }
-  
-  .sidebar-link:hover {
-    background: var(--sidebar-hover);
-    color: #FFF;
-  }
-  
-  .sidebar-link.ativo {
-    background: rgba(255, 255, 255, 0.15);
-    color: #FFFFFF;
-    font-weight: 700;
-    border-left: 4px solid var(--cad-amarelo);
-  }
-
-  .sidebar-link svg { width: 20px; height: 20px; opacity: 0.9; stroke-width: 2; }
-  .sidebar-link.ativo svg { opacity: 1; stroke: #FFFFFF; }
-
-  /* Main Wrapper */
-  .main-wrapper {
-    flex: 1;
-    margin-left: 240px;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-  }
-  
-  /* Top Header */
-  header.top-header {
-    height: 64px;
-    background: var(--header-bg);
-    border-bottom: 1px solid var(--header-border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 28px;
-    position: sticky;
-    top: 0;
-    z-index: 90;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.03);
-  }
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .header-title-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    font-weight: 700;
-    font-size: 0.92rem;
-    color: var(--primary);
-  }
-
-  .header-right {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .header-action-btn {
-    background: var(--cad-verde);
-    color: #FFF;
-    border: none;
-    padding: 9px 18px;
-    border-radius: var(--radius-md);
-    font-size: 0.86rem;
-    font-weight: 600;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    transition: background 0.18s ease;
-    box-shadow: 0 2px 8px rgba(0,136,58,0.25);
-  }
-
-  .header-action-btn:hover { background: #007230; }
-
-  .header-notif {
-    position: relative;
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: #F1F5F9;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: background 0.16s ease;
-  }
-
-  .header-notif:hover { background: #E2E8F0; }
-
-  .notif-dot {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    width: 8px;
-    height: 8px;
-    background: var(--danger);
-    border-radius: 50%;
-    border: 2px solid #FFF;
-  }
-
-  .user-profile-chip {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 4px 10px 4px 4px;
-    border-radius: 30px;
-    background: #F8FAFC;
-    border: 1px solid #E2E8F0;
-    text-decoration: none;
-    color: var(--text-primary);
-    transition: all 0.16s ease;
-  }
-
-  .user-profile-chip:hover { background: #F1F5F9; border-color: #CBD5E1; }
-
-  .avatar-circle {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #00542A 0%, #783DB2 100%);
-    color: #FFF;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    font-size: 0.85rem;
-  }
-
-  .user-info { display: flex; flex-direction: column; line-height: 1.2; }
-  .user-name { font-weight: 700; font-size: 0.83rem; color: var(--text-primary); }
-  .user-role { font-size: 0.72rem; color: var(--text-muted); font-weight: 500; }
-
-  /* Main Content Area */
-  .page-content { padding: 28px; flex: 1; }
-
-  /* Standard UI Components */
-  .card {
-    background: var(--card-bg);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--card-shadow);
-    border: 1px solid var(--card-border);
-    padding: 24px;
-    margin-bottom: 24px;
-  }
-
-  .card-title {
-    font-size: 1.05rem;
-    font-weight: 700;
-    color: var(--cad-verde-escuro);
-    margin-bottom: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  /* Metric KPI Cards (Cores Oficiais do Manual 25 Anos) */
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-    margin-bottom: 24px;
-  }
-
-  .kpi-card {
-    border-radius: var(--radius-lg);
-    padding: 22px 24px;
-    color: #FFF;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.06);
-    position: relative;
-    overflow: hidden;
-    height: 100%;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-  }
-
-  .kpi-card:hover { transform: translateY(-3px); box-shadow: 0 10px 25px rgba(0,0,0,0.12); }
-
-  .kpi-card.green { background: linear-gradient(135deg, #00883A 0%, #00542A 100%); }
-  .kpi-card.purple { background: linear-gradient(135deg, #783DB2 0%, #5E2D91 100%); }
-  .kpi-card.yellow { background: linear-gradient(135deg, #FAB614 0%, #D89A05 100%); color: #000; }
-
-  .kpi-icon-badge {
-    width: 54px;
-    height: 54px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.22);
-    backdrop-filter: blur(4px);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #FFF;
-    flex-shrink: 0;
-  }
-
-  .kpi-card.yellow .kpi-icon-badge { background: rgba(0, 0, 0, 0.12); color: #000; }
-  .kpi-card.yellow .kpi-label { color: #1E293B; opacity: 1; }
-  .kpi-card.yellow .kpi-number { color: #0F172A; }
-
-  .kpi-icon-badge svg { width: 28px; height: 28px; stroke-width: 2.2; }
-
-  .kpi-details { display: flex; flex-direction: column; gap: 4px; }
-  .kpi-label { font-size: 0.85rem; font-weight: 700; opacity: 0.95; text-transform: uppercase; letter-spacing: 0.4px; }
-  .kpi-number { font-size: 2.3rem; font-weight: 800; line-height: 1.1; }
-
-  @media(max-width: 600px) {
-    .kpi-grid {
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-    }
-    .kpi-card {
-      padding: 14px 12px;
-    }
-    .kpi-label {
-      font-size: 0.72rem;
-    }
-    .kpi-number {
-      font-size: 1.7rem;
-    }
-    .kpi-icon-badge {
-      width: 40px;
-      height: 40px;
-    }
-    .kpi-icon-badge svg {
-      width: 22px;
-      height: 22px;
-    }
-  }
-
-  /* Pop-up Dropdown de Notificações */
-  .header-notif-wrap { position: relative; }
-  .notif-dot-count {
-    position: absolute;
-    top: -4px;
-    right: -4px;
-    background: #DC2626;
-    color: #FFFFFF;
-    font-size: 0.68rem;
-    font-weight: 800;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 4px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 2px solid #FFFFFF;
-    box-shadow: 0 2px 6px rgba(220, 38, 38, 0.35);
-  }
-
-  .notif-dropdown-menu {
-    position: absolute;
-    top: 48px;
-    right: 0;
-    width: 330px;
-    background: #FFFFFF;
-    border-radius: var(--radius-md);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-    border: 1px solid var(--card-border);
-    z-index: 1000;
-    overflow: hidden;
-    animation: fadeInNotif 0.18s ease-out;
-  }
-
-  @keyframes fadeInNotif {
-    from { opacity: 0; transform: translateY(-8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .notif-dropdown-header {
-    padding: 12px 16px;
-    background: #F8FAFC;
-    border-bottom: 1px solid #E2E8F0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 0.85rem;
-  }
-
-  .notif-badge-count {
-    background: #FEF2F2;
-    color: #DC2626;
-    border: 1px solid #FCA5A5;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.72rem;
-    font-weight: 800;
-  }
-
-  .notif-dropdown-body {
-    max-height: 320px;
-    overflow-y: auto;
-  }
-
-  .notif-item {
-    display: block;
-    padding: 12px 16px;
-    border-bottom: 1px solid #F1F5F9;
-    text-decoration: none;
-    transition: background 0.15s ease;
-  }
-
-  .notif-item:last-child { border-bottom: none; }
-  .notif-item:hover { background: #F8FAFC; }
-
-  .notif-tag-atraso {
-    background: #FEF2F2;
-    color: #DC2626;
-    font-size: 0.7rem;
-    font-weight: 800;
-    padding: 2px 6px;
-    border-radius: 4px;
-    border: 1px solid #FECDD3;
-  }
-
-  .notif-dropdown-footer {
-    padding: 10px 16px;
-    background: #F8FAFC;
-    border-top: 1px solid #E2E8F0;
-    text-align: center;
-  }
-
-  /* Alert Banners */
-  .alerta { padding: 14px 18px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 10px; }
-  .alerta-erro { background: #FEF2F2; border: 1px solid #FCA5A5; color: #991B1B; }
-  .alerta-ok { background: #F0FDF4; border: 1px solid #86EFAC; color: #166534; }
-  .alerta-aviso { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; }
-
-  /* Form Elements */
-  .form-group { margin-bottom: 18px; }
-  label { display: block; font-size: 0.86rem; font-weight: 700; color: var(--cad-verde-escuro); margin-bottom: 6px; }
-  input[type=text], input[type=password], input[type=date], input[type=month], input[type=search], select, textarea {
-    width: 100%; padding: 11px 14px; border: 1.5px solid #CBD5E1; border-radius: var(--radius-md);
-    font-size: 0.92rem; font-family: inherit; transition: all 0.18s ease; background: #FFFFFF; color: var(--text-primary);
-  }
-  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--cad-verde); box-shadow: 0 0 0 3px rgba(0,136,58,0.15); }
-
-  /* Buttons */
-  .btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-    padding: 10px 20px; border-radius: var(--radius-md); font-size: 0.88rem; font-weight: 600;
-    cursor: pointer; border: none; text-decoration: none; transition: all 0.18s ease;
-  }
-  .btn-primary { background: var(--cad-verde-escuro); color: #FFF; } .btn-primary:hover { background: #003F1F; }
-  .btn-success { background: var(--cad-verde); color: #FFF; } .btn-success:hover { background: #007030; }
-  .btn-purple { background: var(--cad-roxo); color: #FFF; } .btn-purple:hover { background: #622FA0; }
-  .btn-danger { background: #FEE2E2; color: #DC2626; padding: 7px 12px; font-size: 0.82rem; } .btn-danger:hover { background: #FCA5A5; color: #7F1D1D; }
-  .btn-outline { background: #FFF; color: var(--text-primary); border: 1.5px solid #CBD5E1; } .btn-outline:hover { background: #F8FAFC; border-color: #94A3B8; }
-  .btn-sm { padding: 7px 14px; font-size: 0.82rem; }
-
-  /* Tables */
-  .table-wrap { overflow-x: auto; border-radius: var(--radius-md); border: 1px solid var(--card-border); }
-  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; text-align: left; }
-  th { background: var(--cad-verde-escuro); color: #FFFFFF; padding: 12px 16px; font-weight: 700; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.3px; }
-  td { padding: 12px 16px; border-bottom: 1px solid #E2E8F0; vertical-align: middle; color: var(--text-primary); }
-  tr:last-child td { border-bottom: none; }
-  tr:hover td { background: #F8FAFC; }
-
-  /* Badges Oficiais SIBEC e Origens */
-  .badge-sibec {
-    display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px;
-    font-size: 0.73rem; font-weight: 700; background: #F3E8FF; color: var(--cad-roxo); border: 1px solid #E9D5FF;
-  }
-  .tag-origem-espontanea {
-    display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px;
-    font-size: 0.73rem; font-weight: 700; background: #FFFBEB; color: #B45309; border: 1px solid #FDE68A;
-  }
-  .tag-origem-visita {
-    display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px;
-    font-size: 0.73rem; font-weight: 700; background: #F5F3FF; color: var(--cad-roxo); border: 1px solid #DDD6FE;
-  }
-  .tag-origem-encaminhado {
-    display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px;
-    font-size: 0.73rem; font-weight: 700; background: #F0FDF4; color: var(--cad-verde); border: 1px solid #86EFAC;
-  }
-
-  /* Grade em 2 Colunas para Tipos de Atendimento & Animação de Check */
-  .checks-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-  }
-  @media(max-width: 640px) {
-    .checks-grid { grid-template-columns: 1fr; }
-  }
-
-  .check-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    background: #FFFFFF;
-    border: 1.5px solid #CBD5E1;
-    border-radius: var(--radius-md);
-    cursor: pointer;
-    user-select: none;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-  .check-item:hover {
-    border-color: var(--cad-verde);
-    background: #F8FAFC;
-    transform: translateY(-1px);
-  }
-
-  /* Custom Animated Checkbox Input */
-  .check-item input[type=checkbox] {
-    appearance: none;
-    -webkit-appearance: none;
-    width: 22px;
-    height: 22px;
-    border: 2px solid #94A3B8;
-    border-radius: 6px;
-    outline: none;
-    cursor: pointer;
-    position: relative;
-    transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
-    flex-shrink: 0;
-  }
-
-  .check-item input[type=checkbox]:checked {
-    background-color: var(--cad-verde);
-    border-color: var(--cad-verde);
-    transform: scale(1.08);
-  }
-
-  .check-item.sibec input[type=checkbox]:checked {
-    background-color: var(--cad-roxo);
-    border-color: var(--cad-roxo);
-  }
-
-  /* Checkmark Animation (Spring bounce effect) */
-  .check-item input[type=checkbox]::after {
-    content: "";
-    position: absolute;
-    top: 2px;
-    left: 6px;
-    width: 6px;
-    height: 11px;
-    border: solid white;
-    border-width: 0 2.5px 2.5px 0;
-    transform: rotate(45deg) scale(0);
-    opacity: 0;
-    transition: transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.18s ease;
-  }
-
-  .check-item input[type=checkbox]:checked::after {
-    transform: rotate(45deg) scale(1);
-    opacity: 1;
-  }
-
-  /* Selected Card Highlight */
-  .check-item:has(input[type=checkbox]:checked) {
-    border-color: var(--cad-verde);
-    background: #F0FDF4;
-    box-shadow: 0 3px 12px rgba(0, 136, 58, 0.1);
-  }
-
-  .check-item.sibec:has(input[type=checkbox]:checked) {
-    border-color: var(--cad-roxo);
-    background: #F3E8FF;
-    box-shadow: 0 3px 12px rgba(120, 61, 178, 0.12);
-  }
-
-  /* Estilo Especial para Opções Exclusivas de Assistente Social (.as-only) */
-  .check-item.as-only {
-    background: #F3E8FF;
-    border-color: #D8B4FE;
-  }
-  .check-item.as-only:hover {
-    background: #EDE9FE;
-    border-color: #C084FC;
-  }
-  .check-item.as-only span {
-    color: #6B21A8;
-    font-weight: 700;
-  }
-  .check-item.as-only input[type=checkbox] {
-    border-color: #A855F7;
-  }
-  .check-item.as-only input[type=checkbox]:checked {
-    background-color: #783DB2;
-    border-color: #783DB2;
-  }
-  .check-item.as-only:has(input[type=checkbox]:checked) {
-    border-color: #783DB2;
-    background: #F3E8FF;
-    box-shadow: 0 3px 12px rgba(120, 61, 178, 0.22);
-  }
-
-  .check-item span {
-    font-size: 0.88rem;
-    font-weight: 600;
-    color: var(--cad-verde-escuro);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-  }
-
-  /* Radio Group */
-  .radio-group {
-    display: flex;
-    gap: 14px;
-    flex-wrap: wrap;
-  }
-  .radio-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 18px;
-    background: #FFFFFF;
-    border: 1.5px solid #CBD5E1;
-    border-radius: 20px;
-    cursor: pointer;
-    font-size: 0.88rem;
-    font-weight: 600;
-    color: var(--cad-verde-escuro);
-    transition: all 0.2s ease;
-  }
-  .radio-item:hover { border-color: var(--cad-verde); background: #F8FAFC; }
-  .radio-item:has(input[type=radio]:checked) {
-    border-color: var(--cad-verde);
-    background: #F0FDF4;
-    color: var(--cad-verde-escuro);
-    box-shadow: 0 2px 8px rgba(0, 136, 58, 0.12);
-  }
-  .radio-item input[type=radio] {
-    accent-color: var(--cad-verde);
-    width: 18px;
-    height: 18px;
-  }
-
-  @media(max-width: 900px) {
-    aside.sidebar { width: 70px; }
-    .sidebar-brand-text, .sidebar-link span { display: none; }
-    .main-wrapper { margin-left: 70px; }
-  }
-</style>
+<!-- Material Design 3 Expressive: fontes e ícones -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/m3-tokens.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/m3.css') }}">
 </head>
 <body>
 
 {% if session.usuario_id %}
 <div class="app-layout">
-  <!-- Sidebar Navigation -->
+  <!-- Navigation drawer (rail compacto em telas pequenas) -->
   <aside class="sidebar">
     <div class="sidebar-brand">
       <a href="{{ url_for('dashboard') }}" class="sidebar-brand-box" title="Cadastro Único 25 Anos">
-        <img src="{{ logo_cadunico_25_b64 or url_for('static', filename='logos/cadunico_25anos.png') }}" alt="Cadastro Único 25 Anos">
+        <img src="{{ url_for('static', filename='logos/cadunico_25anos.png') }}" class="logo-light" alt="Cadastro Único 25 Anos">
+        <img src="{{ url_for('static', filename='logos/cadunico_25anos_branco.png') }}" class="logo-dark" alt="Cadastro Único 25 Anos">
       </a>
     </div>
 
     <nav class="sidebar-menu">
-      <a href="{{ url_for('dashboard') }}" class="sidebar-link {% if request.endpoint == 'dashboard' %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+      <a href="{{ url_for('dashboard') }}" class="sidebar-link {% if request.endpoint == 'dashboard' %}ativo{% endif %}" title="Painel Geral">
+        <span class="ms">dashboard</span>
         <span>Painel Geral</span>
       </a>
 
-      <a href="{{ url_for('registrar') }}" class="sidebar-link {% if request.endpoint == 'registrar' %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="10" y1="16" x2="14" y2="16"/></svg>
+      <a href="{{ url_for('registrar') }}" class="sidebar-link {% if request.endpoint == 'registrar' %}ativo{% endif %}" title="Registrar Atendimento">
+        <span class="ms">edit_calendar</span>
         <span>Registrar Atendimento</span>
       </a>
 
-      <a href="{{ url_for('historico_familiar') }}" class="sidebar-link {% if request.endpoint == 'historico_familiar' %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
+      <a href="{{ url_for('historico_familiar') }}" class="sidebar-link {% if request.endpoint == 'historico_familiar' %}ativo{% endif %}" title="Histórico Familiar">
+        <span class="ms">history</span>
         <span>Histórico Familiar</span>
       </a>
 
-      <a href="{{ url_for('relatorio') }}" class="sidebar-link {% if request.endpoint == 'relatorio' %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      <a href="{{ url_for('relatorio') }}" class="sidebar-link {% if request.endpoint == 'relatorio' %}ativo{% endif %}" title="Relatórios">
+        <span class="ms">summarize</span>
         <span>Relatórios</span>
       </a>
 
-      <a href="{{ url_for('painel_visitas') }}" class="sidebar-link {% if request.endpoint in ('painel_visitas', 'nova_visita', 'detalhe_visita', 'editar_visita') %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <a href="{{ url_for('painel_visitas') }}" class="sidebar-link {% if request.endpoint in ('painel_visitas', 'nova_visita', 'detalhe_visita', 'editar_visita') %}ativo{% endif %}" title="Visitas">
+        <span class="ms">home_pin</span>
         <span>Visitas</span>
       </a>
 
       {% if session.perfil == 'admin' %}
-      <a href="{{ url_for('listar_documentos') }}" class="sidebar-link {% if request.endpoint in ('listar_documentos', 'novo_documento', 'editar_documento') %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      <a href="{{ url_for('listar_documentos') }}" class="sidebar-link {% if request.endpoint in ('listar_documentos', 'novo_documento', 'editar_documento') %}ativo{% endif %}" title="Modelos de Documentos A4">
+        <span class="ms">description</span>
         <span>Modelos de Documentos A4</span>
       </a>
 
-      <a href="{{ url_for('admin_usuarios') }}" class="sidebar-link {% if request.endpoint in ('admin_usuarios', 'novo_usuario', 'editar_usuario') %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <a href="{{ url_for('admin_usuarios') }}" class="sidebar-link {% if request.endpoint in ('admin_usuarios', 'novo_usuario', 'editar_usuario') %}ativo{% endif %}" title="Usuários">
+        <span class="ms">group</span>
         <span>Usuários</span>
       </a>
 
-      <a href="{{ url_for('central_backup') }}" class="sidebar-link {% if request.endpoint in ('central_backup', 'admin_backup', 'backup_excel') %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      <a href="{{ url_for('central_backup') }}" class="sidebar-link {% if request.endpoint in ('central_backup', 'admin_backup', 'backup_excel') %}ativo{% endif %}" title="Backup do Sistema">
+        <span class="ms">cloud_download</span>
         <span>Backup do Sistema</span>
       </a>
 
-      <a href="{{ url_for('config_relatorio') }}" class="sidebar-link {% if request.endpoint == 'config_relatorio' %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <a href="{{ url_for('config_relatorio') }}" class="sidebar-link {% if request.endpoint == 'config_relatorio' %}ativo{% endif %}" title="Configurações">
+        <span class="ms">settings</span>
         <span>Configurações</span>
       </a>
 
-      <a href="{{ url_for('portal_api') }}" class="sidebar-link {% if request.endpoint in ('portal_api', 'api_openapi_json') %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+      <a href="{{ url_for('portal_api') }}" class="sidebar-link {% if request.endpoint in ('portal_api', 'api_openapi_json') %}ativo{% endif %}" title="Portal da API (Integração)">
+        <span class="ms">code</span>
         <span>Portal da API (Integração)</span>
       </a>
 
-      <a href="{{ url_for('auditoria') }}" class="sidebar-link {% if request.endpoint == 'auditoria' %}ativo{% endif %}">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <a href="{{ url_for('auditoria') }}" class="sidebar-link {% if request.endpoint == 'auditoria' %}ativo{% endif %}" title="Auditoria">
+        <span class="ms">shield</span>
         <span>Auditoria</span>
       </a>
       {% endif %}
     </nav>
 
-    <div style="padding: 14px 12px; border-top: 1px solid rgba(255,255,255,0.15); text-align: center; font-size: 0.76rem; color: rgba(255,255,255,0.82); background: rgba(0,0,0,0.12);">
-      Developed by <a href="https://github.com/Falwk" target="_blank" rel="noopener noreferrer" style="color: #FACC15; font-weight: 700; text-decoration: none; border-bottom: 1px dashed #FACC15; transition: all 0.16s ease;">Jefferson Souto</a>
+    <div class="sidebar-footer">
+      <div style="margin-bottom: 8px;">
+        <img src="{{ url_for('static', filename='logos/grafismo_cadunico_horizontal.png') }}" alt="CadÚnico 25 Anos" style="height: 28px; max-width: 100%; object-fit: contain; opacity: 0.9;">
+      </div>
+      Developed by <a href="https://github.com/Falwk" target="_blank" rel="noopener noreferrer">Jefferson Souto</a>
     </div>
   </aside>
 
   <!-- Main Content Area -->
   <div class="main-wrapper">
-    <!-- Top Header -->
+    <!-- Top app bar -->
     <header class="top-header">
       <div class="header-left">
-        <div class="header-title-badge" style="display:flex; align-items:center; gap:10px; padding:4px 12px; background:#FFFFFF; border:1px solid #E2E8F0; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-          <img src="{{ logo_prefeitura_b64 or logo_prefeitura }}" alt="Prefeitura de Tomé-Açu" style="height:32px; max-width:180px; object-fit:contain;">
-          <span style="border-left:1px solid #CBD5E1; padding-left:10px; font-weight:700; color:#047857;">SETAS — Secretaria de Assistência Social</span>
+        <div class="header-title-badge">
+          <div class="logo-wrap">
+            <img src="{{ logo_prefeitura_b64 or logo_prefeitura }}" alt="Prefeitura de Tomé-Açu">
+          </div>
+          <span class="org">SETAS — Secretaria de Assistência Social</span>
         </div>
       </div>
 
       <div class="header-right">
         <a href="{{ url_for('registrar') }}" class="header-action-btn">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          <span>+ Novo Atendimento</span>
+          <span class="ms">add</span>
+          <span>Novo Atendimento</span>
         </a>
 
+        <button type="button" class="icon-btn tonal" id="btn-tema" onclick="alternarTema()" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">
+          <span class="ms" id="icone-tema">dark_mode</span>
+        </button>
+
         <div class="header-notif-wrap">
-          <div class="header-notif" id="btn-notif-icon" onclick="toggleNotifDropdown(event)" title="Notificações e Avisos">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <div class="icon-btn tonal header-notif" id="btn-notif-icon" onclick="toggleNotifDropdown(event)" title="Notificações e Avisos" role="button" tabindex="0">
+            <span class="ms">notifications</span>
             {% if notif_total_geral|default(0) > 0 %}
               <div class="notif-dot-count">{{ notif_total_geral }}</div>
             {% else %}
@@ -771,30 +137,28 @@
             {% endif %}
           </div>
 
-          <!-- Dropdown Pop-Up das Notificações -->
-          <div id="notif-dropdown" class="notif-dropdown-menu" style="display:none; max-width:360px; width:90vw;">
+          <!-- Menu de notificações -->
+          <div id="notif-dropdown" class="notif-dropdown-menu" style="display:none; max-width:380px; width:90vw;">
             <div class="notif-dropdown-header">
-              <span style="font-weight:700; color:var(--cad-verde-escuro); display:flex; align-items:center; gap:6px;">
-                🔔 Central de Notificações
+              <span style="font-weight:600; display:flex; align-items:center; gap:8px;">
+                <span class="ms fill" style="color:var(--md-sys-color-primary);">notifications</span> Central de Notificações
               </span>
               {% if notif_total_geral|default(0) > 0 %}
                 <span class="notif-badge-count">{{ notif_total_geral }} nova{{ 's' if notif_total_geral > 1 else '' }}</span>
               {% endif %}
             </div>
 
-            <div class="notif-dropdown-body" style="max-height:380px; overflow-y:auto;">
+            <div class="notif-dropdown-body">
               {# Seção 1: Notificações de Pareceres Emitidos / Visitas Concluídas #}
               {% if notif_mensagens %}
-                <div style="padding:6px 12px; background:#F0FDF4; font-size:0.75rem; font-weight:700; color:var(--cad-verde-escuro); border-bottom:1px solid #DCFCE7;">
-                  📋 Pareceres & Visitas Concluídas
-                </div>
+                <div class="notif-section ok"><span class="ms sm">task_alt</span> Pareceres &amp; Visitas Concluídas</div>
                 {% for n in notif_mensagens %}
-                  <a href="{{ url_for('marcar_notificacao_lida', notif_id=n.id) }}" class="notif-item" style="border-left:3px solid var(--cad-verde); background:#FAF5FF;">
+                  <a href="{{ url_for('marcar_notificacao_lida', notif_id=n.id) }}" class="notif-item mensagem">
                     <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:2px;">
-                      <strong style="color:var(--cad-roxo); font-size:0.83rem;">{{ n.titulo }}</strong>
-                      <span style="font-size:0.7rem; color:#64748B;">Novo</span>
+                      <strong style="color:var(--md-sys-color-secondary); font-size:0.875rem;">{{ n.titulo }}</strong>
+                      <span style="font-size:0.6875rem; color:var(--md-sys-color-on-surface-variant);">Novo</span>
                     </div>
-                    <div style="font-size:0.78rem; color:#334155; line-height:1.4;">
+                    <div style="font-size:0.8125rem; color:var(--md-sys-color-on-surface-variant); line-height:1.4;">
                       {{ n.mensagem }}
                     </div>
                   </a>
@@ -803,23 +167,21 @@
 
               {# Seção 2: Visitas em Atraso #}
               {% if notif_visitas_atrasadas %}
-                <div style="padding:6px 12px; background:#FFFBEB; font-size:0.75rem; font-weight:700; color:#B45309; border-bottom:1px solid #FEF3C7; margin-top:{% if notif_mensagens %}6px{% else %}0{% endif %};">
-                  ⚠️ Visitas Pendentes em Atraso
-                </div>
+                <div class="notif-section warn"><span class="ms sm">warning</span> Visitas Pendentes em Atraso</div>
                 {% for v in notif_visitas_atrasadas %}
                   <a href="{{ url_for('detalhe_visita', visita_id=v.id) }}" class="notif-item">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px;">
-                      <strong style="color:var(--text-primary); font-size:0.85rem;">{{ v.nome_rf }}</strong>
-                      <span class="notif-tag-atraso">⚠️ {{ v.dias_atraso }}d atraso</span>
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; gap:8px;">
+                      <strong style="font-size:0.875rem;">{{ v.nome_rf }}</strong>
+                      <span class="notif-tag-atraso">{{ v.dias_atraso }}d atraso</span>
                     </div>
-                    <div style="font-size:0.78rem; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center;">
+                    <div style="font-size:0.8125rem; color:var(--md-sys-color-on-surface-variant); display:flex; justify-content:space-between; align-items:center; gap:8px;">
                       <span>Motivo: <strong>{{ v.motivo }}</strong></span>
                       {% if v.numero_vd %}
-                        <span style="font-family:monospace; font-weight:700; color:var(--cad-verde-escuro);">{{ v.numero_vd }}</span>
+                        <span style="font-family:monospace; font-weight:700; color:var(--md-sys-color-primary);">{{ v.numero_vd }}</span>
                       {% endif %}
                     </div>
                     {% if v.bairro %}
-                      <div style="font-size:0.75rem; color:#64748B; margin-top:2px;">📍 Bairro: {{ v.bairro }} ({{ v.zona or 'Urbana' }})</div>
+                      <div style="font-size:0.75rem; color:var(--md-sys-color-on-surface-variant); margin-top:2px; display:flex; align-items:center; gap:4px;"><span class="ms sm">location_on</span> Bairro: {{ v.bairro }} ({{ v.zona or 'Urbana' }})</div>
                     {% endif %}
                   </a>
                 {% endfor %}
@@ -827,18 +189,16 @@
 
               {# Estado Vazio #}
               {% if not notif_mensagens and not notif_visitas_atrasadas %}
-                <div style="padding:22px 16px; text-align:center; color:var(--text-muted); font-size:0.85rem;">
-                  <div style="font-size:1.6rem; margin-bottom:6px;">✅</div>
+                <div class="notif-empty">
+                  <div><span class="ms fill">check_circle</span></div>
                   <strong>Tudo em dia!</strong>
-                  <p style="margin:4px 0 0 0; font-size:0.78rem; color:#94A3B8;">Nenhuma notificação nova ou visita pendente em atraso.</p>
+                  <p style="margin:4px 0 0 0; font-size:0.8125rem;">Nenhuma notificação nova ou visita pendente em atraso.</p>
                 </div>
               {% endif %}
             </div>
 
             <div class="notif-dropdown-footer">
-              <a href="{{ url_for('painel_visitas') }}" style="color:var(--cad-verde-escuro); font-weight:700; font-size:0.82rem; text-decoration:none;">
-                Ver Todas as Visitas Domiciliares →
-              </a>
+              <a href="{{ url_for('painel_visitas') }}">Ver Todas as Visitas Domiciliares →</a>
             </div>
           </div>
         </div>
@@ -853,8 +213,8 @@
           </div>
         </a>
 
-        <a href="{{ url_for('logout') }}" style="color:var(--text-muted); text-decoration:none; display:flex; align-items:center;" title="Sair do sistema">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <a href="{{ url_for('logout') }}" class="icon-btn" title="Sair do sistema" aria-label="Sair do sistema">
+          <span class="ms">logout</span>
         </a>
       </div>
     </header>
@@ -864,7 +224,8 @@
         {% if msgs %}
           {% for cat, msg in msgs %}
             <div class="alerta alerta-{{ 'ok' if cat in ('ok','success') else ('erro' if cat in ('erro','danger') else 'aviso') }}">
-              {{ msg }}
+              <span class="ms">{{ 'check_circle' if cat in ('ok','success') else ('error' if cat in ('erro','danger') else 'info') }}</span>
+              <span>{{ msg }}</span>
             </div>
           {% endfor %}
         {% endif %}
@@ -890,6 +251,24 @@
       dropdown.style.display = 'none';
     }
   }
+
+  /* Tema claro/escuro (preferência salva no navegador; padrão = preferência do sistema) */
+  function temaAtual() {
+    var t = document.documentElement.getAttribute('data-theme');
+    if (t) return t;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  function atualizarIconeTema() {
+    var el = document.getElementById('icone-tema');
+    if (el) el.textContent = temaAtual() === 'dark' ? 'light_mode' : 'dark_mode';
+  }
+  function alternarTema() {
+    var novo = temaAtual() === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', novo);
+    try { localStorage.setItem('tema', novo); } catch (e) {}
+    atualizarIconeTema();
+  }
+  document.addEventListener('DOMContentLoaded', atualizarIconeTema);
 
   function formatarMoedaBRL(val) {
     if (val === null || val === undefined) return '';
@@ -953,7 +332,7 @@
   document.addEventListener('click', function(e) {
     const dropdown = document.getElementById('notif-dropdown');
     const btn = document.getElementById('btn-notif-icon');
-    if (dropdown && !dropdown.contains(e.target) && !btn.contains(e.target)) {
+    if (dropdown && btn && !dropdown.contains(e.target) && !btn.contains(e.target)) {
       dropdown.style.display = 'none';
     }
   });

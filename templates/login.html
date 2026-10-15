@@ -4,244 +4,176 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Login - CadÚnico 25 Anos</title>
+<!-- Material Design 3 Expressive -->
+<script>
+  (function () {
+    try {
+      var t = localStorage.getItem('tema');
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<meta name="theme-color" content="#006E2D">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/m3-tokens.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/m3.css') }}">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-  :root {
-    --cad-verde-escuro: #00542A;
-    --cad-verde: #00883A;
-    --cad-roxo: #783DB2;
-    --cad-lilas: #AD89CF;
-    --cad-amarelo: #FAB614;
-    --cad-bg: #F4F6F9;
-    --text-primary: #0F172A;
-    --text-muted: #64748B;
-    --radius-md: 12px;
-    --radius-lg: 20px;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Inter', sans-serif;
-    background: linear-gradient(135deg, #00542A 0%, #007030 55%, #5E2D91 100%);
+    align-items: center;
+    justify-content: center;
     min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
-    color: var(--text-primary);
-  }
-
-  .login-box {
-    background: #FFFFFF;
-    border-radius: var(--radius-lg);
-    padding: 40px 36px 32px;
-    width: 100%;
-    max-width: 420px;
-    box-shadow: 0 12px 40px rgba(0, 50, 20, 0.28);
+    padding: 0;
+    margin: 0;
+    background: var(--md-sys-color-surface);
     position: relative;
-    overflow: hidden;
+    overflow-x: hidden;
   }
 
-  .login-box::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 5px;
-    background: linear-gradient(90deg, #00883A 0%, #FAB614 50%, #783DB2 100%);
+  body::before {
+    content: ""; position: fixed; z-index: 0; pointer-events: none;
+    width: 600px; height: 600px; top: -180px; left: -160px;
+    background: radial-gradient(circle, var(--md-sys-color-primary-container) 0%, transparent 70%);
+    opacity: 0.6;
+  }
+  body::after {
+    content: ""; position: fixed; z-index: 0; pointer-events: none;
+    width: 500px; height: 500px; bottom: -160px; right: -120px;
+    background: radial-gradient(circle, var(--md-sys-color-secondary-container) 0%, transparent 70%);
+    opacity: 0.6;
   }
 
-  /* Logos */
-  .logos-topo {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    margin-bottom: 22px;
-    flex-wrap: wrap;
-  }
-  .logos-topo img { height: 44px; width: auto; object-fit: contain; max-width: 140px; }
-  .logos-topo img.logo-prefeitura { height: 52px; max-width: 170px; }
+  .campo { position: relative; }
+  .campo .ms { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--md-sys-color-on-surface-variant); pointer-events: none; }
+  .campo input { padding-left: 52px; }
+  .campo input:focus ~ .ms, .campo:focus-within .ms { color: var(--md-sys-color-primary); }
 
-  .logos-prog {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    margin-bottom: 20px;
-    padding-bottom: 16px;
-    border-bottom: 1px solid #E2E8F0;
-    flex-wrap: wrap;
-  }
-  .logos-prog img { height: 38px; width: auto; object-fit: contain; max-width: 130px; }
-
-  .logo-icon {
-    width: 64px;
-    height: 64px;
-    background: linear-gradient(135deg, #00883A 0%, #00542A 100%);
-    border-radius: 16px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin: 0 auto 18px;
-    color: #FFFFFF;
-    box-shadow: 0 4px 14px rgba(0, 136, 58, 0.35);
-  }
-
-  h1 {
-    font-size: 1.35rem;
-    font-weight: 800;
-    color: var(--cad-verde-escuro);
-    text-align: center;
-    letter-spacing: -0.3px;
-    margin-bottom: 4px;
-  }
-
-  .sub {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    text-align: center;
-    margin-bottom: 24px;
-    line-height: 1.4;
-  }
-
-  .form-group { margin-bottom: 18px; }
-
-  label {
-    display: block;
-    font-size: 0.85rem;
-    font-weight: 700;
-    color: var(--cad-verde-escuro);
-    margin-bottom: 6px;
-  }
-
-  input[type=text], input[type=password] {
-    width: 100%;
-    padding: 12px 14px;
-    border: 1.5px solid #CBD5E1;
-    border-radius: var(--radius-md);
-    font-size: 0.92rem;
-    font-family: inherit;
-    transition: all 0.18s ease;
-    background: #FFFFFF;
-    color: var(--text-primary);
-  }
-
-  input:focus {
-    outline: none;
-    border-color: var(--cad-verde);
-    box-shadow: 0 0 0 3px rgba(0, 136, 58, 0.15);
-  }
-
-  .btn {
-    width: 100%;
-    padding: 12px;
-    background: var(--cad-verde);
-    color: #FFFFFF;
-    border: none;
-    border-radius: var(--radius-md);
-    font-size: 0.95rem;
-    font-weight: 700;
-    cursor: pointer;
-    margin-top: 8px;
-    transition: all 0.18s ease;
-    box-shadow: 0 4px 12px rgba(0, 136, 58, 0.25);
-  }
-
-  .btn:hover {
-    background: #007030;
-    box-shadow: 0 6px 16px rgba(0, 136, 58, 0.35);
-  }
+  .btn-login { width: 100%; height: 54px; margin-top: 8px; font-size: 1rem; }
 
   .erro {
-    background: #FEF2F2;
-    color: #991B1B;
-    border: 1px solid #FCA5A5;
-    border-left: 4px solid #DC2626;
-    padding: 12px 14px;
-    border-radius: var(--radius-md);
-    font-size: 0.86rem;
-    margin-bottom: 18px;
-    font-weight: 500;
+    display: flex; align-items: center; gap: 12px;
+    background: var(--md-sys-color-error-container); color: var(--md-sys-color-on-error-container);
+    padding: 14px 18px; border-radius: var(--md-sys-shape-corner-large);
+    font-size: 0.875rem; margin-bottom: 20px; font-weight: 500;
   }
 
   .recuperar {
-    display: block;
-    text-align: center;
-    margin-top: 18px;
-    color: var(--cad-verde-escuro);
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-decoration: none;
-    transition: color 0.16s ease;
+    display: flex; align-items: center; justify-content: center; margin: 14px auto 0; height: 40px; width: fit-content; padding: 0 16px;
+    color: var(--md-sys-color-primary); font-size: 0.875rem; font-weight: 600; text-decoration: none;
+    border-radius: var(--md-sys-shape-corner-full); transition: background var(--md-duration-short) linear;
   }
-
-  .recuperar:hover {
-    color: var(--cad-roxo);
-    text-decoration: underline;
-  }
+  .recuperar:hover { background: color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent); }
 
   .rodape {
-    text-align: center;
-    margin-top: 24px;
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    border-top: 1px solid #F1F5F9;
-    padding-top: 16px;
-    font-weight: 500;
+    text-align: center; margin-top: 24px; font-size: 0.75rem; color: var(--md-sys-color-on-surface-variant);
+    padding-top: 16px; border-top: 1px solid var(--md-sys-color-outline-variant); font-weight: 500;
   }
+
+  .tema-flutuante { position: fixed; top: 20px; right: 20px; z-index: 10; }
 </style>
 </head>
 <body>
-<div class="login-box">
 
-  {# ── Logos da Prefeitura ── #}
-  {% if logo_prefeitura %}
-  <div class="logos-topo">
-    <img src="{{ logo_prefeitura }}" alt="Prefeitura de Tomé-Açu" class="logo-prefeitura">
-  </div>
-  {% else %}
-  <div style="text-align:center; margin-bottom:16px;">
-    <div class="logo-icon" style="display:inline-flex;">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 21V9"/></svg>
+<button type="button" class="icon-btn tonal tema-flutuante" onclick="alternarTema()" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">
+  <span class="ms" id="icone-tema">dark_mode</span>
+</button>
+
+<div class="login-wrapper">
+  <div class="login-card-expressive">
+
+    <!-- Lado Esquerdo: Vitrine Institucional com os Elementos Visuais Oficiais -->
+    <div class="login-showcase">
+      <div class="login-showcase-badge">
+        <img src="{{ logo_prefeitura_b64 or url_for('static', filename='logos/prefeitura.png') }}" alt="Prefeitura de Tomé-Açu">
+        <span style="font-size:0.75rem; font-weight:700; color:#047857; border-left:1px solid #CBD5E1; padding-left:8px;">SETAS</span>
+      </div>
+
+      <div class="login-showcase-totem">
+        <img src="{{ url_for('static', filename='logos/grafismo_cadunico_vertical.png') }}" alt="Grafismo Oficial Cadastro Único 25 Anos">
+      </div>
+
+      <div class="login-showcase-text">
+        <h2>Conhecer para incluir</h2>
+        <p>
+          25 anos identificando e acolhendo as famílias que mais precisam. Sistema de Gestão &middot; Tomé-Açu / PA.
+        </p>
+      </div>
     </div>
-  </div>
-  {% endif %}
 
-  {# ── Logos Programas ── #}
-  {% if logo_cadunico or logo_bolsafamilia %}
-  <div class="logos-prog">
-    {% if logo_cadunico %}
-      <img src="{{ logo_cadunico }}" alt="Cadastro Único">
-    {% endif %}
-    {% if logo_bolsafamilia %}
-      <img src="{{ logo_bolsafamilia }}" alt="Bolsa Família">
-    {% endif %}
-  </div>
-  {% endif %}
+    <!-- Lado Direito: Formulário de Autenticação -->
+    <div class="login-form-side">
+      <div style="margin-bottom: 24px; text-align: center;">
+        <img src="{{ url_for('static', filename='logos/cadunico_25anos.png') }}" class="logo-light" alt="Cadastro Único 25 Anos" style="height: 48px; max-width: 100%; object-fit: contain; margin-bottom: 12px;">
+        <img src="{{ url_for('static', filename='logos/cadunico_25anos_branco.png') }}" class="logo-dark" alt="Cadastro Único 25 Anos" style="height: 48px; max-width: 100%; object-fit: contain; margin-bottom: 12px;">
+        <h1 style="font-family: var(--md-ref-typeface-brand); font-size: 1.4rem; font-weight: 700; color: var(--md-sys-color-on-surface); margin: 0 0 4px 0;">
+          Acesso ao Sistema
+        </h1>
+        <p style="font-size: 0.85rem; color: var(--md-sys-color-on-surface-variant); margin: 0;">
+          Informe suas credenciais para continuar
+        </p>
+      </div>
 
-  <h1>Cadastro Único 25 Anos</h1>
-  <p class="sub">Registro de Atendimentos — Secretaria Municipal de Trabalho e Assistência Social</p>
+      {% if erro %}
+      <div class="erro">
+        <span class="ms">error</span>
+        <span>{{ erro }}</span>
+      </div>
+      {% endif %}
 
-  {% if erro %}<div class="erro">{{ erro }}</div>{% endif %}
+      <form method="POST" autocomplete="on">
+        <div class="form-group">
+          <label for="login">Usuário</label>
+          <div class="campo">
+            <input type="text" id="login" name="login" placeholder="Seu login" autofocus required autocomplete="username">
+            <span class="ms">person</span>
+          </div>
+        </div>
 
-  <form method="POST" autocomplete="on">
-    <div class="form-group">
-      <label for="login">Usuário</label>
-      <input type="text" id="login" name="login" placeholder="Seu login" autofocus required autocomplete="username">
+        <div class="form-group">
+          <label for="senha">Senha</label>
+          <div class="campo">
+            <input type="password" id="senha" name="senha" placeholder="Sua senha" required autocomplete="current-password">
+            <span class="ms">lock</span>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-login">
+          <span class="ms sm">login</span>
+          <span>Entrar no Sistema</span>
+        </button>
+      </form>
+
+      <a href="{{ url_for('recuperar_senha') }}" class="recuperar">
+        Esqueci minha senha
+      </a>
+
+      <p class="rodape">
+        Prefeitura Municipal de Tomé-Açu &middot; SETAS &middot; Cadastro Único
+      </p>
     </div>
-    <div class="form-group">
-      <label for="senha">Senha</label>
-      <input type="password" id="senha" name="senha" placeholder="Sua senha" required autocomplete="current-password">
-    </div>
-    <button type="submit" class="btn">Entrar no Sistema</button>
-  </form>
 
-  <a href="{{ url_for('recuperar_senha') }}" class="recuperar">Esqueci minha senha</a>
-
-  <p class="rodape">Prefeitura Municipal de Tomé-Açu · SETAS</p>
+  </div>
 </div>
+
+<script>
+  function temaAtual() {
+    var t = document.documentElement.getAttribute('data-theme');
+    if (t) return t;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  function atualizarIconeTema() {
+    var el = document.getElementById('icone-tema');
+    if (el) el.textContent = temaAtual() === 'dark' ? 'light_mode' : 'dark_mode';
+  }
+  function alternarTema() {
+    var novo = temaAtual() === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', novo);
+    try { localStorage.setItem('tema', novo); } catch (e) {}
+    atualizarIconeTema();
+  }
+  document.addEventListener('DOMContentLoaded', atualizarIconeTema);
+</script>
 </body>
 </html>

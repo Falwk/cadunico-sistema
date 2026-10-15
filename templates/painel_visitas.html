@@ -3,136 +3,100 @@
 <div class="visitas-page">
 
   <!-- Header -->
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px;">
+  <div class="page-head">
     <div>
-      <h1 style="font-size:1.45rem; font-weight:800; color:var(--cad-verde-escuro); letter-spacing:-0.3px; margin-bottom:4px;">
-        Solicitações de Visita Domiciliar
-      </h1>
-      <p style="font-size:0.86rem; color:var(--text-muted);">
-        Gestão e agendamento de visitas de verificação em campo
-      </p>
+      <h1 class="page-title">Solicitações de Visita Domiciliar</h1>
+      <p class="page-subtitle">Gestão e agendamento de visitas de verificação em campo</p>
     </div>
     <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-      <!-- Dropdown de Impressão de Resumos de Visitas -->
-      <div class="dropdown" style="position:relative; display:inline-block;">
-        <button type="button" class="btn btn-outline" style="border-color:#00883A; color:#00542A; font-weight:700; background:#F0FDF4; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleDropdownResumos(event)">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
-          <span>🖨️ Imprimir Resumo</span>
-          <span style="font-size:0.75rem; margin-left:2px;">▼</span>
+      <!-- Menu de Impressão de Resumos de Visitas -->
+      <div class="m3-menu-wrap">
+        <button type="button" class="btn btn-tonal" onclick="toggleDropdownResumos(event)">
+          <span class="ms sm">print</span>
+          <span>Imprimir Resumo</span>
+          <span class="ms sm">arrow_drop_down</span>
         </button>
-        <div id="dropdown-resumos-menu" style="display:none; position:absolute; right:0; top:calc(100% + 6px); background:#FFFFFF; border:1px solid #CBD5E1; border-radius:10px; box-shadow:0 10px 25px rgba(0,0,0,0.14); min-width:300px; z-index:1000; padding:8px 0;">
-          <div style="padding:8px 16px; font-size:0.75rem; font-weight:800; color:#64748B; text-transform:uppercase; letter-spacing:0.5px; border-bottom:1px solid #F1F5F9;">
-            Impressão de Resumos em PDF
-          </div>
-          
-          <a href="{{ url_for('pdf_resumo_visitas', tipo='solicitadas', data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro','')) }}" target="_blank"
-             style="display:flex; align-items:center; gap:12px; padding:10px 16px; color:#1E293B; text-decoration:none; font-size:0.88rem; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='#FFFBEB'" onmouseout="this.style.background='transparent'">
-            <span style="font-size:1.2rem;">📥</span>
-            <div>
-              <div style="color:#B45309; font-weight:700;">Visitas Solicitadas</div>
-              <div style="font-size:0.75rem; color:#64748B; font-weight:400;">Novas solicitações pendentes</div>
-            </div>
+        <div id="dropdown-resumos-menu" class="m3-menu">
+          <div class="m3-menu-title">Impressão de Resumos em PDF</div>
+
+          <a href="{{ url_for('pdf_resumo_visitas', tipo='solicitadas', data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro','')) }}" target="_blank">
+            <span class="ms" style="color:var(--md-sys-color-tertiary);">inbox</span>
+            <div>Visitas Solicitadas<small>Novas solicitações pendentes</small></div>
           </a>
 
-          <a href="{{ url_for('pdf_resumo_visitas', tipo='atrasadas', data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro','')) }}" target="_blank"
-             style="display:flex; align-items:center; gap:12px; padding:10px 16px; color:#1E293B; text-decoration:none; font-size:0.88rem; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='#FEF2F2'" onmouseout="this.style.background='transparent'">
-            <span style="font-size:1.2rem;">⚠️</span>
-            <div>
-              <div style="color:#DC2626; font-weight:700;">Visitas em Atraso</div>
-              <div style="font-size:0.75rem; color:#64748B; font-weight:400;">Solicitações com SLA excedido</div>
-            </div>
+          <a href="{{ url_for('pdf_resumo_visitas', tipo='atrasadas', data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro','')) }}" target="_blank">
+            <span class="ms" style="color:var(--md-sys-color-error);">warning</span>
+            <div>Visitas em Atraso<small>Solicitações com SLA excedido</small></div>
           </a>
 
-          <a href="{{ url_for('pdf_resumo_visitas', tipo='realizadas', data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro','')) }}" target="_blank"
-             style="display:flex; align-items:center; gap:12px; padding:10px 16px; color:#1E293B; text-decoration:none; font-size:0.88rem; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='#F0FDF4'" onmouseout="this.style.background='transparent'">
-            <span style="font-size:1.2rem;">✅</span>
-            <div>
-              <div style="color:#00542A; font-weight:700;">Visitas Realizadas</div>
-              <div style="font-size:0.75rem; color:#64748B; font-weight:400;">Visitas concluídas e registradas</div>
-            </div>
+          <a href="{{ url_for('pdf_resumo_visitas', tipo='realizadas', data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro','')) }}" target="_blank">
+            <span class="ms" style="color:var(--md-sys-color-primary);">check_circle</span>
+            <div>Visitas Realizadas<small>Visitas concluídas e registradas</small></div>
           </a>
 
-          <div style="border-top:1px solid #F1F5F9; margin:4px 0;"></div>
+          <hr>
 
-          <a href="{{ url_for('pdf_resumo_visitas', tipo='geral', status=filtros.get('status',''), data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}" target="_blank"
-             style="display:flex; align-items:center; gap:12px; padding:10px 16px; color:#1E293B; text-decoration:none; font-size:0.88rem; font-weight:600; transition:background 0.15s;" onmouseover="this.style.background='#F8FAFC'" onmouseout="this.style.background='transparent'">
-            <span style="font-size:1.2rem;">📋</span>
-            <div>
-              <div style="color:#0F172A; font-weight:700;">Resumo Completo / Filtro Atual</div>
-              <div style="font-size:0.75rem; color:#64748B; font-weight:400;">Exportar PDF com filtros da tela</div>
-            </div>
+          <a href="{{ url_for('pdf_resumo_visitas', tipo='geral', status=filtros.get('status',''), data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}" target="_blank">
+            <span class="ms" style="color:var(--md-sys-color-on-surface-variant);">list_alt</span>
+            <div>Resumo Completo / Filtro Atual<small>Exportar PDF com filtros da tela</small></div>
           </a>
         </div>
       </div>
 
-      <a href="{{ url_for('nova_visita') }}" class="btn btn-success">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        <span>+ Nova Solicitação</span>
+      <a href="{{ url_for('nova_visita') }}" class="btn btn-primary">
+        <span class="ms sm">add</span>
+        <span>Nova Solicitação</span>
       </a>
       {% if session.get('perfil') == 'admin' %}
-      <a href="{{ url_for('config_visita') }}" class="btn btn-outline" style="border-color:#783DB2; color:#783DB2; font-weight:700; background:#F5F3FF;">
-        ⚙️ Modelo Impresso
+      <a href="{{ url_for('config_visita') }}" class="btn btn-outline">
+        <span class="ms sm">tune</span> Modelo Impresso
       </a>
       <form method="POST" action="{{ url_for('zerar_numeracao_vd') }}"
             onsubmit="return confirm('Zerar toda a numeração VD? Esta ação não pode ser desfeita.')">
-        <button type="submit" class="btn btn-danger btn-sm" style="height:100%;">🔄 Zerar Numeração VD</button>
+        <button type="submit" class="btn btn-danger btn-sm" style="height:48px;"><span class="ms sm">restart_alt</span> Zerar Numeração VD</button>
       </form>
       {% endif %}
     </div>
   </div>
 
   <!-- Status KPI Cards (Manual de Marca 25 Anos) -->
-  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:14px; margin-bottom:24px;">
-    
-    <a href="{{ url_for('painel_visitas', status='Pendente') }}" style="text-decoration:none;">
-      <div style="background:#FFFBEB; border:1px solid #FDE68A; border-radius:var(--radius-lg); padding:16px 18px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
-        <span style="font-size:0.78rem; font-weight:700; color:#D97706; text-transform:uppercase; letter-spacing:0.3px;">
-          {% if session.get('perfil') in ('assistente_social', 'admin') %}📥 Novas Solicitações{% else %}Pendentes{% endif %}
-        </span>
-        <div style="font-size:1.8rem; font-weight:800; color:#B45309; margin-top:4px;">{{ contadores.get('Pendente', 0) }}</div>
-      </div>
+  <div class="stat-grid">
+
+    <a href="{{ url_for('painel_visitas', status='Pendente') }}" class="stat-card warn">
+      <span class="t">
+        {% if session.get('perfil') in ('assistente_social', 'admin') %}<span class="ms sm">inbox</span> Novas Solicitações{% else %}Pendentes{% endif %}
+      </span>
+      <div class="v">{{ contadores.get('Pendente', 0) }}</div>
     </a>
 
-    <a href="{{ url_for('painel_visitas', status='encaminhada_social') }}" style="text-decoration:none;">
-      <div style="background:#FAF5FF; border:1.5px solid #DDD6FE; border-radius:var(--radius-lg); padding:16px 18px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
-        <span style="font-size:0.78rem; font-weight:800; color:#6B21A8; text-transform:uppercase; letter-spacing:0.3px;">
-          👩‍💼 Visitas Técnicas (AS)
-        </span>
-        <div style="font-size:1.8rem; font-weight:800; color:#581C87; margin-top:4px;">{{ total_tecnicas_encaminhadas }}</div>
-      </div>
+    <a href="{{ url_for('painel_visitas', status='encaminhada_social') }}" class="stat-card sec">
+      <span class="t"><span class="ms sm">assignment_ind</span> Visitas Técnicas (AS)</span>
+      <div class="v">{{ total_tecnicas_encaminhadas }}</div>
     </a>
 
-    <a href="{{ url_for('painel_visitas', status='Atrasada') }}" style="text-decoration:none;">
-      <div style="background:#FEF2F2; border:2px solid #F87171; border-radius:var(--radius-lg); padding:16px 18px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
-        <span style="font-size:0.78rem; font-weight:800; color:#DC2626; text-transform:uppercase; letter-spacing:0.3px;">⚠️ Em Atraso</span>
-        <div style="font-size:1.8rem; font-weight:800; color:#991B1B; margin-top:4px;">{{ total_visitas_atrasadas }}</div>
-      </div>
+    <a href="{{ url_for('painel_visitas', status='Atrasada') }}" class="stat-card err">
+      <span class="t"><span class="ms sm">warning</span> Em Atraso</span>
+      <div class="v">{{ total_visitas_atrasadas }}</div>
     </a>
 
-    <a href="{{ url_for('painel_visitas', status='Em Andamento') }}" style="text-decoration:none;">
-      <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:var(--radius-lg); padding:16px 18px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
-        <span style="font-size:0.78rem; font-weight:700; color:#475569; text-transform:uppercase; letter-spacing:0.3px;">Em Andamento</span>
-        <div style="font-size:1.8rem; font-weight:800; color:#1E293B; margin-top:4px;">{{ contadores.get('Em Andamento', 0) }}</div>
-      </div>
+    <a href="{{ url_for('painel_visitas', status='Em Andamento') }}" class="stat-card">
+      <span class="t">Em Andamento</span>
+      <div class="v">{{ contadores.get('Em Andamento', 0) }}</div>
     </a>
 
-    <a href="{{ url_for('painel_visitas', status='Realizada') }}" style="text-decoration:none;">
-      <div style="background:#F0FDF4; border:1px solid #86EFAC; border-radius:var(--radius-lg); padding:16px 18px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
-        <span style="font-size:0.78rem; font-weight:700; color:var(--cad-verde); text-transform:uppercase; letter-spacing:0.3px;">Realizadas</span>
-        <div style="font-size:1.8rem; font-weight:800; color:#00542A; margin-top:4px;">{{ contadores.get('Realizada', 0) }}</div>
-      </div>
+    <a href="{{ url_for('painel_visitas', status='Realizada') }}" class="stat-card ok">
+      <span class="t">Realizadas</span>
+      <div class="v">{{ contadores.get('Realizada', 0) }}</div>
     </a>
 
-    <a href="{{ url_for('painel_visitas', status='Cancelada') }}" style="text-decoration:none;">
-      <div style="background:#FEF2F2; border:1px solid #FCA5A5; border-radius:var(--radius-lg); padding:16px 18px; box-shadow:var(--card-shadow); transition:transform 0.18s ease;">
-        <span style="font-size:0.78rem; font-weight:700; color:#DC2626; text-transform:uppercase; letter-spacing:0.3px;">Canceladas</span>
-        <div style="font-size:1.8rem; font-weight:800; color:#B91C1C; margin-top:4px;">{{ contadores.get('Cancelada', 0) }}</div>
-      </div>
+    <a href="{{ url_for('painel_visitas', status='Cancelada') }}" class="stat-card err">
+      <span class="t">Canceladas</span>
+      <div class="v">{{ contadores.get('Cancelada', 0) }}</div>
     </a>
 
-    <div style="background:#FFFFFF; border:1px solid var(--card-border); border-radius:var(--radius-lg); padding:16px 18px; box-shadow:var(--card-shadow);">
-      <span style="font-size:0.78rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.3px;">Total Encontrado</span>
-      <div style="font-size:1.8rem; font-weight:800; color:var(--cad-verde-escuro); margin-top:4px;">{{ total_filtrado }}</div>
+    <div class="stat-card" style="background:var(--md-sys-color-surface-container-lowest);">
+      <span class="t">Total Encontrado</span>
+      <div class="v" style="color:var(--md-sys-color-primary);">{{ total_filtrado }}</div>
     </div>
 
   </div>
@@ -144,67 +108,49 @@
     </div>
 
     <!-- Abas de Navegação Rápida de Status -->
-    <div class="visitas-tabs" style="display:flex; gap:8px; border-bottom:2px solid #E2E8F0; margin-bottom:20px; overflow-x:auto; padding-bottom:2px;">
+    <div class="m3-tabs">
       {% set cur_st = filtros.get('status', '') %}
-      
+
       <a href="{{ url_for('painel_visitas', status='Pendente', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
-         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if cur_st == 'Pendente' %}#D97706{% else %}transparent{% endif %}; background:{% if cur_st == 'Pendente' %}#FFFBEB{% else %}transparent{% endif %}; color:{% if cur_st == 'Pendente' %}#B45309{% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s;">
-        <span>📥 {% if session.get('perfil') in ('assistente_social', 'admin') %}Novas Solicitações{% else %}Minhas Solicitações (Pendentes){% endif %}</span>
-        <span style="background:{% if cur_st == 'Pendente' %}#D97706{% else %}#E2E8F0{% endif %}; color:{% if cur_st == 'Pendente' %}#FFF{% else %}#475569{% endif %}; font-size:0.75rem; padding:2px 7px; border-radius:12px;">
-          {{ contadores.get('Pendente', 0) }}
-        </span>
+         class="m3-tab warn{% if cur_st == 'Pendente' %} ativo{% endif %}">
+        <span class="ms sm">inbox</span><span>{% if session.get('perfil') in ('assistente_social', 'admin') %}Novas Solicitações{% else %}Minhas Solicitações (Pendentes){% endif %}</span><span class="n">{{ contadores.get('Pendente', 0) }}</span>
       </a>
 
       <a href="{{ url_for('painel_visitas', status='encaminhada_social', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
-         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if cur_st in ('encaminhada_social', 'tecnica_social') %}#783DB2{% else %}transparent{% endif %}; background:{% if cur_st in ('encaminhada_social', 'tecnica_social') %}#FAF5FF{% else %}transparent{% endif %}; color:{% if cur_st in ('encaminhada_social', 'tecnica_social') %}#6B21A8{% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s;">
-        <span>👩‍💼 Visitas Técnicas (Serviço Social)</span>
-        <span style="background:{% if cur_st in ('encaminhada_social', 'tecnica_social') %}#783DB2{% else %}#DDD6FE{% endif %}; color:{% if cur_st in ('encaminhada_social', 'tecnica_social') %}#FFF{% else %}#581C87{% endif %}; font-size:0.75rem; padding:2px 7px; border-radius:12px; font-weight:800;">
-          {{ total_tecnicas_encaminhadas }}
-        </span>
+         class="m3-tab {% if cur_st in ('encaminhada_social', 'tecnica_social') %} ativo{% endif %}">
+        <span class="ms sm">assignment_ind</span><span>Visitas Técnicas (Serviço Social)</span><span class="n">{{ total_tecnicas_encaminhadas }}</span>
       </a>
 
       <a href="{{ url_for('painel_visitas', status='Em Andamento', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
-         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if cur_st == 'Em Andamento' %}var(--cad-roxo){% else %}transparent{% endif %}; background:{% if cur_st == 'Em Andamento' %}#F5F3FF{% else %}transparent{% endif %}; color:{% if cur_st == 'Em Andamento' %}var(--cad-roxo){% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s;">
-        <span>⏳ Em Andamento</span>
-        <span style="background:{% if cur_st == 'Em Andamento' %}#783DB2{% else %}#E2E8F0{% endif %}; color:{% if cur_st == 'Em Andamento' %}#FFF{% else %}#475569{% endif %}; font-size:0.75rem; padding:2px 7px; border-radius:12px;">
-          {{ contadores.get('Em Andamento', 0) }}
-        </span>
+         class="m3-tab {% if cur_st == 'Em Andamento' %} ativo{% endif %}">
+        <span class="ms sm">hourglass_top</span><span>Em Andamento</span><span class="n">{{ contadores.get('Em Andamento', 0) }}</span>
       </a>
 
       <a href="{{ url_for('painel_visitas', status='Atrasada', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
-         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if cur_st == 'Atrasada' %}#DC2626{% else %}transparent{% endif %}; background:{% if cur_st == 'Atrasada' %}#FEF2F2{% else %}transparent{% endif %}; color:{% if cur_st == 'Atrasada' %}#DC2626{% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s;">
-        <span>⚠️ Em Atraso</span>
-        <span style="background:{% if cur_st == 'Atrasada' %}#DC2626{% else %}#FEE2E2{% endif %}; color:{% if cur_st == 'Atrasada' %}#FFF{% else %}#991B1B{% endif %}; font-size:0.75rem; padding:2px 7px; border-radius:12px;">
-          {{ total_visitas_atrasadas }}
-        </span>
+         class="m3-tab err{% if cur_st == 'Atrasada' %} ativo{% endif %}">
+        <span class="ms sm">warning</span><span>Em Atraso</span><span class="n">{{ total_visitas_atrasadas }}</span>
       </a>
 
       <a href="{{ url_for('painel_visitas', status='Realizada', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
-         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if cur_st == 'Realizada' %}var(--cad-verde){% else %}transparent{% endif %}; background:{% if cur_st == 'Realizada' %}#F0FDF4{% else %}transparent{% endif %}; color:{% if cur_st == 'Realizada' %}var(--cad-verde){% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s;">
-        <span>✅ Realizadas</span>
-        <span style="background:{% if cur_st == 'Realizada' %}#00883A{% else %}#E2E8F0{% endif %}; color:{% if cur_st == 'Realizada' %}#FFF{% else %}#475569{% endif %}; font-size:0.75rem; padding:2px 7px; border-radius:12px;">
-          {{ contadores.get('Realizada', 0) }}
-        </span>
+         class="m3-tab ok{% if cur_st == 'Realizada' %} ativo{% endif %}">
+        <span class="ms sm">check_circle</span><span>Realizadas</span><span class="n">{{ contadores.get('Realizada', 0) }}</span>
       </a>
 
       <a href="{{ url_for('painel_visitas', status='Cancelada', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
-         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if cur_st == 'Cancelada' %}#991B1B{% else %}transparent{% endif %}; background:{% if cur_st == 'Cancelada' %}#FEF2F2{% else %}transparent{% endif %}; color:{% if cur_st == 'Cancelada' %}#991B1B{% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s;">
-        <span>🚫 Canceladas</span>
-        <span style="background:{% if cur_st == 'Cancelada' %}#B91C1C{% else %}#E2E8F0{% endif %}; color:{% if cur_st == 'Cancelada' %}#FFF{% else %}#475569{% endif %}; font-size:0.75rem; padding:2px 7px; border-radius:12px;">
-          {{ contadores.get('Cancelada', 0) }}
-        </span>
+         class="m3-tab err{% if cur_st == 'Cancelada' %} ativo{% endif %}">
+        <span class="ms sm">block</span><span>Canceladas</span><span class="n">{{ contadores.get('Cancelada', 0) }}</span>
       </a>
 
       <a href="{{ url_for('painel_visitas', zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
-         style="display:flex; align-items:center; gap:8px; padding:10px 16px; font-size:0.88rem; font-weight:700; text-decoration:none; border-radius:8px 8px 0 0; border-bottom:3px solid {% if not cur_st %}#334155{% else %}transparent{% endif %}; background:{% if not cur_st %}#F1F5F9{% else %}transparent{% endif %}; color:{% if not cur_st %}#0F172A{% else %}#64748B{% endif %}; white-space:nowrap; transition:all 0.2s; margin-left:auto;">
-        <span>📋 Todas as Visitas</span>
+         class="m3-tab fim{% if not cur_st %} ativo{% endif %}">
+        <span class="ms sm">list_alt</span><span>Todas as Visitas</span>
       </a>
     </div>
 
     {% if session.get('perfil') == 'assistente_social' %}
-    <div style="margin-bottom:16px; padding:12px 16px; background:#FAF5FF; border:1px solid #DDD6FE; border-radius:10px; display:flex; align-items:center; gap:10px;">
-      <span style="font-size:1.4rem;">👩‍💼</span>
-      <div style="font-size:0.88rem; color:#581C87;">
+    <div class="m3-callout" style="margin-bottom:16px; display:flex; align-items:center; gap:12px;">
+      <span class="ms fill" style="font-size:28px;">volunteer_activism</span>
+      <div style="font-size:0.875rem;">
         <strong>Painel de Visitas Técnicas e Pareceres da Assistente Social:</strong> Visualize abaixo as solicitações encaminhadas para averiguação privativa de Serviço Social. Clique em <strong>Detalhe / Parecer</strong> para registrar sua avaliação técnica.
       </div>
     </div>
@@ -237,11 +183,11 @@
       <input type="date" name="data_fim" value="{{ filtros.get('data_fim', '') }}" title="Data final" style="max-width:150px;">
       <input type="search" name="busca" value="{{ filtros.get('busca', '') }}" placeholder="Buscar por CPF, Nº VD (ex: VD-001) ou Nome..." style="flex:1; min-width:240px;">
 
-      <button type="submit" class="btn btn-outline btn-sm">🔍 Filtrar / Buscar</button>
+      <button type="submit" class="btn btn-primary btn-sm"><span class="ms sm">search</span> Filtrar / Buscar</button>
 
       <a href="{{ url_for('pdf_resumo_visitas', status=filtros.get('status',''), data_ini=filtros.get('data_ini',''), data_fim=filtros.get('data_fim',''), zona=filtros.get('zona',''), bairro=filtros.get('bairro',''), busca=filtros.get('busca','')) }}"
-         target="_blank" class="btn btn-outline btn-sm" style="border-color:#00883A; color:#00542A; font-weight:700; background:#F0FDF4; display:inline-flex; align-items:center; gap:6px;">
-        🖨️ Imprimir Resumo Atual (PDF)
+         target="_blank" class="btn btn-tonal btn-sm">
+        <span class="ms sm">print</span> Imprimir Resumo Atual (PDF)
       </a>
 
       {% if filtros.get('status') or filtros.get('data_ini') or filtros.get('data_fim') or filtros.get('busca') or filtros.get('zona') or filtros.get('bairro') %}
@@ -280,7 +226,7 @@
             <td>
               <div>{{ v.motivo }}</div>
               {% if v.motivo_encaminhamento %}
-              <div style="font-size:0.75rem; color:#6B21A8; background:#FAF5FF; padding:2px 6px; border-radius:4px; margin-top:3px; border:1px dashed #DDD6FE;">
+              <div class="chip chip-sibec" style="height:auto; padding:4px 8px; margin-top:4px; white-space:normal; font-weight:400; font-size:0.75rem;">
                 <strong>Motivo AS:</strong> {{ v.motivo_encaminhamento }}
               </div>
               {% endif %}
@@ -288,38 +234,38 @@
             <td>
               {% if v.status == 'encaminhada_social' or v.tipo_competencia == 'tecnica_social' and v.status not in ('Realizada', 'concluida_social', 'Cancelada') %}
                 {% if session.get('perfil') in ('assistente_social', 'admin') %}
-                  <span style="display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:12px; font-size:0.75rem; font-weight:700; background:#FFFBEB; color:#B45309; border:1px solid #FDE68A;">
-                    📥 Demanda Serviço Social
-                  </span>
+                   <span class="chip chip-warning">
+                     <span class="ms sm">inbox</span> Demanda Serviço Social
+                   </span>
                 {% else %}
-                  <span style="display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:12px; font-size:0.75rem; font-weight:700; background:#FAF5FF; color:#6B21A8; border:1px solid #DDD6FE;">
-                    📤 Transmitida para AS
-                  </span>
+                   <span class="chip chip-sibec">
+                     <span class="ms sm">forward_to_inbox</span> Transmitida para AS
+                   </span>
                 {% endif %}
                 {% if v.atrasada %}
-                  <span class="tag" style="background:#FEF2F2; color:#991B1B; border:1px solid #FCA5A5; font-weight:800; display:inline-flex; align-items:center; gap:4px; margin-top:3px;">
-                    ⚠️ Atrasada ({{ v.dias_atraso }}d)
-                  </span>
+                   <span class="chip chip-error" style="margin-top:4px;">
+                     <span class="ms sm">warning</span> Atrasada ({{ v.dias_atraso }}d)
+                   </span>
                 {% endif %}
               {% elif v.status == 'Pendente' %}
                 <span class="tag-origem-espontanea">{{ v.status }}</span>
                 {% if v.atrasada %}
-                  <span class="tag" style="background:#FEF2F2; color:#991B1B; border:1px solid #FCA5A5; font-weight:800; display:inline-flex; align-items:center; gap:4px; margin-top:3px;">
-                    ⚠️ Atrasada ({{ v.dias_atraso }}d)
-                  </span>
+                   <span class="chip chip-error" style="margin-top:4px;">
+                     <span class="ms sm">warning</span> Atrasada ({{ v.dias_atraso }}d)
+                   </span>
                 {% endif %}
               {% elif v.status == 'Em Andamento' %}
                 <span class="tag-origem-visita">{{ v.status }}</span>
               {% elif v.status in ('Realizada', 'concluida_social') %}
                 {% if v.status == 'concluida_social' or v.tipo_competencia == 'tecnica_social' %}
-                  <span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:20px; font-size:0.73rem; font-weight:700; background:#ECFDF5; color:#065F46; border:1px solid #6EE7B7;">
-                    ✅ Parecer Emitido (AS)
-                  </span>
+                   <span class="chip chip-primary">
+                     <span class="ms sm">task_alt</span> Parecer Emitido (AS)
+                   </span>
                 {% else %}
                   <span class="tag-origem-encaminhado">{{ v.status }}</span>
                 {% endif %}
               {% elif v.status == 'Cancelada' %}
-                <span style="display:inline-flex; align-items:center; padding:3px 10px; border-radius:20px; font-size:0.73rem; font-weight:700; background:#FEE2E2; color:#B91C1C; border:1px solid #FCA5A5;">{{ v.status }}</span>
+                 <span class="chip chip-error">{{ v.status }}</span>
               {% else %}
                 <span class="tag">{{ v.status }}</span>
               {% endif %}
@@ -328,12 +274,10 @@
               {% if v.responsavel_nome %}
                 {% if v.responsavel_perfil == 'assistente_social' or v.tipo_competencia == 'tecnica_social' %}
                   <div style="display:flex; flex-direction:column; gap:3px;">
-                    <span style="font-weight:700; color:#6B21A8; display:inline-flex; align-items:center; gap:4px; font-size:0.88rem;">
-                      👩‍💼 {{ v.responsavel_nome }}
+                    <span style="font-weight:600; color:var(--md-sys-color-secondary); display:inline-flex; align-items:center; gap:4px; font-size:0.875rem;">
+                      <span class="ms sm">assignment_ind</span> {{ v.responsavel_nome }}
                     </span>
-                    <span class="badge" style="background:#FAF5FF; color:#783DB2; border:1px solid #DDD6FE; font-size:0.72rem; padding:1px 6px; border-radius:4px; font-weight:700; width:fit-content;">
-                      Serviço Social
-                    </span>
+                    <span class="chip chip-sibec" style="height:22px; font-size:0.6875rem; width:fit-content;">Serviço Social</span>
                     {% if v.solicitante_nome and v.solicitante_nome != v.responsavel_nome %}
                     <span style="font-size:0.75rem; color:#64748B; margin-top:2px;">
                       <strong style="color:#475569;">Solicitante:</strong> {{ v.solicitante_nome }}
@@ -367,13 +311,13 @@
                 
                 {% if v.status not in ('Realizada', 'concluida_social', 'Cancelada') %}
                   {% if session.get('perfil') in ('assistente_social', 'admin') or v.solicitante_id == session.get('usuario_id') %}
-                    <button type="button" class="btn btn-outline btn-sm" style="color:#6B21A8; border-color:#C084FC; background:#FAF5FF; padding:4px 8px;"
+                    <button type="button" class="btn btn-outline btn-sm"
                             onclick="abrirModalEncaminhar('{{ v.id }}', '{{ v.numero_vd or ('#' ~ v.id) }}', '{{ v.nome_rf }}')"
                             title="Encaminhar para Rosicláudia / Serviço Social">
-                      📤 Encaminhar AS
+                      <span class="ms sm">send</span> Encaminhar AS
                     </button>
                   {% endif %}
-                  <a href="{{ url_for('editar_visita', visita_id=v.id) }}" class="btn btn-outline btn-sm" style="color:var(--cad-verde-escuro); border-color:#86EFAC; background:#F0FDF4;" title="Editar solicitação">Editar</a>
+                  <a href="{{ url_for('editar_visita', visita_id=v.id) }}" class="btn btn-tonal btn-sm" title="Editar solicitação">Editar</a>
                 {% endif %}
               </div>
             </td>
@@ -385,7 +329,7 @@
 
     <!-- Pagination -->
     {% if total_paginas > 1 %}
-    <nav class="pagination" style="display:flex; gap:6px; justify-content:center; margin-top:20px;">
+    <nav class="pagination">
       <a href="?status={{ filtros.get('status','') }}&data_ini={{ filtros.get('data_ini','') }}&data_fim={{ filtros.get('data_fim','') }}&busca={{ filtros.get('busca','') }}&zona={{ filtros.get('zona','') }}&bairro={{ filtros.get('bairro','') }}&pagina={{ pagina - 1 }}" class="page-btn {% if pagina == 1 %}disabled{% endif %}">‹</a>
       {% for p in range(1, total_paginas + 1) %}
         {% if p == pagina or p == 1 or p == total_paginas or (p >= pagina - 2 and p <= pagina + 2) %}
@@ -408,52 +352,40 @@
 </div>
 
 <!-- Modal Rápido de Encaminhamento para Serviço Social / Rosicláudia -->
-<div id="modal-encaminhar-as" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.55); z-index:9999; justify-content:center; align-items:center; padding:20px; box-sizing:border-box;">
-  <div style="background:#FFFFFF; border-radius:14px; max-width:550px; width:100%; box-shadow:0 20px 40px rgba(0,0,0,0.25); border:1px solid #DDD6FE; overflow:hidden; animation:modalFadeIn 0.2s ease;">
-    
-    <div style="background:#FAF5FF; padding:16px 20px; border-bottom:1px solid #DDD6FE; display:flex; justify-content:space-between; align-items:center;">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:1.3rem;">👩‍💼</span>
-        <h3 style="margin:0; font-size:1.05rem; font-weight:800; color:#581C87;">
-          Encaminhar para o Serviço Social
-        </h3>
-      </div>
-      <button type="button" onclick="fecharModalEncaminhar()" style="background:none; border:none; font-size:1.3rem; color:#64748B; cursor:pointer; font-weight:700;">&times;</button>
+<div id="modal-encaminhar-as" class="m3-scrim">
+  <div class="m3-dialog" style="max-width:560px;" role="dialog" aria-modal="true" aria-labelledby="modal-as-titulo">
+    <div class="m3-dialog-header">
+      <h3 id="modal-as-titulo"><span class="ms fill" style="color:var(--md-sys-color-secondary);">send</span> Encaminhar para o Serviço Social</h3>
+      <button type="button" class="icon-btn" onclick="fecharModalEncaminhar()" aria-label="Fechar"><span class="ms">close</span></button>
     </div>
 
-    <form id="form-encaminhar-modal" method="POST" action="" style="padding:20px;">
-      <p style="margin:0 0 14px 0; font-size:0.88rem; color:#334155;">
-        Encaminhar visita <strong id="modal-vd-num" style="color:#6B21A8;"></strong> do RF <strong id="modal-rf-nome"></strong> para avaliação e parecer técnico privativo da Assistente Social.
-      </p>
+    <form id="form-encaminhar-modal" method="POST" action="">
+      <div class="m3-dialog-body">
+        <p style="margin:0 0 16px 0; font-size:0.875rem; color:var(--md-sys-color-on-surface-variant);">
+          Encaminhar visita <strong id="modal-vd-num" style="color:var(--md-sys-color-secondary);"></strong> do RF <strong id="modal-rf-nome" style="color:var(--md-sys-color-on-surface);"></strong> para avaliação e parecer técnico privativo da Assistente Social.
+        </p>
 
-      <div class="form-group" style="margin-bottom:14px;">
-        <label for="modal-as-id" style="font-weight:700; color:#4C1D95; font-size:0.86rem; display:block; margin-bottom:4px;">
-          Assistente Social Responsável *
-        </label>
-        <select id="modal-as-id" name="assistente_social_id" style="width:100%; padding:9px 12px; border:1px solid #C084FC; border-radius:8px; font-size:0.9rem;" required>
-          {% for as_u in assistentes_sociais %}
-          <option value="{{ as_u.id }}">
-            👩‍💼 {{ as_u.nome }} {% if as_u.unidade %}({{ as_u.unidade }}){% endif %}
-          </option>
-          {% endfor %}
-        </select>
+        <div class="form-group">
+          <label for="modal-as-id">Assistente Social Responsável *</label>
+          <select id="modal-as-id" name="assistente_social_id" required>
+            {% for as_u in assistentes_sociais %}
+            <option value="{{ as_u.id }}">
+              {{ as_u.nome }} {% if as_u.unidade %}({{ as_u.unidade }}){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="modal-motivo">Motivo / Justificativa do Encaminhamento Técnico *</label>
+          <textarea id="modal-motivo" name="motivo_encaminhamento" rows="3"
+                    placeholder="Ex: Averiguação unipessoal com suspeita de coabitação, relatório social para BPC/PBF, averiguação domiciliar complexa..." required></textarea>
+        </div>
       </div>
 
-      <div class="form-group" style="margin-bottom:18px;">
-        <label for="modal-motivo" style="font-weight:700; color:#4C1D95; font-size:0.86rem; display:block; margin-bottom:4px;">
-          Motivo / Justificativa do Encaminhamento Técnico *
-        </label>
-        <textarea id="modal-motivo" name="motivo_encaminhamento" rows="3" style="width:100%; padding:9px 12px; border:1px solid #C084FC; border-radius:8px; font-size:0.88rem; box-sizing:border-box;"
-                  placeholder="Ex: Averiguação unipessoal com suspeita de coabitação, relatório social para BPC/PBF, averiguação domiciliar complexa..." required></textarea>
-      </div>
-
-      <div style="display:flex; justify-content:flex-end; gap:10px;">
-        <button type="button" onclick="fecharModalEncaminhar()" class="btn btn-outline" style="border-color:#CBD5E1; color:#475569;">
-          Cancelar
-        </button>
-        <button type="submit" class="btn btn-primary" style="background:#783DB2; border-color:#6B21A8; font-weight:700; padding:9px 20px;">
-          🚀 Confirmar Encaminhamento
-        </button>
+      <div class="m3-dialog-actions">
+        <button type="button" onclick="fecharModalEncaminhar()" class="btn btn-text">Cancelar</button>
+        <button type="submit" class="btn btn-purple"><span class="ms sm">send</span> Confirmar Encaminhamento</button>
       </div>
     </form>
   </div>
