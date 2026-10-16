@@ -1667,6 +1667,38 @@ def _gerar_numero_vd(conn, ano: int) -> str:
     return f"VD-{ano}-{proximo:06d}"
 
 
+def _assegurar_colunas_usuarios_conn(conn):
+    """Garante imediatamente que as colunas de segurança e tentativas existam em usuarios, com tolerância total a falhas."""
+    if _is_pg():
+        sqls = [
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tentativas_login INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS bloqueado_ate TEXT",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefone TEXT",
+        ]
+    else:
+        sqls = [
+            "ALTER TABLE usuarios ADD COLUMN tentativas_login INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE usuarios ADD COLUMN bloqueado_ate TEXT",
+            "ALTER TABLE usuarios ADD COLUMN unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
+            "ALTER TABLE usuarios ADD COLUMN email TEXT",
+            "ALTER TABLE usuarios ADD COLUMN telefone TEXT",
+        ]
+    cur = conn.cursor()
+    for sql in sqls:
+        try:
+            cur.execute(sql)
+            if not getattr(conn, 'autocommit', False):
+                conn.commit()
+        except Exception:
+            if not getattr(conn, 'autocommit', False):
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+
+
 def init_db():
     conn = get_db()
     if _is_pg():
@@ -1680,7 +1712,10 @@ def init_db():
             acesso_sibec INTEGER NOT NULL DEFAULT 0,
             trocar_senha INTEGER NOT NULL DEFAULT 0,
             email TEXT,
-            telefone TEXT
+            telefone TEXT,
+            unidade TEXT DEFAULT 'Tomé-Açu (Sede)',
+            tentativas_login INTEGER NOT NULL DEFAULT 0,
+            bloqueado_ate TEXT
         )''')
         cur.execute('''CREATE TABLE IF NOT EXISTS atendimentos (
             id SERIAL PRIMARY KEY,
@@ -1820,6 +1855,7 @@ def init_db():
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS qtd_membros INTEGER",
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS renda_per_capita TEXT",
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tentativas_login INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS bloqueado_ate TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_tecnico_txt TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS tipo_competencia TEXT DEFAULT 'cadastral'",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS motivo_encaminhamento TEXT",
@@ -1830,7 +1866,14 @@ def init_db():
         for col_sql in migracoes:
             try:
                 cur.execute(col_sql)
+                if not getattr(conn, 'autocommit', False):
+                    conn.commit()
             except Exception as ex_m:
+                if not getattr(conn, 'autocommit', False):
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
                 app.logger.warning(f"[MIGRATION PG] {col_sql} ignorado/falhou: {ex_m}")
 
         # Insere configurações padrão do relatório se não existirem
@@ -1894,7 +1937,11 @@ def init_db():
             perfil TEXT NOT NULL DEFAULT 'entrevistador',
             acesso_sibec INTEGER NOT NULL DEFAULT 0,
             trocar_senha INTEGER NOT NULL DEFAULT 0,
-            tentativas_login INTEGER NOT NULL DEFAULT 0
+            email TEXT,
+            telefone TEXT,
+            unidade TEXT DEFAULT 'Tomé-Açu (Sede)',
+            tentativas_login INTEGER NOT NULL DEFAULT 0,
+            bloqueado_ate TEXT
         )''')
         c.execute('''CREATE TABLE IF NOT EXISTS atendimentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2006,6 +2053,7 @@ def init_db():
             "ALTER TABLE usuarios ADD COLUMN email TEXT",
             "ALTER TABLE usuarios ADD COLUMN telefone TEXT",
             "ALTER TABLE usuarios ADD COLUMN tentativas_login INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE usuarios ADD COLUMN bloqueado_ate TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN numero_vd TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN parecer_as_url TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN parecer_as_nome TEXT",
@@ -2058,20 +2106,33 @@ def init_db():
 
 
 def audit(acao: str, detalhe: str = ''):
-    """Registra uma ação no log de auditoria."""
-    conn = get_db()
-    _exec(conn,
-        "INSERT INTO audit_log (usuario_id,usuario_nome,acao,detalhe,ip,criado_em) VALUES (?,?,?,?,?,?)",
-        (
-            session.get('usuario_id'),
-            session.get('usuario_nome', '?'),
-            acao, detalhe,
-            request.remote_addr,
-            datetime.now(_TZ_BELEM).isoformat(),
-        ),
-    )
-    conn.commit()
-    conn.close()
+    """Registra uma ação no log de auditoria com tolerância total a falhas para nunca gerar erro 500 no usuário."""
+    try:
+        ip = request.remote_addr if request else None
+    except Exception:
+        ip = None
+    try:
+        uid = session.get('usuario_id') if session else None
+        unome = session.get('usuario_nome', '?') if session else '?'
+    except Exception:
+        uid = None
+        unome = '?'
+    try:
+        conn = get_db()
+        _exec(conn,
+            "INSERT INTO audit_log (usuario_id,usuario_nome,acao,detalhe,ip,criado_em) VALUES (?,?,?,?,?,?)",
+            (
+                uid,
+                unome,
+                acao, detalhe,
+                ip,
+                datetime.now(_TZ_BELEM).isoformat(),
+            ),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        app.logger.warning(f"[AUDIT] Erro ao registrar log ({acao}): {e}")
 
 # ---------------------------------------------------------------------------
 # Autenticação
@@ -2084,18 +2145,26 @@ def _requer_login():
 @app.before_request
 def _verificar_inatividade_sessao():
     """Encerra a sessão por inatividade (45 minutos) para proteger dados dos munícipes."""
-    if request.endpoint == 'static':
-        return
-    if 'usuario_id' in session:
-        agora = datetime.now(_TZ_BELEM).timestamp()
-        ultimo_acesso = session.get('_last_active')
-        if ultimo_acesso and (agora - ultimo_acesso) > (45 * 60):
-            uid = session.get('usuario_id')
-            session.clear()
-            audit('SESSAO_EXPIRADA', f"usuario_id={uid} motivo=inatividade_45min")
-            flash('Sua sessão expirou por inatividade para sua segurança. Faça login novamente.', 'aviso')
-            return redirect(url_for('login'))
-        session['_last_active'] = agora
+    try:
+        if request.endpoint == 'static':
+            return
+        if 'usuario_id' in session:
+            agora = datetime.now(_TZ_BELEM).timestamp()
+            ultimo_acesso = session.get('_last_active')
+            if ultimo_acesso:
+                try:
+                    ultimo_acesso = float(ultimo_acesso)
+                    if (agora - ultimo_acesso) > (45 * 60):
+                        uid = session.get('usuario_id')
+                        session.clear()
+                        audit('SESSAO_EXPIRADA', f"usuario_id={uid} motivo=inatividade_45min")
+                        flash('Sua sessão expirou por inatividade para sua segurança. Faça login novamente.', 'aviso')
+                        return redirect(url_for('login'))
+                except (ValueError, TypeError):
+                    pass
+            session['_last_active'] = agora
+    except Exception as ex_sess:
+        app.logger.warning(f"[SESSAO] Erro na verificação de inatividade: {ex_sess}")
 
 
 @app.route('/')
@@ -2269,6 +2338,8 @@ def login():
         login_ = request.form.get('login', '').strip()
         senha = request.form.get('senha', '').strip()
         conn = get_db()
+        # Assegura de forma preventiva as colunas de segurança caso a migração ainda não tenha rodado
+        _assegurar_colunas_usuarios_conn(conn)
         u = _fetchone(conn, "SELECT * FROM usuarios WHERE login=?", (login_,))
 
         # 1. Verifica se a conta está sob bloqueio temporário por tentativas incorretas
@@ -2277,7 +2348,7 @@ def login():
             bloqueado_ate = u_dict.get('bloqueado_ate')
             if bloqueado_ate:
                 try:
-                    bloq_dt = datetime.fromisoformat(bloqueado_ate)
+                    bloq_dt = datetime.fromisoformat(str(bloqueado_ate))
                     agora = datetime.now(_TZ_BELEM)
                     if agora < bloq_dt:
                         minutos_restantes = max(1, int((bloq_dt - agora).total_seconds() / 60) + 1)
@@ -2290,19 +2361,39 @@ def login():
 
         # 2. Validação da senha
         if u and check_password_hash(u['senha'], senha):
-            _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL WHERE id=?", (u['id'],))
-            conn.commit()
+            try:
+                _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL WHERE id=?", (u['id'],))
+                conn.commit()
+            except Exception as ex_up:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                _assegurar_colunas_usuarios_conn(conn)
+                try:
+                    _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL WHERE id=?", (u['id'],))
+                    conn.commit()
+                except Exception:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    try:
+                        _exec(conn, "UPDATE usuarios SET tentativas_login=0 WHERE id=?", (u['id'],))
+                        conn.commit()
+                    except Exception:
+                        pass
             conn.close()
             session.permanent = True
             session['_last_active'] = datetime.now(_TZ_BELEM).timestamp()
             session['usuario_id'] = u['id']
             session['usuario_nome'] = u['nome']
             session['perfil'] = u['perfil']
-            session['unidade'] = u['unidade'] or 'Tomé-Açu (Sede)'
-            session['acesso_sibec'] = bool(u['acesso_sibec'])
-            session['trocar_senha'] = bool(u['trocar_senha'])
+            session['unidade'] = u.get('unidade') or 'Tomé-Açu (Sede)'
+            session['acesso_sibec'] = bool(u.get('acesso_sibec'))
+            session['trocar_senha'] = bool(u.get('trocar_senha'))
             audit('LOGIN', f"login={login_}")
-            if u['trocar_senha']:
+            if u.get('trocar_senha'):
                 return redirect(url_for('trocar_senha_obrigatorio'))
             return redirect(url_for('dashboard'))
         else:
@@ -2311,15 +2402,39 @@ def login():
                 novas_tentativas = (u_dict.get('tentativas_login') or 0) + 1
                 if novas_tentativas >= 5:
                     bloq_ate = (datetime.now(_TZ_BELEM) + timedelta(minutes=15)).isoformat()
-                    _exec(conn, "UPDATE usuarios SET tentativas_login=?, bloqueado_ate=? WHERE id=?", (novas_tentativas, bloq_ate, u['id']))
-                    conn.commit()
+                    try:
+                        _exec(conn, "UPDATE usuarios SET tentativas_login=?, bloqueado_ate=? WHERE id=?", (novas_tentativas, bloq_ate, u['id']))
+                        conn.commit()
+                    except Exception:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        _assegurar_colunas_usuarios_conn(conn)
+                        try:
+                            _exec(conn, "UPDATE usuarios SET tentativas_login=?, bloqueado_ate=? WHERE id=?", (novas_tentativas, bloq_ate, u['id']))
+                            conn.commit()
+                        except Exception:
+                            pass
                     conn.close()
                     audit('CONTA_BLOQUEADA_5X', f"login={login_} tentativas={novas_tentativas} bloqueio=15min")
                     _notificar_admin_senha_incorreta(u, novas_tentativas)
                     erro = "Login ou senha incorretos. Esta conta foi bloqueada temporariamente por 15 minutos após 5 erros seguidos. O Administrador foi notificado."
                 else:
-                    _exec(conn, "UPDATE usuarios SET tentativas_login=? WHERE id=?", (novas_tentativas, u['id']))
-                    conn.commit()
+                    try:
+                        _exec(conn, "UPDATE usuarios SET tentativas_login=? WHERE id=?", (novas_tentativas, u['id']))
+                        conn.commit()
+                    except Exception:
+                        try:
+                            conn.rollback()
+                        except Exception:
+                            pass
+                        _assegurar_colunas_usuarios_conn(conn)
+                        try:
+                            _exec(conn, "UPDATE usuarios SET tentativas_login=? WHERE id=?", (novas_tentativas, u['id']))
+                            conn.commit()
+                        except Exception:
+                            pass
                     conn.close()
                     restantes = 5 - novas_tentativas
                     audit('LOGIN_FALHA', f"login={login_} tentativas={novas_tentativas}")
@@ -2675,11 +2790,34 @@ def redefinir_senha(token):
             erros.append('As senhas digitadas não coincidem.')
         if not erros:
             conn = get_db()
-            _exec(conn,
-                "UPDATE usuarios SET senha=?, trocar_senha=0, tentativas_login=0, bloqueado_ate=NULL WHERE id=?",
-                (generate_password_hash(nova), uid)
-            )
-            conn.commit()
+            try:
+                _exec(conn,
+                    "UPDATE usuarios SET senha=?, trocar_senha=0, tentativas_login=0, bloqueado_ate=NULL WHERE id=?",
+                    (generate_password_hash(nova), uid)
+                )
+                conn.commit()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                _assegurar_colunas_usuarios_conn(conn)
+                try:
+                    _exec(conn,
+                        "UPDATE usuarios SET senha=?, trocar_senha=0, tentativas_login=0, bloqueado_ate=NULL WHERE id=?",
+                        (generate_password_hash(nova), uid)
+                    )
+                    conn.commit()
+                except Exception:
+                    try:
+                        conn.rollback()
+                    except Exception:
+                        pass
+                    _exec(conn,
+                        "UPDATE usuarios SET senha=?, trocar_senha=0 WHERE id=?",
+                        (generate_password_hash(nova), uid)
+                    )
+                    conn.commit()
             conn.close()
             _tokens_recuperacao.pop(token, None)
             audit('REDEFINIR_SENHA_SUCESSO', f"uid={uid} via_token=1")
@@ -5569,8 +5707,25 @@ def resetar_tentativas_usuario(uid):
     if session.get('perfil') != 'admin':
         return redirect(url_for('dashboard'))
     conn = get_db()
-    _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL, trocar_senha=1 WHERE id=?", (uid,))
-    conn.commit()
+    try:
+        _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL, trocar_senha=1 WHERE id=?", (uid,))
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        _assegurar_colunas_usuarios_conn(conn)
+        try:
+            _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL, trocar_senha=1 WHERE id=?", (uid,))
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            _exec(conn, "UPDATE usuarios SET tentativas_login=0, trocar_senha=1 WHERE id=?", (uid,))
+            conn.commit()
     conn.close()
     audit('RESETAR_TENTATIVAS_SENHA', f"uid={uid}")
     flash("Tentativas incorretas zeradas! O usuário solicitará nova senha no próximo acesso.", "ok")
