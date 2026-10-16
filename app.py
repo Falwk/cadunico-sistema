@@ -17,8 +17,48 @@ from reportlab.lib import colors as rl_colors
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('CADUNICO_SECRET', 'cadunico2026secretkey_dev_only')
+app.config.update(
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=45),
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=bool(os.environ.get('RENDER') or os.environ.get('DYNO')),
+)
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGOS_DIR = os.path.join(BASE_DIR, 'static', 'logos')
+
+# ---------------------------------------------------------------------------
+# Utilitários de Segurança (Rate Limiting, Senhas Fortes e RBAC)
+# ---------------------------------------------------------------------------
+import hmac
+
+_rate_limit_store = {}
+
+def _check_rate_limit(key: str, max_requests: int = 15, window_seconds: int = 60) -> bool:
+    """Controla limite de requisições por IP ou rota em memória para proteção contra brute-force/scraping."""
+    import time
+    agora = time.time()
+    historico = _rate_limit_store.get(key, [])
+    historico = [t for t in historico if agora - t < window_seconds]
+    if len(historico) >= max_requests:
+        _rate_limit_store[key] = historico
+        return False
+    historico.append(agora)
+    _rate_limit_store[key] = historico
+    return True
+
+def _validar_senha_forte(senha: str) -> tuple[bool, str]:
+    """Valida requisitos de segurança para senhas fortes: mínimo 8 caracteres com letras e números."""
+    if not senha or len(senha) < 8:
+        return False, "A senha deve conter no mínimo 8 caracteres."
+    tem_letra = any(c.isalpha() for c in senha)
+    tem_numero = any(c.isdigit() for c in senha)
+    if not (tem_letra and tem_numero):
+        return False, "A senha deve conter letras e números para maior segurança."
+    senhas_faceis = {'12345678', 'admin123', 'senha123', 'cadunico', 'tomeacu2026', 'password', '10203040'}
+    if senha.lower() in senhas_faceis:
+        return False, "Esta senha é muito comum e previsível. Crie uma senha mais segura."
+    return True, ""
 
 # ---------------------------------------------------------------------------
 # Camada de banco de dados — SQLite (local) ou PostgreSQL (produção)
@@ -2041,6 +2081,23 @@ def _requer_login():
     return 'usuario_id' not in session
 
 
+@app.before_request
+def _verificar_inatividade_sessao():
+    """Encerra a sessão por inatividade (45 minutos) para proteger dados dos munícipes."""
+    if request.endpoint == 'static':
+        return
+    if 'usuario_id' in session:
+        agora = datetime.now(_TZ_BELEM).timestamp()
+        ultimo_acesso = session.get('_last_active')
+        if ultimo_acesso and (agora - ultimo_acesso) > (45 * 60):
+            uid = session.get('usuario_id')
+            session.clear()
+            audit('SESSAO_EXPIRADA', f"usuario_id={uid} motivo=inatividade_45min")
+            flash('Sua sessão expirou por inatividade para sua segurança. Faça login novamente.', 'aviso')
+            return redirect(url_for('login'))
+        session['_last_active'] = agora
+
+
 @app.route('/')
 def index():
     if _requer_login():
@@ -2080,7 +2137,7 @@ def inject_notificacoes_visitas():
         conn = get_db()
         uid = session['usuario_id']
         perfil = session.get('perfil')
-        if perfil == 'admin':
+        if perfil in ('admin', 'coordenador'):
             visitas = _fetchall(conn, "SELECT * FROM solicitacoes_visita WHERE status='Pendente' ORDER BY criado_em ASC")
         elif perfil == 'assistente_social':
             visitas = _fetchall(conn, "SELECT * FROM solicitacoes_visita WHERE status='Pendente' ORDER BY criado_em ASC")
@@ -2213,10 +2270,31 @@ def login():
         senha = request.form.get('senha', '').strip()
         conn = get_db()
         u = _fetchone(conn, "SELECT * FROM usuarios WHERE login=?", (login_,))
+
+        # 1. Verifica se a conta está sob bloqueio temporário por tentativas incorretas
+        if u:
+            u_dict = dict(u)
+            bloqueado_ate = u_dict.get('bloqueado_ate')
+            if bloqueado_ate:
+                try:
+                    bloq_dt = datetime.fromisoformat(bloqueado_ate)
+                    agora = datetime.now(_TZ_BELEM)
+                    if agora < bloq_dt:
+                        minutos_restantes = max(1, int((bloq_dt - agora).total_seconds() / 60) + 1)
+                        conn.close()
+                        audit('LOGIN_BLOQUEADO', f"login={login_} minutos_restantes={minutos_restantes}")
+                        erro = f"Conta bloqueada temporariamente após 5 tentativas incorretas. Tente novamente em {minutos_restantes} minuto(s) ou contate o administrador."
+                        return render_template('login.html', erro=erro)
+                except Exception:
+                    pass
+
+        # 2. Validação da senha
         if u and check_password_hash(u['senha'], senha):
-            _exec(conn, "UPDATE usuarios SET tentativas_login=0 WHERE id=?", (u['id'],))
+            _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL WHERE id=?", (u['id'],))
             conn.commit()
             conn.close()
+            session.permanent = True
+            session['_last_active'] = datetime.now(_TZ_BELEM).timestamp()
             session['usuario_id'] = u['id']
             session['usuario_nome'] = u['nome']
             session['perfil'] = u['perfil']
@@ -2231,15 +2309,21 @@ def login():
             if u:
                 u_dict = dict(u)
                 novas_tentativas = (u_dict.get('tentativas_login') or 0) + 1
-                _exec(conn, "UPDATE usuarios SET tentativas_login=? WHERE id=?", (novas_tentativas, u['id']))
-                conn.commit()
-                conn.close()
-                audit('LOGIN_FALHA', f"login={login_} tentativas={novas_tentativas}")
                 if novas_tentativas >= 5:
+                    bloq_ate = (datetime.now(_TZ_BELEM) + timedelta(minutes=15)).isoformat()
+                    _exec(conn, "UPDATE usuarios SET tentativas_login=?, bloqueado_ate=? WHERE id=?", (novas_tentativas, bloq_ate, u['id']))
+                    conn.commit()
+                    conn.close()
+                    audit('CONTA_BLOQUEADA_5X', f"login={login_} tentativas={novas_tentativas} bloqueio=15min")
                     _notificar_admin_senha_incorreta(u, novas_tentativas)
-                    erro = f"Login ou senha incorretos. Você errou a senha {novas_tentativas} vezes. O Administrador foi notificado no e-mail para auxiliar na troca de senha."
+                    erro = "Login ou senha incorretos. Esta conta foi bloqueada temporariamente por 15 minutos após 5 erros seguidos. O Administrador foi notificado."
                 else:
-                    erro = 'Login ou senha incorretos.'
+                    _exec(conn, "UPDATE usuarios SET tentativas_login=? WHERE id=?", (novas_tentativas, u['id']))
+                    conn.commit()
+                    conn.close()
+                    restantes = 5 - novas_tentativas
+                    audit('LOGIN_FALHA', f"login={login_} tentativas={novas_tentativas}")
+                    erro = f"Login ou senha incorretos. Você tem mais {restantes} tentativa(s) antes do bloqueio temporário."
             else:
                 conn.close()
                 erro = 'Login ou senha incorretos.'
@@ -2261,8 +2345,9 @@ def trocar_senha_obrigatorio():
     if request.method == 'POST':
         nova = request.form.get('nova_senha', '').strip()
         conf = request.form.get('confirmar_senha', '').strip()
-        if len(nova) < 6:
-            erros.append('A senha deve ter ao menos 6 caracteres.')
+        valida, msg_erro = _validar_senha_forte(nova)
+        if not valida:
+            erros.append(msg_erro)
         if nova != conf:
             erros.append('As senhas não coincidem.')
         if not erros:
@@ -2354,8 +2439,9 @@ def meu_perfil():
             conf = request.form.get('confirmar_senha', '').strip()
             if not check_password_hash(u['senha'], senha_atual):
                 erros.append('Senha atual incorreta.')
-            if len(nova) < 6:
-                erros.append('A nova senha deve ter ao menos 6 caracteres.')
+            valida, msg_erro = _validar_senha_forte(nova)
+            if not valida:
+                erros.append(msg_erro)
             if nova != conf:
                 erros.append('As senhas não coincidem.')
             if not erros:
@@ -2480,11 +2566,10 @@ def meu_perfil():
 
 @app.route('/recuperar-senha', methods=['GET', 'POST'])
 def recuperar_senha():
-    """Tela onde o usuário informa login para receber o link de recuperação."""
+    """Tela onde o usuário solicita link seguro de recuperação de senha."""
     msg = None
     erro = None
     canal = None          # 'whatsapp' ou 'email'
-    link = None           # link gerado (mostrado na tela para uso imediato)
     telefone_mascarado = None
     email_mascarado = None
 
@@ -2496,18 +2581,18 @@ def recuperar_senha():
         conn.close()
 
         if not u:
-            erro = 'Usuário não encontrado.'
+            # Mensagem genérica para não permitir enumeração de logins válidos
+            erro = 'Se o usuário informado existir no sistema, as instruções foram processadas.'
         else:
             token = _gerar_token_recuperacao(u['id'])
-            link = url_for('redefinir_senha', token=token, _external=True)
+            link_redefinicao = url_for('redefinir_senha', token=token, _external=True)
 
             if canal == 'whatsapp':
                 tel = u['telefone'] if u['telefone'] else None
                 if not tel:
-                    erro = ('Este usuário não tem telefone cadastrado. '
-                            'Peça ao administrador para cadastrar ou use outro canal.')
+                    erro = ('Este usuário não tem telefone cadastrado no sistema. '
+                            'Contate o Administrador para atualizar o cadastro.')
                 else:
-                    # Mascara o número: ex. (91) 9****-1234
                     tel_digits = ''.join(c for c in tel if c.isdigit())
                     if len(tel_digits) >= 4:
                         telefone_mascarado = tel_digits[:2] + ' 9' + '*' * (len(tel_digits) - 6) + tel_digits[-4:]
@@ -2515,32 +2600,56 @@ def recuperar_senha():
                         telefone_mascarado = '****'
                     numero_limpo = ''.join(c for c in tel if c.isdigit())
                     texto_wpp = (
-                        f"Olá {u['nome']}! Aqui está seu link para redefinir a senha "
-                        f"do sistema CadÚnico/PBF (válido por {TOKEN_VALIDADE_MIN} min):\n{link}"
+                        f"Olá {u['nome']}! Aqui está seu link seguro para redefinir a senha "
+                        f"do sistema CadÚnico/PBF (válido por {TOKEN_VALIDADE_MIN} min):\n{link_redefinicao}"
                     )
                     import urllib.parse
                     wpp_url = f"https://wa.me/55{numero_limpo}?text={urllib.parse.quote(texto_wpp)}"
                     msg = 'whatsapp'
-                    # Passamos o link do WhatsApp para abrir direto
                     canal = wpp_url
+                    audit('RECUPERACAO_SENHA_WPP', f"login={login_} destino={telefone_mascarado}")
 
             elif canal == 'email':
                 eml = u['email'] if u['email'] else None
                 if not eml:
-                    erro = ('Este usuário não tem e-mail cadastrado. '
-                            'Peça ao administrador para cadastrar ou use outro canal.')
+                    msg = 'aviso_admin'
+                    audit('RECUPERACAO_SENHA_SEM_EMAIL', f"login={login_}")
                 else:
                     partes = eml.split('@')
                     nome_eml = partes[0][:2] + '*' * (len(partes[0]) - 2)
                     email_mascarado = nome_eml + '@' + (partes[1] if len(partes) > 1 else '***')
-                    msg = 'email'
 
-            if not erro:
-                audit('RECUPERACAO_SENHA', f"login={login_} canal={('whatsapp' if 'wa.me' in str(canal) else canal)}")
+                    assunto = "🔐 [Segurança CadÚnico] Link para Redefinição de Senha"
+                    html_corpo = f"""
+                    <div style="font-family: Arial, sans-serif; max-width:580px; margin:0 auto; padding:20px; border:1px solid #CBD5E1; border-radius:12px; background:#FFFFFF;">
+                      <div style="background:#00542A; color:#FFFFFF; padding:16px; border-radius:8px 8px 0 0; text-align:center;">
+                        <h2 style="margin:0; font-size:18px; color:#FFFFFF;">Redefinição de Senha de Acesso</h2>
+                        <p style="margin:4px 0 0 0; font-size:13px; opacity:0.9;">Sistema de Gestão do Cadastro Único</p>
+                      </div>
+                      <div style="padding:22px; color:#1E293B; line-height:1.6;">
+                        <p>Olá, <strong>{u['nome']}</strong>,</p>
+                        <p>Recebemos uma solicitação para redefinir a senha do seu usuário (<code>{login_}</code>).</p>
+                        <p style="margin:20px 0; text-align:center;">
+                          <a href="{link_redefinicao}" style="background:#00883A; color:#FFFFFF; padding:12px 24px; border-radius:8px; text-decoration:none; font-weight:bold; display:inline-block;">
+                            Redefinir Minha Senha
+                          </a>
+                        </p>
+                        <p style="font-size:13px; color:#64748B;">Este link é exclusivo, de uso único e expira automaticamente em <strong>{TOKEN_VALIDADE_MIN} minutos</strong>.</p>
+                        <p style="font-size:12px; color:#94A3B8; margin-top:20px;">Caso não tenha solicitado esta redefinição, desconsidere esta mensagem. Sua conta permanece em total segurança.</p>
+                      </div>
+                    </div>
+                    """
+                    sucesso, env_msg = _enviar_email_smtp(eml, assunto, html_corpo)
+                    if sucesso:
+                        msg = 'email_enviado'
+                        audit('RECUPERACAO_SENHA_EMAIL_ENVIADO', f"login={login_} destino={email_mascarado}")
+                    else:
+                        msg = 'aviso_admin'
+                        audit('RECUPERACAO_SENHA_FALHA_SMTP', f"login={login_} erro={env_msg}")
 
     return render_template(
         'recuperar_senha.html',
-        msg=msg, erro=erro, canal=canal, link=link,
+        msg=msg, erro=erro, canal=canal,
         telefone_mascarado=telefone_mascarado,
         email_mascarado=email_mascarado,
         TOKEN_VALIDADE_MIN=TOKEN_VALIDADE_MIN,
@@ -2549,31 +2658,32 @@ def recuperar_senha():
 
 @app.route('/redefinir-senha/<token>', methods=['GET', 'POST'])
 def redefinir_senha(token):
-    """Tela de redefinição de senha via token."""
+    """Tela de redefinição de senha via token temporário e de uso único."""
     uid = _validar_token(token)
     if not uid:
-        flash('Link inválido ou expirado. Solicite um novo.', 'aviso')
+        flash('Link de redefinição inválido ou expirado. Por favor, solicite um novo.', 'aviso')
         return redirect(url_for('recuperar_senha'))
 
     erros = []
     if request.method == 'POST':
         nova = request.form.get('nova_senha', '').strip()
         conf = request.form.get('confirmar_senha', '').strip()
-        if len(nova) < 6:
-            erros.append('A senha deve ter ao menos 6 caracteres.')
+        valida, msg_erro = _validar_senha_forte(nova)
+        if not valida:
+            erros.append(msg_erro)
         if nova != conf:
-            erros.append('As senhas não coincidem.')
+            erros.append('As senhas digitadas não coincidem.')
         if not erros:
             conn = get_db()
             _exec(conn,
-                "UPDATE usuarios SET senha=?, trocar_senha=0 WHERE id=?",
+                "UPDATE usuarios SET senha=?, trocar_senha=0, tentativas_login=0, bloqueado_ate=NULL WHERE id=?",
                 (generate_password_hash(nova), uid)
             )
             conn.commit()
             conn.close()
             _tokens_recuperacao.pop(token, None)
-            audit('REDEFINIR_SENHA', f"uid={uid} via token")
-            flash('Senha redefinida com sucesso! Faça login.', 'ok')
+            audit('REDEFINIR_SENHA_SUCESSO', f"uid={uid} via_token=1")
+            flash('Senha redefinida com sucesso! Você já pode entrar com suas novas credenciais.', 'ok')
             return redirect(url_for('login'))
 
     return render_template('redefinir_senha.html', token=token, erros=erros)
@@ -2593,12 +2703,13 @@ def dashboard():
 
     params_base = [mes + '%']
     filtro_usuario = ""
-    if session['perfil'] != 'admin':
+    if session['perfil'] not in ('admin', 'coordenador'):
         filtro_usuario = f"AND a.usuario_id={PH}"
         params_base.append(session['usuario_id'])
 
     filtro_busca = ""
     if busca:
+        audit('BUSCA_DASHBOARD', f"termo_mascarado={busca[:2]}***")
         filtro_busca = f"AND (a.cpf LIKE {PH} OR a.nome_rf LIKE {PH} OR a.bairro LIKE {PH})"
         params_base += [f"%{busca}%", f"%{busca}%", f"%{busca}%"]
 
@@ -2607,8 +2718,8 @@ def dashboard():
         f"SELECT COUNT(*) as n FROM atendimentos a {base_where}", params_base
     )['n']
 
-    params_mes = [mes + '%'] + ([session['usuario_id']] if session['perfil'] != 'admin' else [])
-    filtro_u2 = f"AND a.usuario_id={PH}" if session['perfil'] != 'admin' else ""
+    params_mes = [mes + '%'] + ([session['usuario_id']] if session['perfil'] not in ('admin', 'coordenador') else [])
+    filtro_u2 = f"AND a.usuario_id={PH}" if session['perfil'] not in ('admin', 'coordenador') else ""
     total_mes = _fetchone(conn,
         f"SELECT COUNT(*) as n FROM atendimentos a WHERE a.data LIKE {PH} {filtro_u2}",
         params_mes
@@ -2935,13 +3046,17 @@ def api_cpf(cpf):
     """Retorna o nome do RF para um CPF já cadastrado (para autocomplete)."""
     if _requer_login():
         return jsonify({}), 401
+    cpf_limpo = ''.join(c for c in cpf if c.isdigit())
+    if not cpf_limpo:
+        return jsonify({})
     conn = get_db()
     row = _fetchone(conn,
-        "SELECT nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita FROM atendimentos WHERE cpf=? ORDER BY criado_em DESC LIMIT 1",
-        (cpf,)
+        "SELECT nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita FROM atendimentos WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ? ORDER BY criado_em DESC LIMIT 1",
+        (cpf_limpo,)
     )
     conn.close()
     if row:
+        audit('CONSULTA_CPF_AUTOCOMPLETE', f"cpf_mascarado={_mascarar_cpf_lgpd(cpf_limpo)}")
         return jsonify({
             'nome_rf': row['nome_rf'],
             'bairro': row.get('bairro') or '',
@@ -2973,9 +3088,10 @@ def historico_familiar():
     visitas = []
 
     if termo:
+        audit('CONSULTA_HISTORICO_FAMILIAR', f"termo_mascarado={termo[:2]}***")
         digits = ''.join(c for c in termo if c.isdigit())
-        filtro_usuario = "" if session['perfil'] == 'admin' else f"AND a.usuario_id={PH}"
-        params_base = [session['usuario_id']] if session['perfil'] != 'admin' else []
+        filtro_usuario = "" if session['perfil'] in ('admin', 'coordenador') else f"AND a.usuario_id={PH}"
+        params_base = [session['usuario_id']] if session['perfil'] not in ('admin', 'coordenador') else []
 
         # 1. Se for busca exata por CPF (11 dígitos válidos) ou por Código Familiar
         if len(digits) == 11 and validar_cpf(digits):
@@ -3065,9 +3181,9 @@ def nome_mes(mes):
 
 def dados_relatorio(mes):
     conn = get_db()
-    filtro_usuario = "" if session['perfil'] == 'admin' else f"AND a.usuario_id={PH}"
-    params = [mes + '%'] + ([session['usuario_id']] if session['perfil'] != 'admin' else [])
-    order = "u.nome, a.data" if session['perfil'] == 'admin' else "a.data"
+    filtro_usuario = "" if session['perfil'] in ('admin', 'coordenador') else f"AND a.usuario_id={PH}"
+    params = [mes + '%'] + ([session['usuario_id']] if session['perfil'] not in ('admin', 'coordenador') else [])
+    order = "u.nome, a.data" if session['perfil'] in ('admin', 'coordenador') else "a.data"
     atendimentos = _fetchall(conn,
         f"""SELECT a.*, u.nome as entrevistador FROM atendimentos a
             JOIN usuarios u ON a.usuario_id=u.id
@@ -3190,7 +3306,7 @@ def relatorio():
 
 def usuarios_exportacao():
     conn = get_db()
-    if session['perfil'] == 'admin':
+    if session['perfil'] in ('admin', 'coordenador'):
         usuarios = _fetchall(conn, "SELECT * FROM usuarios ORDER BY nome")
     else:
         usuarios = _fetchall(conn, "SELECT * FROM usuarios WHERE id=?", (session['usuario_id'],))
@@ -3771,7 +3887,12 @@ def criar_word_registro(mes, atendimentos, quant=None, total_geral=0):
 def exportar_planilha():
     if _requer_login():
         return redirect(url_for('login'))
+    if session.get('perfil') not in ('admin', 'coordenador'):
+        audit('ACESSO_NEGADO_EXPORTAR', "rota=/exportar/planilha")
+        flash('Acesso restrito: a exportação da planilha geral de atendimentos é permitida apenas para Administradores e Coordenação.', 'erro')
+        return redirect(url_for('dashboard'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
+    audit('EXPORTAR_PLANILHA', f"mes={mes} formato=excel")
     output = criar_excel_relatorio(mes)
     return send_file(output, as_attachment=True,
                      download_name=f"Atendimentos_CadUnico_{mes}.xlsx",
@@ -3782,8 +3903,13 @@ def exportar_planilha():
 def exportar_relatorio():
     if _requer_login():
         return redirect(url_for('login'))
+    if session.get('perfil') not in ('admin', 'coordenador'):
+        audit('ACESSO_NEGADO_EXPORTAR', "rota=/exportar/relatorio")
+        flash('Acesso restrito: a exportação de relatórios gerenciais consolidados é permitida apenas para Administradores e Coordenação.', 'erro')
+        return redirect(url_for('dashboard'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
     formato = request.args.get('formato', 'excel').lower()
+    audit('EXPORTAR_RELATORIO', f"mes={mes} formato={formato}")
     atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc, resumo_visitas_rma = dados_relatorio(mes)
 
     if formato == 'word':
@@ -3814,8 +3940,13 @@ def exportar_relatorio():
 def exportar_registro():
     if _requer_login():
         return redirect(url_for('login'))
+    if session.get('perfil') not in ('admin', 'coordenador'):
+        audit('ACESSO_NEGADO_EXPORTAR', "rota=/exportar/registro")
+        flash('Acesso restrito: o download do registro detalhado é permitido apenas para Administradores e Coordenação.', 'erro')
+        return redirect(url_for('dashboard'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
     formato = request.args.get('formato', 'pdf').lower()
+    audit('EXPORTAR_REGISTRO', f"mes={mes} formato={formato}")
     atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc, resumo_visitas_rma = dados_relatorio(mes)
 
     if formato == 'word':
@@ -4006,10 +4137,13 @@ def exportar_entrevistador():
 
     nome_entrevistador = u['nome']
 
-    if session.get('perfil') != 'admin' and session['usuario_id'] != usuario_id:
+    if session.get('perfil') not in ('admin', 'coordenador') and session['usuario_id'] != usuario_id:
         conn.close()
-        flash('Acesso permitido apenas para seus próprios dados ou Administrador.', 'erro')
+        audit('ACESSO_NEGADO_EXPORTAR_ENTREVISTADOR', f"usuario_alvo={usuario_id}")
+        flash('Acesso permitido apenas para seus próprios dados ou Coordenação/Administrador.', 'erro')
         return redirect(url_for('relatorio', mes=mes))
+
+    audit('EXPORTAR_ENTREVISTADOR', f"usuario_id={usuario_id} mes={mes} formato={formato}")
 
     ats_u = _fetchall(conn,
         "SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id WHERE a.usuario_id=? AND a.data LIKE ? ORDER BY a.data ASC",
@@ -4089,7 +4223,7 @@ def exportar_entrevistador():
 
 @app.route('/admin/usuarios')
 def admin_usuarios():
-    if session.get('perfil') != 'admin':
+    if session.get('perfil') not in ('admin', 'coordenador'):
         return redirect(url_for('dashboard'))
     conn = get_db()
     usuarios = _fetchall(conn, "SELECT * FROM usuarios ORDER BY nome")
@@ -4117,8 +4251,10 @@ def novo_usuario():
             erros.append('Login obrigatório.')
         if not senha:
             erros.append('Senha obrigatória.')
-        elif len(senha) < 6:
-            erros.append('A senha deve ter ao menos 6 caracteres.')
+        else:
+            valida, msg_erro = _validar_senha_forte(senha)
+            if not valida:
+                erros.append(msg_erro)
         if not erros:
             try:
                 conn = get_db()
@@ -4128,7 +4264,7 @@ def novo_usuario():
                 )
                 conn.commit()
                 conn.close()
-                audit('CRIAR_USUARIO', f"login={login_}")
+                audit('CRIAR_USUARIO', f"login={login_} perfil={perfil}")
                 flash(f'Usuário {nome} criado. O usuário deverá trocar a senha no primeiro acesso.', 'ok')
                 return redirect(url_for('admin_usuarios'))
             except sqlite3.IntegrityError:
@@ -4154,8 +4290,10 @@ def editar_usuario(uid):
         telefone = request.form.get('telefone', '').strip() or None
         if not nome:
             erros.append('Nome obrigatório.')
-        if nova_senha and len(nova_senha) < 6:
-            erros.append('A nova senha deve ter ao menos 6 caracteres.')
+        if nova_senha:
+            valida, msg_erro = _validar_senha_forte(nova_senha)
+            if not valida:
+                erros.append(msg_erro)
         if not erros:
             if nova_senha:
                 _exec(conn,
@@ -4884,7 +5022,7 @@ def api_cron_backup_telegram():
 def _validar_token_api_setas():
     """Valida token recebido via Header ou Query Param contra o configurado no sistema."""
     cfg = get_config()
-    token_esperado = cfg.get('token_integracao_beneficios', 'setas-beneficios-token-2026').strip()
+    token_esperado = (cfg.get('token_integracao_beneficios') or os.environ.get('SETAS_API_TOKEN', 'setas-beneficios-token-2026')).strip()
     token_recebido = (
         request.headers.get('X-SETAS-API-TOKEN') or
         request.headers.get('X-CRON-SECRET') or
@@ -4896,7 +5034,9 @@ def _validar_token_api_setas():
         if auth_hdr.startswith('Bearer '):
             token_recebido = auth_hdr.split(' ', 1)[1].strip()
 
-    return bool(token_recebido and token_recebido == token_esperado)
+    if not token_recebido or not token_esperado:
+        return False
+    return hmac.compare_digest(str(token_recebido), str(token_esperado))
 
 
 def _mascarar_nome_lgpd(nome):
@@ -4922,8 +5062,16 @@ def _mascarar_cpf_lgpd(cpf):
 @app.route('/api/v1/public/consultar/<cpf>', methods=['GET'])
 def api_public_consultar_cpf(cpf):
     """Verifica a existência do cidadão no banco de dados do Cadastro Único com máscara LGPD no nome."""
+    # 1. Rate limiting: máx 10 consultas por minuto por IP
+    if not _check_rate_limit(f"pub_cpf_{request.remote_addr}", max_requests=10, window_seconds=60):
+        audit('RATE_LIMIT_EXCEDIDO', f"rota=/api/v1/public/consultar ip={request.remote_addr}")
+        return jsonify({
+            'encontrado': False,
+            'mensagem': 'Limite de requisições excedido. Aguarde 1 minuto para novas consultas.'
+        }), 429
+
     cpf_limpo = ''.join(c for c in cpf if c.isdigit())
-    if not cpf_limpo:
+    if not cpf_limpo or not validar_cpf(cpf_limpo):
         return jsonify({'encontrado': False, 'mensagem': 'CPF inválido.'}), 400
 
     conn = get_db()
@@ -4935,6 +5083,8 @@ def api_public_consultar_cpf(cpf):
         ORDER BY a.id DESC LIMIT 1
     """, (cpf_limpo,))
     conn.close()
+
+    audit('CONSULTA_PUBLICA_CPF', f"cpf_mascarado={_mascarar_cpf_lgpd(cpf_limpo)} encontrado={bool(at)}")
 
     if not at:
         return jsonify({
@@ -5419,7 +5569,7 @@ def resetar_tentativas_usuario(uid):
     if session.get('perfil') != 'admin':
         return redirect(url_for('dashboard'))
     conn = get_db()
-    _exec(conn, "UPDATE usuarios SET tentativas_login=0, trocar_senha=1 WHERE id=?", (uid,))
+    _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL, trocar_senha=1 WHERE id=?", (uid,))
     conn.commit()
     conn.close()
     audit('RESETAR_TENTATIVAS_SENHA', f"uid={uid}")
@@ -5472,7 +5622,7 @@ def painel_visitas():
     por_pagina    = 20
 
     # ── Filtro de acesso por perfil ─────────────────────────────────────────
-    if perfil in ('admin', 'assistente_social'):
+    if perfil in ('admin', 'coordenador', 'assistente_social'):
         filtro_acesso  = ""
         params_acesso  = []
     else:
@@ -7156,8 +7306,8 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
 
 @app.route('/documentos')
 def listar_documentos():
-    if _requer_login() or session.get('perfil') != 'admin':
-        flash('Acesso restrito ao Administrador.', 'erro')
+    if _requer_login() or session.get('perfil') not in ('admin', 'coordenador'):
+        flash('Acesso restrito à Coordenação e Administrador.', 'erro')
         return redirect(url_for('dashboard'))
 
     conn = get_db()
@@ -7184,8 +7334,8 @@ def listar_documentos():
 
 @app.route('/documentos/novo')
 def novo_documento():
-    if _requer_login() or session.get('perfil') != 'admin':
-        flash('Acesso restrito ao Administrador.', 'erro')
+    if _requer_login() or session.get('perfil') not in ('admin', 'coordenador'):
+        flash('Acesso restrito à Coordenação e Administrador.', 'erro')
         return redirect(url_for('dashboard'))
 
     modelo_tipo = request.args.get('modelo', 'memorando')
@@ -7239,8 +7389,8 @@ def novo_documento():
 
 @app.route('/documentos/<int:doc_id>/editar')
 def editar_documento(doc_id):
-    if _requer_login() or session.get('perfil') != 'admin':
-        flash('Acesso restrito ao Administrador.', 'erro')
+    if _requer_login() or session.get('perfil') not in ('admin', 'coordenador'):
+        flash('Acesso restrito à Coordenação e Administrador.', 'erro')
         return redirect(url_for('dashboard'))
 
     conn = get_db()
@@ -7257,8 +7407,8 @@ def editar_documento(doc_id):
 
 @app.route('/documentos/salvar', methods=['POST'])
 def salvar_documento():
-    if _requer_login() or session.get('perfil') != 'admin':
-        return jsonify({'sucesso': False, 'erro': 'Acesso restrito ao Administrador.'}), 403
+    if _requer_login() or session.get('perfil') not in ('admin', 'coordenador'):
+        return jsonify({'sucesso': False, 'erro': 'Acesso restrito à Coordenação e Administrador.'}), 403
 
     dados = request.get_json() or {}
     doc_id = dados.get('id')
@@ -7313,7 +7463,7 @@ def salvar_documento():
 
 @app.route('/documentos/<int:doc_id>/excluir', methods=['POST'])
 def excluir_documento(doc_id):
-    if _requer_login() or session.get('perfil') != 'admin':
+    if _requer_login() or session.get('perfil') not in ('admin', 'coordenador'):
         flash('Acesso negado.', 'erro')
         return redirect(url_for('dashboard'))
 
@@ -7334,8 +7484,8 @@ def excluir_documento(doc_id):
 @app.route('/documentos/<int:doc_id>/docx')
 def exportar_documento_docx(doc_id):
     """Gera um arquivo real do Microsoft Word (.DOCX) contendo o texto formatado do documento."""
-    if _requer_login() or session.get('perfil') != 'admin':
-        flash('Acesso restrito ao Administrador.', 'erro')
+    if _requer_login() or session.get('perfil') not in ('admin', 'coordenador'):
+        flash('Acesso restrito à Coordenação e Administrador.', 'erro')
         return redirect(url_for('dashboard'))
 
     conn = get_db()
@@ -7387,14 +7537,15 @@ def exportar_documento_docx(doc_id):
     document.save(buf)
     buf.seek(0)
 
+    audit('EXPORTAR_DOCX', f"doc_id={doc_id} titulo={doc['titulo']}")
     fn_docx = f"{doc['titulo'].replace(' ', '_')}.docx"
     return send_file(buf, mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document', as_attachment=True, download_name=fn_docx)
 
 
 @app.route('/documentos/<int:doc_id>/pdf')
 def exportar_documento_pdf(doc_id):
-    if _requer_login() or session.get('perfil') != 'admin':
-        flash('Acesso restrito ao Administrador.', 'erro')
+    if _requer_login() or session.get('perfil') not in ('admin', 'coordenador'):
+        flash('Acesso restrito à Coordenação e Administrador.', 'erro')
         return redirect(url_for('dashboard'))
 
     conn = get_db()
@@ -7405,6 +7556,7 @@ def exportar_documento_pdf(doc_id):
         flash('Documento não encontrado.', 'erro')
         return redirect(url_for('listar_documentos'))
 
+    audit('EXPORTAR_PDF', f"doc_id={doc_id} titulo={doc['titulo']}")
     return render_template('pdf_documento_editavel.html', doc=dict(doc))
 
 

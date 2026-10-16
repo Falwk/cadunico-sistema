@@ -21,8 +21,9 @@
         <div class="form-group">
           <label>Perfil</label>
           <select name="perfil">
-            <option value="entrevistador" {% if form.get('perfil','entrevistador')=='entrevistador' %}selected{% endif %}>Entrevistador</option>
+            <option value="entrevistador" {% if form.get('perfil','entrevistador')=='entrevistador' %}selected{% endif %}>Entrevistador Social</option>
             <option value="assistente_social" {% if form.get('perfil')=='assistente_social' %}selected{% endif %}>Assistente Social</option>
+            <option value="coordenador" {% if form.get('perfil')=='coordenador' %}selected{% endif %}>Coordenador(a)</option>
             <option value="admin" {% if form.get('perfil')=='admin' %}selected{% endif %}>Administrador</option>
           </select>
         </div>

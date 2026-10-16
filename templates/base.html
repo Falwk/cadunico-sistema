@@ -63,17 +63,19 @@
         <span>Visitas</span>
       </a>
 
-      {% if session.perfil == 'admin' %}
+      {% if session.perfil in ('admin', 'coordenador') %}
       <a href="{{ url_for('listar_documentos') }}" class="sidebar-link {% if request.endpoint in ('listar_documentos', 'novo_documento', 'editar_documento') %}ativo{% endif %}" title="Modelos de Documentos A4">
         <span class="ms">description</span>
         <span>Modelos de Documentos A4</span>
       </a>
 
-      <a href="{{ url_for('admin_usuarios') }}" class="sidebar-link {% if request.endpoint in ('admin_usuarios', 'novo_usuario', 'editar_usuario') %}ativo{% endif %}" title="Usuários">
+      <a href="{{ url_for('admin_usuarios') }}" class="sidebar-link {% if request.endpoint in ('admin_usuarios', 'novo_usuario', 'editar_usuario') %}ativo{% endif %}" title="Equipe &amp; Usuários">
         <span class="ms">group</span>
-        <span>Usuários</span>
+        <span>Equipe &amp; Usuários</span>
       </a>
+      {% endif %}
 
+      {% if session.perfil == 'admin' %}
       <a href="{{ url_for('central_backup') }}" class="sidebar-link {% if request.endpoint in ('central_backup', 'admin_backup', 'backup_excel') %}ativo{% endif %}" title="Backup do Sistema">
         <span class="ms">cloud_download</span>
         <span>Backup do Sistema</span>

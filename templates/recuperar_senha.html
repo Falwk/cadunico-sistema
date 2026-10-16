@@ -242,29 +242,27 @@
 
   {% if msg == 'whatsapp' %}
   <div class="ok">
-    <strong>Link gerado com sucesso!</strong> Clique no botão abaixo para abrir o WhatsApp e enviar o link de redefinição para o número cadastrado ({{ telefone_mascarado }}).<br>
-    O link é válido por <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>.
+    <strong>Solicitação gerada com sucesso!</strong><br>
+    Clique no botão abaixo para abrir a mensagem segura no WhatsApp cadastrado (<strong>{{ telefone_mascarado }}</strong>).<br>
+    O link é de uso único e expira automaticamente em <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>.
   </div>
-  <a href="{{ canal }}" target="_blank" class="btn btn-wpp" style="display:block; text-align:center; text-decoration:none; padding:12px;">
-    📱 Abrir WhatsApp e Enviar Link
+  <a href="{{ canal }}" target="_blank" rel="noopener noreferrer" class="btn btn-wpp" style="display:block; text-align:center; text-decoration:none; padding:12px;">
+    📱 Abrir WhatsApp e Enviar Link Seguro
   </a>
-  <hr style="margin:20px 0; border:none; border-top:1px solid #E2E8F0;">
-  <p style="font-size:0.78rem; color:var(--text-muted); text-align:center; line-height:1.4;">
-    Se o WhatsApp não abrir automaticamente, você pode copiar este link:<br>
-    <a href="{{ canal }}" target="_blank" style="color:var(--cad-verde-escuro); font-weight:700; word-break:break-all;">{{ canal }}</a>
-  </p>
 
-  {% elif msg == 'email' %}
+  {% elif msg == 'email_enviado' %}
+  <div class="ok">
+    <strong>E-mail enviado com sucesso!</strong><br>
+    As instruções e o link seguro de redefinição foram enviados para o endereço cadastrado (<strong>{{ email_mascarado }}</strong>).<br>
+    O link é válido por <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>. Verifique sua caixa de entrada e spam.
+  </div>
+
+  {% elif msg == 'aviso_admin' %}
   <div class="aviso">
-    <strong>Atenção:</strong> O envio automático de e-mail não está ativado no momento.
-    Copie o link abaixo para enviar ao usuário ({{ email_mascarado }}).<br>
-    Válido por <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>.
+    <strong>Procedimento de Segurança:</strong><br>
+    Para resguardar os dados das famílias atendidas, a redefinição de senha para este perfil deve ser efetuada ou autorizada diretamente pelo <strong>Administrador do Sistema</strong> ou Coordenação.<br>
+    <p style="margin-top:8px;font-size:0.8rem;color:var(--text-muted);">A solicitação foi registrada no log de auditoria para acompanhamento.</p>
   </div>
-  <div style="background:#F8FAFC; border:1px solid #CBD5E1; border-radius:var(--radius-md); padding:12px; font-size:0.82rem; word-break:break-all; color:var(--cad-verde-escuro); margin-bottom:16px; font-weight:600;">
-    {{ link }}
-  </div>
-  <button onclick="navigator.clipboard.writeText('{{ link }}');this.textContent='✓ Link Copiado!'"
-    class="btn">📋 Copiar Link</button>
 
   {% else %}
   <form method="POST" id="form-recuperar">
