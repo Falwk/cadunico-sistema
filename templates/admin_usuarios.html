@@ -74,10 +74,11 @@
             <td style="display:flex; gap:6px; align-items:center;">
               <a href="{{ url_for('editar_usuario', uid=u.id) }}" class="btn btn-outline btn-sm">Editar</a>
 
-              {% if tent >= 5 or u.trocar_senha %}
-              <form method="POST" action="{{ url_for('resetar_tentativas_usuario', uid=u.id) }}">
-                <button type="submit" class="btn btn-outline btn-sm" style="border-color:#F59E0B; color:#B45309; font-weight:700;" title="Zerar tentativas incorretas e solicitar nova senha no próximo acesso">
-                  🔓 Resetar Senha
+              {% if u.id != session.usuario_id %}
+              <form method="POST" action="{{ url_for('resetar_tentativas_usuario', uid=u.id) }}"
+                    onsubmit="return confirm('Deseja redefinir a senha de {{ u.nome }} para a senha provisória Mudar@123?\n\nO usuário conseguirá acessar com Mudar@123 e será obrigado a cadastrar uma nova senha própria.')">
+                <button type="submit" class="btn btn-outline btn-sm" style="border-color:#F59E0B; color:#B45309; font-weight:700;" title="Redefine a senha para a provisória Mudar@123 com troca obrigatória">
+                  🔑 Resetar Senha
                 </button>
               </form>
               {% endif %}

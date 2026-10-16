@@ -2706,23 +2706,31 @@ def recuperar_senha():
                 tel = u['telefone'] if u['telefone'] else None
                 if not tel:
                     erro = ('Este usuário não tem telefone cadastrado no sistema. '
-                            'Contate o Administrador para atualizar o cadastro.')
+                            'Contate o Administrador para redefinir sua senha com uma senha provisória.')
                 else:
-                    tel_digits = ''.join(c for c in tel if c.isdigit())
-                    if len(tel_digits) >= 4:
-                        telefone_mascarado = tel_digits[:2] + ' 9' + '*' * (len(tel_digits) - 6) + tel_digits[-4:]
+                    raw_digits = ''.join(c for c in tel if c.isdigit())
+                    if raw_digits.startswith('55') and len(raw_digits) in (12, 13):
+                        raw_digits = raw_digits[2:]
+                    if raw_digits.startswith('0'):
+                        raw_digits = raw_digits[1:]
+
+                    if len(raw_digits) < 10:
+                        erro = ('O telefone cadastrado para este usuário é inválido (deve conter DDD + número). '
+                                'Contate o Administrador para atualizar o cadastro.')
                     else:
-                        telefone_mascarado = '****'
-                    numero_limpo = ''.join(c for c in tel if c.isdigit())
-                    texto_wpp = (
-                        f"Olá {u['nome']}! Aqui está seu link seguro para redefinir a senha "
-                        f"do sistema CadÚnico/PBF (válido por {TOKEN_VALIDADE_MIN} min):\n{link_redefinicao}"
-                    )
-                    import urllib.parse
-                    wpp_url = f"https://wa.me/55{numero_limpo}?text={urllib.parse.quote(texto_wpp)}"
-                    msg = 'whatsapp'
-                    canal = wpp_url
-                    audit('RECUPERACAO_SENHA_WPP', f"login={login_} destino={telefone_mascarado}")
+                        telefone_mascarado = f"({raw_digits[:2]}) 9****-{raw_digits[-4:]}"
+                        numero_final = f"55{raw_digits}"
+                        texto_wpp = (
+                            f"Olá {u['nome']}! Aqui está seu link seguro para redefinir sua senha "
+                            f"do sistema CadÚnico/PBF (válido por {TOKEN_VALIDADE_MIN} min):\n{link_redefinicao}"
+                        )
+                        import urllib.parse
+                        texto_encoded = urllib.parse.quote(texto_wpp)
+                        wpp_api_url = f"https://api.whatsapp.com/send?phone={numero_final}&text={texto_encoded}"
+                        wpp_web_url = f"https://web.whatsapp.com/send?phone={numero_final}&text={texto_encoded}"
+                        msg = 'whatsapp'
+                        canal = wpp_api_url
+                        audit('RECUPERACAO_SENHA_WPP', f"login={login_} destino={telefone_mascarado}")
 
             elif canal == 'email':
                 eml = u['email'] if u['email'] else None
@@ -2765,6 +2773,8 @@ def recuperar_senha():
     return render_template(
         'recuperar_senha.html',
         msg=msg, erro=erro, canal=canal,
+        wpp_api_url=locals().get('wpp_api_url', canal),
+        wpp_web_url=locals().get('wpp_web_url', canal),
         telefone_mascarado=telefone_mascarado,
         email_mascarado=email_mascarado,
         TOKEN_VALIDADE_MIN=TOKEN_VALIDADE_MIN,
@@ -5707,8 +5717,17 @@ def resetar_tentativas_usuario(uid):
     if session.get('perfil') != 'admin':
         return redirect(url_for('dashboard'))
     conn = get_db()
+    u = _fetchone(conn, "SELECT * FROM usuarios WHERE id=?", (uid,))
+    if not u:
+        conn.close()
+        flash('Usuário não encontrado.', 'erro')
+        return redirect(url_for('admin_usuarios'))
+
+    senha_provisoria = "Mudar@123"
+    hash_provisorio = generate_password_hash(senha_provisoria)
+
     try:
-        _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL, trocar_senha=1 WHERE id=?", (uid,))
+        _exec(conn, "UPDATE usuarios SET senha=?, tentativas_login=0, bloqueado_ate=NULL, trocar_senha=1 WHERE id=?", (hash_provisorio, uid))
         conn.commit()
     except Exception:
         try:
@@ -5717,18 +5736,18 @@ def resetar_tentativas_usuario(uid):
             pass
         _assegurar_colunas_usuarios_conn(conn)
         try:
-            _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL, trocar_senha=1 WHERE id=?", (uid,))
+            _exec(conn, "UPDATE usuarios SET senha=?, tentativas_login=0, bloqueado_ate=NULL, trocar_senha=1 WHERE id=?", (hash_provisorio, uid))
             conn.commit()
         except Exception:
             try:
                 conn.rollback()
             except Exception:
                 pass
-            _exec(conn, "UPDATE usuarios SET tentativas_login=0, trocar_senha=1 WHERE id=?", (uid,))
+            _exec(conn, "UPDATE usuarios SET senha=?, tentativas_login=0, trocar_senha=1 WHERE id=?", (hash_provisorio, uid))
             conn.commit()
     conn.close()
-    audit('RESETAR_TENTATIVAS_SENHA', f"uid={uid}")
-    flash("Tentativas incorretas zeradas! O usuário solicitará nova senha no próximo acesso.", "ok")
+    audit('RESETAR_SENHA_PROVISORIA', f"uid={uid} usuario={u['login']}")
+    flash(f"A senha de {u['nome']} foi redefinida com sucesso para a senha provisória: {senha_provisoria}. Ao entrar no sistema com esta senha, o usuário será obrigado a cadastrar sua nova senha pessoal.", "ok")
     return redirect(url_for('admin_usuarios'))
 
 

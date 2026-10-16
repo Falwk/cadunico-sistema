@@ -243,12 +243,23 @@
   {% if msg == 'whatsapp' %}
   <div class="ok">
     <strong>Solicitação gerada com sucesso!</strong><br>
-    Clique no botão abaixo para abrir a mensagem segura no WhatsApp cadastrado (<strong>{{ telefone_mascarado }}</strong>).<br>
-    O link é de uso único e expira automaticamente em <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>.
+    Escolha abaixo como deseja abrir o WhatsApp para o número cadastrado (<strong>{{ telefone_mascarado }}</strong>):<br>
+    <span style="font-size:0.8rem; color:#047857;">O link gerado é de uso único e expira em <strong>{{ TOKEN_VALIDADE_MIN }} minutos</strong>.</span>
   </div>
-  <a href="{{ canal }}" target="_blank" rel="noopener noreferrer" class="btn btn-wpp" style="display:block; text-align:center; text-decoration:none; padding:12px;">
-    📱 Abrir WhatsApp e Enviar Link Seguro
-  </a>
+
+  <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
+    <a href="{{ wpp_web_url or canal }}" target="_blank" rel="noopener noreferrer" class="btn btn-wpp" style="display:flex; align-items:center; justify-content:center; gap:8px; text-decoration:none; padding:12px; font-weight:700;">
+      💻 Abrir no WhatsApp Web (Computador)
+    </a>
+    <a href="{{ wpp_api_url or canal }}" target="_blank" rel="noopener noreferrer" class="btn" style="background:#25D366; display:flex; align-items:center; justify-content:center; gap:8px; text-decoration:none; padding:12px; font-weight:700;">
+      📱 Abrir no Celular / Aplicativo
+    </a>
+  </div>
+
+  <div class="aviso" style="margin-top:10px;">
+    <strong>Não conseguiu abrir o WhatsApp?</strong><br>
+    Peça ao <strong>Administrador do Sistema</strong> no painel de usuários para redefinir sua senha com a senha provisória padrão <code>Mudar@123</code>.
+  </div>
 
   {% elif msg == 'email_enviado' %}
   <div class="ok">
@@ -259,9 +270,10 @@
 
   {% elif msg == 'aviso_admin' %}
   <div class="aviso">
-    <strong>Procedimento de Segurança:</strong><br>
-    Para resguardar os dados das famílias atendidas, a redefinição de senha para este perfil deve ser efetuada ou autorizada diretamente pelo <strong>Administrador do Sistema</strong> ou Coordenação.<br>
-    <p style="margin-top:8px;font-size:0.8rem;color:var(--text-muted);">A solicitação foi registrada no log de auditoria para acompanhamento.</p>
+    <strong>Acesso Imediato via Administrador:</strong><br>
+    Este usuário ainda não possui canal automático ativo (e-mail institucional ou celular cadastrado).<br>
+    <br>
+    Solicite ao <strong>Administrador do Sistema</strong> ou Coordenação para redefinir sua senha no painel administrativo. O gestor fornecerá a senha provisória <code>Mudar@123</code> para seu acesso imediato.
   </div>
 
   {% else %}
