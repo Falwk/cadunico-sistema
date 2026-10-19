@@ -1902,7 +1902,7 @@ def init_db():
         tabelas_seq = [
             'usuarios', 'atendimentos', 'solicitacoes_visita',
             'audit_log', 'visita_fotos', 'documentos_editaveis',
-            'arquivos_anexos'
+            'arquivos_anexos', 'notificacoes_usuario'
         ]
         for t in tabelas_seq:
             try:
@@ -1914,13 +1914,29 @@ def init_db():
         tabelas_rls = [
             'usuarios', 'atendimentos', 'solicitacoes_visita',
             'audit_log', 'config_relatorio', 'visita_contadores',
-            'visita_fotos', 'documentos_editaveis', 'arquivos_anexos'
+            'visita_fotos', 'documentos_editaveis', 'arquivos_anexos',
+            'notificacoes_usuario'
         ]
         for t in tabelas_rls:
             try:
                 cur.execute(f'ALTER TABLE public."{t}" ENABLE ROW LEVEL SECURITY;')
             except Exception:
                 pass
+
+        # Garante que qualquer tabela existente no schema public tenha RLS ativado no Supabase
+        try:
+            cur.execute("""
+                DO $$ 
+                DECLARE 
+                    tbl RECORD;
+                BEGIN 
+                    FOR tbl IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP 
+                        EXECUTE 'ALTER TABLE public."' || tbl.tablename || '" ENABLE ROW LEVEL SECURITY;'; 
+                    END LOOP; 
+                END $$;
+            """)
+        except Exception:
+            pass
 
         try:
             conn.commit()
