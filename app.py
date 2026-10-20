@@ -1839,6 +1839,13 @@ def init_db():
         cur.execute('''CREATE INDEX IF NOT EXISTS idx_beneficiarios_pbf_nome ON beneficiarios_pbf(nome_rf)''')
         # Migrações seguras para PostgreSQL — executa com autocommit individual para garantir persistência imediata
         try:
+            conn.commit()
+        except Exception:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        try:
             conn.autocommit = True
         except Exception:
             pass
@@ -3388,6 +3395,7 @@ def historico_familiar():
     familia_selecionada = None
     atendimentos = []
     visitas = []
+    pbf_info = None
 
     if termo:
         audit('CONSULTA_HISTORICO_FAMILIAR', f"termo_mascarado={termo[:2]}***")
