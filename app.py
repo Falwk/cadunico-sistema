@@ -165,8 +165,9 @@ def _conectar_pg_url(url):
     except Exception:
         pass
 
-    try:
-        if host and user and password:
+    # 1. Tentativa via parâmetros explícitos
+    if host and user and password:
+        try:
             return psycopg2.connect(
                 host=host,
                 port=port,
@@ -174,35 +175,47 @@ def _conectar_pg_url(url):
                 password=password,
                 dbname=dbname,
                 sslmode='require',
-                cursor_factory=psycopg2.extras.RealDictCursor
+                cursor_factory=psycopg2.extras.RealDictCursor,
+                connect_timeout=15
             )
-    except UnicodeDecodeError:
-        raise ConnectionError(f"Não foi possível resolver o endereço do servidor ('{host}'). Verifique se a URL do Supabase foi copiada corretamente do painel.")
-    except Exception as ex_kw:
-        raise ex_kw
+        except Exception as ex_kw:
+            app.logger.warning(f"[BANCO PG] Tentativa via parâmetros diretos falhou ({ex_kw}), tentando URL completa...")
 
+    # 2. Tentativa via URL DSN
     try:
-        if 'sslmode' not in url.lower():
-            delim = '&' if '?' in url else '?'
-            url += f"{delim}sslmode=require"
-        return psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
-    except UnicodeDecodeError:
-        raise ConnectionError(f"Não foi possível resolver o endereço do servidor de banco de dados. Verifique a URL do Supabase.")
+        url_conn = url
+        if 'sslmode' not in url_conn.lower():
+            delim = '&' if '?' in url_conn else '?'
+            url_conn += f"{delim}sslmode=require"
+        return psycopg2.connect(url_conn, cursor_factory=psycopg2.extras.RealDictCursor, connect_timeout=15)
+    except Exception as ex_url:
+        app.logger.error(f"[BANCO PG] Falha total na conexão PostgreSQL: {ex_url}")
+        raise ex_url
 
 
 def get_db():
-    """Retorna uma conexão com o banco configurado (PostgreSQL ou SQLite com fallback)."""
+    """Retorna uma conexão com o banco configurado (PostgreSQL ou SQLite com fallback resiliente)."""
     global _USE_PG, _PG_FAILED
     if _USE_PG and not _PG_FAILED:
-        try:
-            return _conectar_pg_url(DATABASE_URL)
-        except Exception as e:
+        for tentativa in range(2):
             try:
+                conn = _conectar_pg_url(DATABASE_URL)
+                return conn
+            except Exception as e:
                 err_msg = str(e)
-            except Exception:
-                err_msg = repr(e)
-            app.logger.warning(f"[BANCO] Não foi possível conectar ao PostgreSQL ({err_msg}). Alternando automaticamente para SQLite local ({_DB_PATH}).")
+                app.logger.warning(f"[BANCO] Tentativa {tentativa+1} ao PostgreSQL falhou ({err_msg}).")
+                if tentativa == 0:
+                    import time
+                    time.sleep(0.5)
+
+        # Fallback para SQLite APENAS se o arquivo database.db realmente existir e tiver dados
+        if os.path.isfile(_DB_PATH) and os.path.getsize(_DB_PATH) > 10000:
+            app.logger.warning(f"[BANCO] Alternando para SQLite local ({_DB_PATH}) pois a base existe.")
             _PG_FAILED = True
+        else:
+            # Em produção na nuvem, SQLite vazio não deve ser usado silenciosamente
+            app.logger.error("[BANCO] Conexão PostgreSQL falhou e SQLite local não possui base existente.")
+            return _conectar_pg_url(DATABASE_URL)
 
     import sqlite3
     conn = sqlite3.connect(_DB_PATH)
@@ -1966,7 +1979,7 @@ def init_db():
             except Exception:
                 pass
 
-        # Garante que qualquer tabela existente no schema public tenha RLS ativado no Supabase
+        # Garante que qualquer tabela existente no schema public tenha RLS ativado E política total para a aplicação
         try:
             cur.execute("""
                 DO $$ 
@@ -1974,7 +1987,14 @@ def init_db():
                     tbl RECORD;
                 BEGIN 
                     FOR tbl IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP 
-                        EXECUTE 'ALTER TABLE public."' || tbl.tablename || '" ENABLE ROW LEVEL SECURITY;'; 
+                        BEGIN
+                            EXECUTE 'ALTER TABLE public."' || tbl.tablename || '" ENABLE ROW LEVEL SECURITY;'; 
+                        EXCEPTION WHEN OTHERS THEN NULL;
+                        END;
+                        BEGIN
+                            EXECUTE 'CREATE POLICY "app_permitir_tudo_' || tbl.tablename || '" ON public."' || tbl.tablename || '" FOR ALL USING (true) WITH CHECK (true);';
+                        EXCEPTION WHEN OTHERS THEN NULL;
+                        END;
                     END LOOP; 
                 END $$;
             """)
