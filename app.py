@@ -2946,7 +2946,7 @@ def dashboard():
 
     offset = (pagina - 1) * por_pagina
     ats = _fetchall(conn,
-        f"""SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, a.beneficiario_pbf, a.valor_beneficio_pbf, u.nome AS entrevistador
+        f"""SELECT a.*, u.nome AS entrevistador
             FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id
             {base_where} ORDER BY a.data DESC, a.id DESC LIMIT {PH} OFFSET {PH}""",
         params_base + [por_pagina, offset]
