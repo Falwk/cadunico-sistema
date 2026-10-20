@@ -32,7 +32,8 @@
   <aside class="sidebar">
     <div class="sidebar-brand">
       <a href="{{ url_for('dashboard') }}" class="sidebar-brand-box" title="Cadastro Único 25 Anos">
-        <img src="{{ url_for('static', filename='logos/cadunico_25anos_preto.png') }}" alt="Cadastro Único 25 Anos">
+        <img src="{{ url_for('static', filename='logos/cadunico_25anos_cor.png') }}" alt="Cadastro Único 25 Anos" class="logo-light">
+        <img src="{{ url_for('static', filename='logos/cadunico_25anos_preto.png') }}" alt="Cadastro Único 25 Anos" class="logo-dark">
       </a>
     </div>
 
@@ -75,6 +76,11 @@
       {% endif %}
 
       {% if session.perfil == 'admin' %}
+      <a href="{{ url_for('importar_folha_pbf_view') }}" class="sidebar-link {% if request.endpoint == 'importar_folha_pbf_view' %}ativo{% endif %}" title="Folha Bolsa Família (PBF)">
+        <span class="ms">payments</span>
+        <span>Folha Bolsa Família (PBF)</span>
+      </a>
+
       <a href="{{ url_for('central_backup') }}" class="sidebar-link {% if request.endpoint in ('central_backup', 'admin_backup', 'backup_excel') %}ativo{% endif %}" title="Backup do Sistema">
         <span class="ms">cloud_download</span>
         <span>Backup do Sistema</span>
