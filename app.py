@@ -24,6 +24,15 @@ app.config.update(
     SESSION_COOKIE_SECURE=bool(os.environ.get('RENDER') or os.environ.get('DYNO')),
 )
 
+@app.template_filter('format_numero')
+def _format_numero_filter(val):
+    """Formata números com separador de milhar brasileiro (ex: 11.842)."""
+    try:
+        n = int(val)
+        return f"{n:,}".replace(',', '.')
+    except Exception:
+        return val
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGOS_DIR = os.path.join(BASE_DIR, 'static', 'logos')
 
