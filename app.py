@@ -3477,10 +3477,10 @@ def historico_familiar():
                     pbf_info = dict(pbf_row)
 
             ats_rows = _fetchall(conn,
-                f"""SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador FROM atendimentos a
+                f"""SELECT a.*, u.nome AS entrevistador FROM atendimentos a
                     JOIN usuarios u ON a.usuario_id=u.id
-                    WHERE a.cpf={PH} {filtro_usuario} ORDER BY a.data DESC, a.criado_em DESC""",
-                [cpf_alvo] + params_base
+                    WHERE (a.cpf={PH} OR REPLACE(REPLACE(REPLACE(a.cpf, '.', ''), '-', ''), ' ', '')={PH}) {filtro_usuario} ORDER BY a.data DESC, a.criado_em DESC""",
+                [cpf_alvo, cpf_digits] + params_base
             )
             atendimentos = [dict(a) for a in ats_rows]
             
