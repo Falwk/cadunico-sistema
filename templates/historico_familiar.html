@@ -86,6 +86,17 @@
           {% if familia.qtd_membros %}<span>👨‍👩‍👧‍👦 <strong>{{ familia.qtd_membros }}</strong> membros</span>{% endif %}
           {% if familia.renda_per_capita %}<span>💵 RPC: <strong>{{ familia.renda_per_capita }}</strong></span>{% endif %}
         </div>
+        {% if pbf_info %}
+        <div style="margin-top:10px; display:inline-flex; align-items:center; flex-wrap:wrap; gap:8px; background:#DCFCE7; border:1px solid #86EFAC; color:#166534; padding:6px 14px; border-radius:20px; font-size:0.85rem; font-weight:700;">
+          <span>🟢 Beneficiário Bolsa Família ({{ pbf_info.competencia_folha or 'Folha PBF' }})</span>
+          <span>•</span>
+          <span>Valor: <strong>{{ pbf_info.valor_beneficio }}</strong></span>
+          <span>•</span>
+          <span>NIS: <strong>{{ pbf_info.nis }}</strong></span>
+          <span>•</span>
+          <span style="background:#166534; color:#fff; font-size:0.75rem; padding:2px 8px; border-radius:10px;">{{ pbf_info.situacao_beneficio or 'LIBERADO' }}</span>
+        </div>
+        {% endif %}
       </div>
       <div style="display:flex; gap:10px;">
         <div style="background:#DCFCE7; border:1px solid #86EFAC; color:#166534; padding:10px 16px; border-radius:10px; text-align:center;">
@@ -114,6 +125,9 @@
               🗓️ {{ at.data[8:] }}/{{ at.data[5:7] }}/{{ at.data[:4] }}
             </span>
             <span class="tag tag-origem" style="font-weight:700;">{{ at.origem }}</span>
+            {% if at.beneficiario_pbf %}
+              <span class="tag" style="background:#e8f5e9; color:#1b5e20; border:1px solid #81c784; font-weight:700;">🟢 PBF {{ at.valor_beneficio_pbf or '' }}</span>
+            {% endif %}
           </div>
           <div style="font-size:0.8rem; color:#64748B;">
             Atendido por: <strong>{{ at.entrevistador }}</strong>

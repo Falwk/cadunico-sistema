@@ -1814,6 +1814,29 @@ def init_db():
             criado_em       TEXT NOT NULL
         )''')
         cur.execute('''CREATE INDEX IF NOT EXISTS idx_notificacoes_usuario_uid ON notificacoes_usuario(usuario_id)''')
+
+        # Tabela oficial da Folha de Pagamento do Bolsa Família (PBF / SIBEC)
+        cur.execute('''CREATE TABLE IF NOT EXISTS beneficiarios_pbf (
+            id                  SERIAL PRIMARY KEY,
+            cpf                 TEXT UNIQUE NOT NULL,
+            codigo_familiar     TEXT,
+            nis                 TEXT,
+            nome_rf             TEXT NOT NULL,
+            endereco            TEXT,
+            bairro              TEXT,
+            cep                 TEXT,
+            telefone            TEXT,
+            renda_per_capita    TEXT,
+            qtd_membros         INTEGER,
+            valor_beneficio     TEXT,
+            situacao_beneficio  TEXT,
+            competencia_folha   TEXT,
+            criado_em           TEXT NOT NULL,
+            atualizado_em       TEXT NOT NULL
+        )''')
+        cur.execute('''CREATE INDEX IF NOT EXISTS idx_beneficiarios_pbf_cpf ON beneficiarios_pbf(cpf)''')
+        cur.execute('''CREATE INDEX IF NOT EXISTS idx_beneficiarios_pbf_codfam ON beneficiarios_pbf(codigo_familiar)''')
+        cur.execute('''CREATE INDEX IF NOT EXISTS idx_beneficiarios_pbf_nome ON beneficiarios_pbf(nome_rf)''')
         # Migrações seguras para PostgreSQL — executa com autocommit individual para garantir persistência imediata
         try:
             conn.autocommit = True
@@ -1862,6 +1885,10 @@ def init_db():
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS parecer_social TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS atribuido_para INTEGER",
             "ALTER TABLE solicitacoes_visita ADD COLUMN IF NOT EXISTS data_encaminhamento TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS nis TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS endereco TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS beneficiario_pbf INTEGER DEFAULT 0",
+            "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS valor_beneficio_pbf TEXT",
         ]
         for col_sql in migracoes:
             try:
@@ -1902,7 +1929,7 @@ def init_db():
         tabelas_seq = [
             'usuarios', 'atendimentos', 'solicitacoes_visita',
             'audit_log', 'visita_fotos', 'documentos_editaveis',
-            'arquivos_anexos', 'notificacoes_usuario'
+            'arquivos_anexos', 'notificacoes_usuario', 'beneficiarios_pbf'
         ]
         for t in tabelas_seq:
             try:
@@ -1915,7 +1942,7 @@ def init_db():
             'usuarios', 'atendimentos', 'solicitacoes_visita',
             'audit_log', 'config_relatorio', 'visita_contadores',
             'visita_fotos', 'documentos_editaveis', 'arquivos_anexos',
-            'notificacoes_usuario'
+            'notificacoes_usuario', 'beneficiarios_pbf'
         ]
         for t in tabelas_rls:
             try:
@@ -2063,6 +2090,30 @@ def init_db():
             lida            INTEGER NOT NULL DEFAULT 0,
             criado_em       TEXT NOT NULL
         )''')
+        c.execute('''CREATE INDEX IF NOT EXISTS idx_notificacoes_usuario_uid ON notificacoes_usuario(usuario_id)''')
+
+        # Tabela oficial da Folha de Pagamento do Bolsa Família (PBF / SIBEC)
+        c.execute('''CREATE TABLE IF NOT EXISTS beneficiarios_pbf (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            cpf                 TEXT UNIQUE NOT NULL,
+            codigo_familiar     TEXT,
+            nis                 TEXT,
+            nome_rf             TEXT NOT NULL,
+            endereco            TEXT,
+            bairro              TEXT,
+            cep                 TEXT,
+            telefone            TEXT,
+            renda_per_capita    TEXT,
+            qtd_membros         INTEGER,
+            valor_beneficio     TEXT,
+            situacao_beneficio  TEXT,
+            competencia_folha   TEXT,
+            criado_em           TEXT NOT NULL,
+            atualizado_em       TEXT NOT NULL
+        )''')
+        c.execute('''CREATE INDEX IF NOT EXISTS idx_beneficiarios_pbf_cpf ON beneficiarios_pbf(cpf)''')
+        c.execute('''CREATE INDEX IF NOT EXISTS idx_beneficiarios_pbf_codfam ON beneficiarios_pbf(codigo_familiar)''')
+        c.execute('''CREATE INDEX IF NOT EXISTS idx_beneficiarios_pbf_nome ON beneficiarios_pbf(nome_rf)''')
         for col_sql in [
             "ALTER TABLE usuarios ADD COLUMN unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
             "ALTER TABLE usuarios ADD COLUMN trocar_senha INTEGER NOT NULL DEFAULT 0",
@@ -2093,6 +2144,10 @@ def init_db():
             "ALTER TABLE solicitacoes_visita ADD COLUMN parecer_social TEXT",
             "ALTER TABLE solicitacoes_visita ADD COLUMN atribuido_para INTEGER",
             "ALTER TABLE solicitacoes_visita ADD COLUMN data_encaminhamento TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN nis TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN endereco TEXT",
+            "ALTER TABLE atendimentos ADD COLUMN beneficiario_pbf INTEGER DEFAULT 0",
+            "ALTER TABLE atendimentos ADD COLUMN valor_beneficio_pbf TEXT",
         ]:
             try:
                 c.execute(col_sql)
@@ -2891,7 +2946,7 @@ def dashboard():
 
     offset = (pagina - 1) * por_pagina
     ats = _fetchall(conn,
-        f"""SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador
+        f"""SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, a.beneficiario_pbf, a.valor_beneficio_pbf, u.nome AS entrevistador
             FROM atendimentos a JOIN usuarios u ON a.usuario_id=u.id
             {base_where} ORDER BY a.data DESC, a.id DESC LIMIT {PH} OFFSET {PH}""",
         params_base + [por_pagina, offset]
@@ -3030,27 +3085,38 @@ def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_
     tipos_str = '|'.join(tipos)
 
     renda_per_capita = _formatar_moeda_brl(renda_per_capita) or None
+    cpf_limpo = ''.join(c for c in (cpf or '') if c.isdigit())
+    pbf_match = _fetchone(conn, f"SELECT nis, endereco, valor_beneficio FROM beneficiarios_pbf WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = {PH} LIMIT 1", (cpf_limpo,)) if cpf_limpo else None
+    beneficiario_pbf = 1 if pbf_match else 0
+    valor_pbf = pbf_match.get('valor_beneficio') if pbf_match else None
+    nis_pbf = pbf_match.get('nis') if pbf_match else None
+    end_pbf = pbf_match.get('endereco') if pbf_match else None
+
     if at_id:
         _exec(conn,
-            """UPDATE atendimentos SET data=?,cpf=?,nome_rf=?,bairro=?,codigo_familiar=?,qtd_membros=?,renda_per_capita=?,origem=?,tipos=?,
-               orgao_encaminhador=?,orgao_outro=?,numero_oficio=?,data_encaminhamento=?,
-               servidor_encaminhador=?,motivo_encaminhamento=?,obs_encaminhamento=?,situacao_encaminhamento=?
-               WHERE id=?""",
+            f"""UPDATE atendimentos SET data={PH},cpf={PH},nome_rf={PH},bairro={PH},codigo_familiar={PH},qtd_membros={PH},renda_per_capita={PH},origem={PH},tipos={PH},
+               orgao_encaminhador={PH},orgao_outro={PH},numero_oficio={PH},data_encaminhamento={PH},
+               servidor_encaminhador={PH},motivo_encaminhamento={PH},obs_encaminhamento={PH},situacao_encaminhamento={PH},
+               beneficiario_pbf={PH},valor_beneficio_pbf={PH},nis=COALESCE(nis, {PH}),endereco=COALESCE(endereco, {PH})
+               WHERE id={PH}""",
             (data, cpf, nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita, origem, tipos_str,
              orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
              servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento,
+             beneficiario_pbf, valor_pbf, nis_pbf, end_pbf,
              at_id)
         )
     else:
         try:
             _exec(conn,
-                """INSERT INTO atendimentos (data,cpf,nome_rf,bairro,codigo_familiar,qtd_membros,renda_per_capita,origem,tipos,usuario_id,criado_em,
+                f"""INSERT INTO atendimentos (data,cpf,nome_rf,bairro,codigo_familiar,qtd_membros,renda_per_capita,origem,tipos,usuario_id,criado_em,
                    orgao_encaminhador,orgao_outro,numero_oficio,data_encaminhamento,
-                   servidor_encaminhador,motivo_encaminhamento,obs_encaminhamento,situacao_encaminhamento)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                   servidor_encaminhador,motivo_encaminhamento,obs_encaminhamento,situacao_encaminhamento,
+                   beneficiario_pbf,valor_beneficio_pbf,nis,endereco)
+                   VALUES ({PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH})""",
                 (data, cpf, nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat(),
                  orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
-                 servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento)
+                 servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento,
+                 beneficiario_pbf, valor_pbf, nis_pbf, end_pbf)
             )
         except Exception as ex_ins:
             if _is_pg():
@@ -3060,13 +3126,15 @@ def _salvar_atendimento(conn, data, cpf, nome_rf, origem, tipos, usuario_id, at_
                     cur.execute("SELECT setval(pg_get_serial_sequence('atendimentos', 'id'), COALESCE((SELECT MAX(id) FROM atendimentos), 1));")
                     conn.commit()
                     _exec(conn,
-                        """INSERT INTO atendimentos (data,cpf,nome_rf,bairro,codigo_familiar,qtd_membros,renda_per_capita,origem,tipos,usuario_id,criado_em,
+                        f"""INSERT INTO atendimentos (data,cpf,nome_rf,bairro,codigo_familiar,qtd_membros,renda_per_capita,origem,tipos,usuario_id,criado_em,
                            orgao_encaminhador,orgao_outro,numero_oficio,data_encaminhamento,
-                           servidor_encaminhador,motivo_encaminhamento,obs_encaminhamento,situacao_encaminhamento)
-                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                           servidor_encaminhador,motivo_encaminhamento,obs_encaminhamento,situacao_encaminhamento,
+                           beneficiario_pbf,valor_beneficio_pbf,nis,endereco)
+                           VALUES ({PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH},{PH})""",
                         (data, cpf, nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita, origem, tipos_str, usuario_id, datetime.now(_TZ_BELEM).isoformat(),
                          orgao_encaminhador, orgao_outro, numero_oficio, data_encaminhamento,
-                         servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento)
+                         servidor_encaminhador, motivo_encaminhamento, obs_encaminhamento, situacao_encaminhamento,
+                         beneficiario_pbf, valor_pbf, nis_pbf, end_pbf)
                     )
                 except Exception as ex_retry:
                     erros.append(f"Erro ao salvar no banco de dados: {ex_retry}")
@@ -3207,27 +3275,97 @@ def excluir_atendimento(at_id):
 
 @app.route('/api/cpf/<cpf>')
 def api_cpf(cpf):
-    """Retorna o nome do RF para um CPF já cadastrado (para autocomplete)."""
+    """Retorna dados da família (atendimentos e folha do Bolsa Família) para autocomplete instantâneo."""
     if _requer_login():
         return jsonify({}), 401
     cpf_limpo = ''.join(c for c in cpf if c.isdigit())
     if not cpf_limpo:
         return jsonify({})
     conn = get_db()
+    
+    # 1. Busca no histórico de atendimentos anteriores
     row = _fetchone(conn,
-        "SELECT nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita FROM atendimentos WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = ? ORDER BY criado_em DESC LIMIT 1",
+        f"""SELECT nome_rf, bairro, codigo_familiar, qtd_membros, renda_per_capita, nis, endereco
+            FROM atendimentos
+            WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = {PH}
+            ORDER BY criado_em DESC LIMIT 1""",
+        (cpf_limpo,)
+    )
+
+    # 2. Busca na base oficial do Bolsa Família (beneficiarios_pbf)
+    pbf_row = _fetchone(conn,
+        f"""SELECT * FROM beneficiarios_pbf
+            WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = {PH}
+            LIMIT 1""",
         (cpf_limpo,)
     )
     conn.close()
+
+    res = {
+        'nome_rf': '',
+        'bairro': '',
+        'codigo_familiar': '',
+        'qtd_membros': '',
+        'renda_per_capita': '',
+        'nis': '',
+        'endereco': '',
+        'origem_dados': None,
+        'is_pbf': False,
+        'pbf_dados': None
+    }
+
     if row:
-        audit('CONSULTA_CPF_AUTOCOMPLETE', f"cpf_mascarado={_mascarar_cpf_lgpd(cpf_limpo)}")
-        return jsonify({
-            'nome_rf': row['nome_rf'],
-            'bairro': row.get('bairro') or '',
-            'codigo_familiar': row.get('codigo_familiar') or '',
-            'qtd_membros': row.get('qtd_membros') or '',
-            'renda_per_capita': _formatar_moeda_brl(row.get('renda_per_capita')) or ''
-        })
+        res['nome_rf'] = row.get('nome_rf') or ''
+        res['bairro'] = row.get('bairro') or ''
+        res['codigo_familiar'] = row.get('codigo_familiar') or ''
+        res['qtd_membros'] = str(row.get('qtd_membros') or '')
+        res['renda_per_capita'] = _formatar_moeda_brl(row.get('renda_per_capita')) or (row.get('renda_per_capita') or '')
+        res['nis'] = row.get('nis') or ''
+        res['endereco'] = row.get('endereco') or ''
+        res['origem_dados'] = 'historico'
+
+    if pbf_row:
+        res['is_pbf'] = True
+        vlr_fmt = pbf_row.get('valor_beneficio') or ''
+        if vlr_fmt and not vlr_fmt.startswith('R$'):
+            vlr_fmt = f"R$ {vlr_fmt}"
+        
+        comp_fmt = pbf_row.get('competencia_folha') or ''
+        if len(comp_fmt) == 6 and comp_fmt.isdigit():
+            comp_fmt = f"{comp_fmt[4:6]}/{comp_fmt[0:4]}"
+
+        res['pbf_dados'] = {
+            'nis': pbf_row.get('nis') or '',
+            'valor_beneficio': vlr_fmt,
+            'situacao': pbf_row.get('situacao_beneficio') or 'LIBERADO',
+            'competencia': comp_fmt or 'Folha PBF',
+            'endereco': pbf_row.get('endereco') or '',
+            'bairro': pbf_row.get('bairro') or '',
+            'qtd_membros': str(pbf_row.get('qtd_membros') or ''),
+            'renda_per_capita': _formatar_moeda_brl(pbf_row.get('renda_per_capita')) or (pbf_row.get('renda_per_capita') or '')
+        }
+
+        # Se a família ainda não tinha cadastro prévio ou se faltavam campos, preenche com os dados da Folha PBF
+        if not res['nome_rf']:
+            res['nome_rf'] = pbf_row.get('nome_rf') or ''
+            res['origem_dados'] = 'folha_pbf'
+        if not res['bairro']:
+            res['bairro'] = pbf_row.get('bairro') or ''
+        if not res['codigo_familiar']:
+            res['codigo_familiar'] = pbf_row.get('codigo_familiar') or ''
+        if not res['qtd_membros']:
+            res['qtd_membros'] = str(pbf_row.get('qtd_membros') or '')
+        if not res['renda_per_capita']:
+            res['renda_per_capita'] = _formatar_moeda_brl(pbf_row.get('renda_per_capita')) or (pbf_row.get('renda_per_capita') or '')
+        if not res['nis']:
+            res['nis'] = pbf_row.get('nis') or ''
+        if not res['endereco']:
+            res['endereco'] = pbf_row.get('endereco') or ''
+
+    if row or pbf_row:
+        audit('CONSULTA_CPF_AUTOCOMPLETE', f"cpf_mascarado={_mascarar_cpf_lgpd(cpf_limpo)} is_pbf={res['is_pbf']}")
+        return jsonify(res)
+
     return jsonify({})
 
 
@@ -3285,9 +3423,42 @@ def historico_familiar():
             if len(familias_encontradas) == 1:
                 familia_selecionada = familias_encontradas[0]
 
-        # 3. Se temos uma família selecionada, carrega todos os atendimentos e visitas
+        # 3. Se ainda não encontrou em atendimentos, busca na base do Bolsa Família
+        pbf_info = None
+        if not familia_selecionada and (digits or termo):
+            pbf_buscado = _fetchone(conn,
+                f"""SELECT * FROM beneficiarios_pbf
+                    WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = {PH}
+                       OR codigo_familiar = {PH}
+                       OR LOWER(nome_rf) LIKE {PH}
+                    LIMIT 1""",
+                (digits or termo, digits or termo, f"%{termo.lower()}%")
+            )
+            if pbf_buscado:
+                familia_selecionada = {
+                    'cpf': pbf_buscado['cpf'],
+                    'nome_rf': pbf_buscado['nome_rf'],
+                    'bairro': pbf_buscado.get('bairro') or '',
+                    'codigo_familiar': pbf_buscado.get('codigo_familiar') or '',
+                    'qtd_membros': pbf_buscado.get('qtd_membros') or '',
+                    'renda_per_capita': pbf_buscado.get('renda_per_capita') or '',
+                    'total_atendimentos': 0,
+                    'ultima_data': 'Ainda não atendido'
+                }
+                pbf_info = dict(pbf_buscado)
+
+        # 4. Se temos uma família selecionada, carrega todos os atendimentos e visitas
         if familia_selecionada:
             cpf_alvo = familia_selecionada['cpf']
+            cpf_digits = ''.join(c for c in (cpf_alvo or '') if c.isdigit())
+            if not pbf_info and cpf_digits:
+                pbf_row = _fetchone(conn,
+                    f"SELECT * FROM beneficiarios_pbf WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') = {PH} LIMIT 1",
+                    (cpf_digits,)
+                )
+                if pbf_row:
+                    pbf_info = dict(pbf_row)
+
             ats_rows = _fetchall(conn,
                 f"""SELECT a.id AS id, a.data, a.cpf, a.nome_rf, a.bairro, a.codigo_familiar, a.qtd_membros, a.renda_per_capita, a.origem, a.tipos, a.usuario_id, a.criado_em, a.orgao_encaminhador, a.orgao_outro, a.numero_oficio, a.data_encaminhamento, a.servidor_encaminhador, a.motivo_encaminhamento, a.obs_encaminhamento, a.situacao_encaminhamento, u.nome AS entrevistador FROM atendimentos a
                     JOIN usuarios u ON a.usuario_id=u.id
@@ -3314,7 +3485,8 @@ def historico_familiar():
         familias_encontradas=familias_encontradas,
         familia=familia_selecionada,
         atendimentos=atendimentos,
-        visitas=visitas
+        visitas=visitas,
+        pbf_info=pbf_info
     )
 
 
@@ -5786,6 +5958,121 @@ def config_visita():
         return redirect(url_for('config_visita'))
     cfg = get_config()
     return render_template('config_visita.html', cfg=cfg)
+
+
+# ---------------------------------------------------------------------------
+# Gestão da Folha do Bolsa Família (PBF)
+# ---------------------------------------------------------------------------
+
+@app.route('/admin/folha-pbf', methods=['GET', 'POST'])
+@app.route('/admin/importar-folha-pbf', methods=['GET', 'POST'])
+def importar_folha_pbf_view():
+    if _requer_login() or session.get('perfil') not in ('admin', 'coordenador'):
+        flash('Acesso restrito à administração.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    conn = get_db()
+    if request.method == 'POST':
+        arquivo = request.files.get('arquivo_csv')
+        if not arquivo or not arquivo.filename:
+            flash('Por favor, selecione um arquivo CSV da folha de pagamento.', 'erro')
+            conn.close()
+            return redirect(url_for('importar_folha_pbf_view'))
+
+        import tempfile
+        temp_dir = tempfile.gettempdir()
+        temp_csv_path = os.path.join(temp_dir, f"folha_pbf_{int(time.time())}.csv")
+        arquivo.save(temp_csv_path)
+
+        try:
+            from importar_folha_pbf import executar_importacao
+            conn.close()
+            sucesso = executar_importacao(temp_csv_path)
+            if sucesso:
+                flash('Folha de Pagamento do Bolsa Família processada e importada com sucesso!', 'ok')
+            else:
+                flash('Falha ao processar o arquivo CSV. Verifique o formato.', 'erro')
+        except Exception as e:
+            flash(f'Erro durante a importação: {e}', 'erro')
+        finally:
+            try:
+                if os.path.exists(temp_csv_path):
+                    os.remove(temp_csv_path)
+            except Exception:
+                pass
+        return redirect(url_for('importar_folha_pbf_view'))
+
+    busca = request.args.get('busca', '').strip()
+    total_familias_row = _fetchone(conn, "SELECT COUNT(*) as n FROM beneficiarios_pbf")
+    total_familias = total_familias_row['n'] if total_familias_row else 0
+
+    comp_row = _fetchone(conn, "SELECT competencia_folha FROM beneficiarios_pbf ORDER BY id DESC LIMIT 1")
+    competencia_atual = comp_row.get('competencia_folha') if comp_row else '10/2026'
+
+    total_ats_pbf_row = _fetchone(conn, "SELECT COUNT(*) as n FROM atendimentos WHERE beneficiario_pbf = 1")
+    total_atendimentos_pbf = total_ats_pbf_row['n'] if total_ats_pbf_row else 0
+
+    if busca:
+        digits = ''.join(c for c in busca if c.isdigit())
+        busca_param = f"%{busca.lower()}%"
+        amostra_rows = _fetchall(conn,
+            f"""SELECT * FROM beneficiarios_pbf
+                WHERE REPLACE(REPLACE(REPLACE(cpf, '.', ''), '-', ''), ' ', '') LIKE {PH}
+                   OR nis LIKE {PH}
+                   OR codigo_familiar LIKE {PH}
+                   OR LOWER(nome_rf) LIKE {PH}
+                   OR LOWER(bairro) LIKE {PH}
+                ORDER BY nome_rf ASC LIMIT 50""",
+            (f"%{digits or busca}%", f"%{busca}%", f"%{busca}%", busca_param, busca_param)
+        )
+    else:
+        amostra_rows = _fetchall(conn, "SELECT * FROM beneficiarios_pbf ORDER BY id DESC LIMIT 15")
+
+    amostra_beneficiarios = [dict(r) for r in amostra_rows]
+    conn.close()
+
+    return render_template(
+        'folha_pbf.html',
+        total_familias=total_familias,
+        competencia_atual=competencia_atual,
+        total_atendimentos_pbf=total_atendimentos_pbf,
+        amostra_beneficiarios=amostra_beneficiarios,
+        busca=busca
+    )
+
+
+@app.route('/admin/folha-pbf/sincronizar', methods=['GET', 'POST'])
+def sincronizar_pbf_atendimentos():
+    if _requer_login() or session.get('perfil') not in ('admin', 'coordenador'):
+        flash('Acesso restrito.', 'erro')
+        return redirect(url_for('dashboard'))
+
+    conn = get_db()
+    is_pg = _is_pg()
+    ats = _fetchall(conn, "SELECT id, cpf FROM atendimentos")
+    atualizados = 0
+
+    for at in ats:
+        cpf_at = ''.join(c for c in (at.get('cpf') or '') if c.isdigit())
+        if cpf_at:
+            fam = _fetchone(conn, f"SELECT valor_beneficio, nis, endereco FROM beneficiarios_pbf WHERE cpf = {PH} LIMIT 1", (cpf_at,))
+            if fam:
+                if is_pg:
+                    _exec(conn,
+                        "UPDATE atendimentos SET beneficiario_pbf=1, valor_beneficio_pbf=%s, nis=COALESCE(nis, %s), endereco=COALESCE(endereco, %s) WHERE id=%s",
+                        (fam.get('valor_beneficio'), fam.get('nis'), fam.get('endereco'), at['id'])
+                    )
+                else:
+                    _exec(conn,
+                        "UPDATE atendimentos SET beneficiario_pbf=1, valor_beneficio_pbf=?, nis=COALESCE(nis, ?), endereco=COALESCE(endereco, ?) WHERE id=?",
+                        (fam.get('valor_beneficio'), fam.get('nis'), fam.get('endereco'), at['id'])
+                    )
+                atualizados += 1
+
+    conn.commit()
+    conn.close()
+    flash(f"Sincronização concluída: {atualizados} atendimentos vinculados como beneficiários do Bolsa Família!", "ok")
+    return redirect(url_for('importar_folha_pbf_view'))
 
 
 # ---------------------------------------------------------------------------

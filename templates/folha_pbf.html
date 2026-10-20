@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container" style="max-width:960px">
+  <div class="page-head" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+    <div>
+      <h1 class="page-title" style="color:var(--cad-verde-escuro); margin-bottom:4px;">💳 Gestão da Folha do Bolsa Família (PBF)</h1>
+      <p style="color:var(--text-muted); font-size:0.9rem; margin:0;">
+        Base de dados oficial de beneficiários do município para preenchimento automático e cruzamento cadastral.
+      </p>
+    </div>
+  </div>
+
+  <!-- Cards de Estatísticas -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; margin-bottom:24px;">
+    <div class="card" style="margin:0; padding:18px; border-left:4px solid #16a34a; background:#f0fdf4;">
+      <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; color:#15803d;">Famílias Beneficiárias (RFs)</div>
+      <div style="font-size:2rem; font-weight:800; color:#166534; margin:6px 0;">{{ total_familias|format_numero if total_familias is defined else total_familias }}</div>
+      <div style="font-size:0.75rem; color:#16a34a;">Registradas na base de referência PBF</div>
+    </div>
+
+    <div class="card" style="margin:0; padding:18px; border-left:4px solid #0284c7; background:#f0f9ff;">
+      <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; color:#0369a1;">Competência em Vigor</div>
+      <div style="font-size:1.8rem; font-weight:800; color:#075985; margin:6px 0;">{{ competencia_atual or '10/2026' }}</div>
+      <div style="font-size:0.75rem; color:#0284c7;">Folha de Pagamento SIBEC/Caixa</div>
+    </div>
+
+    <div class="card" style="margin:0; padding:18px; border-left:4px solid #9333ea; background:#faf5ff;">
+      <div style="font-size:0.8rem; font-weight:700; text-transform:uppercase; color:#7e22ce;">Atendimentos Vinculados</div>
+      <div style="font-size:2rem; font-weight:800; color:#6b21a8; margin:6px 0;">{{ total_atendimentos_pbf }}</div>
+      <div style="font-size:0.75rem; color:#9333ea;">Atendimentos com selo 🟢 PBF</div>
+    </div>
+  </div>
+
+  <!-- Card Formulário de Importação de Nova Folha -->
+  <div class="card" style="margin-bottom:24px;">
+    <div class="card-title">📥 Carregar / Atualizar Arquivo da Folha Mensal (CSV)</div>
+    <p style="font-size:0.875rem; color:#475569; margin-bottom:16px;">
+      Envie o arquivo original extraído do <strong>SIBEC / Caixa Econômica</strong> (layout padrão com colunas <code>PROG;REF_FOLHA;COD_FAMILIAR;CPF;NIS;NOME;...</code>).
+      O sistema processará os Responsáveis Familiares, atualizará a base de autocomplete e fará o cruzamento com os atendimentos existentes.
+    </p>
+
+    <form method="POST" action="{{ url_for('importar_folha_pbf_view') }}" enctype="multipart/form-data">
+      <div class="form-group" style="margin-bottom:16px;">
+        <label for="arquivo_csv" style="font-weight:700; font-size:0.9rem; margin-bottom:6px; display:block;">
+          Selecione o arquivo CSV da Folha:
+        </label>
+        <input type="file" id="arquivo_csv" name="arquivo_csv" accept=".csv,.txt" required
+               style="padding:10px; border:2px dashed #94a3b8; border-radius:8px; width:100%; background:#f8fafc;">
+        <span style="font-size:0.78rem; color:#64748b; margin-top:4px; display:block;">
+          💡 Suporta arquivos grandes da folha de pagamento (ex: 50MB a 100MB). A leitura é realizada em blocos de alta velocidade.
+        </span>
+      </div>
+
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+        <button type="submit" class="btn btn-primary" onclick="this.innerHTML='⏳ Processando Folha...'; this.disabled=true; this.form.submit();">
+          <span class="ms sm">upload</span>
+          <span>Processar e Atualizar Folha PBF</span>
+        </button>
+
+        <a href="{{ url_for('sincronizar_pbf_atendimentos') }}" class="btn btn-outline" title="Refaz a marcação de atendimentos existentes com a folha">
+          <span class="ms sm">sync</span>
+          <span>Sincronizar Cruzamento de Atendimentos</span>
+        </a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Card de Consulta Rápida na Base PBF -->
+  <div class="card">
+    <div class="card-title">🔍 Consulta de Beneficiário na Folha PBF</div>
+    <form method="GET" action="{{ url_for('importar_folha_pbf_view') }}" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px;">
+      <input type="search" name="busca" value="{{ busca or '' }}" placeholder="Pesquisar por CPF, NIS ou Nome do RF..." style="flex:1; min-width:260px;">
+      <button type="submit" class="btn btn-primary btn-sm"><span class="ms sm">search</span> Pesquisar</button>
+      {% if busca %}
+      <a href="{{ url_for('importar_folha_pbf_view') }}" class="btn btn-outline btn-sm">Limpar</a>
+      {% endif %}
+    </form>
+
+    {% if amostra_beneficiarios %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Nome do RF</th>
+            <th>CPF</th>
+            <th>NIS</th>
+            <th>Código Familiar</th>
+            <th>Bairro / Endereço</th>
+            <th>Membros</th>
+            <th>Renda P/C</th>
+            <th>Benefício</th>
+            <th>Situação</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in amostra_beneficiarios %}
+          <tr>
+            <td style="font-weight:700;">{{ b.nome_rf }}</td>
+            <td style="font-family:monospace; font-size:0.85rem;">{{ b.cpf }}</td>
+            <td style="font-family:monospace; font-size:0.85rem;">{{ b.nis or '-' }}</td>
+            <td style="font-family:monospace; font-size:0.85rem;">{{ b.codigo_familiar or '-' }}</td>
+            <td style="font-size:0.82rem;">
+              <strong>{{ b.bairro or '' }}</strong>
+              {% if b.endereco %}<div style="color:#64748b; font-size:0.75rem;">{{ b.endereco }}</div>{% endif %}
+            </td>
+            <td style="text-align:center;">{{ b.qtd_membros or 1 }}</td>
+            <td style="font-weight:600; font-size:0.85rem;">{{ b.renda_per_capita }}</td>
+            <td style="font-weight:700; color:#15803d; font-size:0.9rem;">{{ b.valor_beneficio }}</td>
+            <td>
+              <span class="badge" style="background:#dcfce7; color:#166534; border:1px solid #86efac; font-size:0.75rem; padding:2px 6px; border-radius:4px;">
+                {{ b.situacao_beneficio or 'LIBERADO' }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p style="text-align:center; color:#64748b; padding:20px 0;">
+      Nenhum beneficiário encontrado para o termo pesquisado.
+    </p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

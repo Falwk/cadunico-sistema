@@ -19,6 +19,30 @@
                  value="{{ form.get('cpf', '') }}" maxlength="14" required autocomplete="off">
         </div>
       </div>
+
+      <!-- Card / Banner do Bolsa Família (exibido dinamicamente) -->
+      <div id="pbf-card" style="display:none; margin:14px 0; padding:12px 16px; background:#e8f5e9; border:1px solid #c8e6c9; border-left:4px solid #2e7d32; border-radius:8px; color:#1b5e20;">
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.3rem;">🟢</span>
+            <span style="font-weight:700; font-size:0.95rem;">Beneficiário do Programa Bolsa Família</span>
+            <span id="pbf-badge-comp" class="badge" style="background:#2e7d32; color:#fff; font-size:0.75rem; padding:2px 8px; border-radius:12px;">Folha PBF</span>
+          </div>
+          <span id="pbf-origem-aviso" style="font-size:0.75rem; color:#2e7d32; font-weight:700;"></span>
+        </div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(160px, 1fr)); gap:10px; margin-top:10px; font-size:0.85rem;">
+          <div><strong>NIS:</strong> <span id="pbf-nis" style="font-family:monospace;">-</span></div>
+          <div><strong>Valor Benefício:</strong> <span id="pbf-valor" style="font-weight:700; color:#1b5e20;">-</span></div>
+          <div><strong>Situação:</strong> <span id="pbf-situacao" class="badge" style="background:#388e3c; color:#fff; padding:2px 6px; border-radius:4px;">-</span></div>
+        </div>
+        <div id="pbf-box-endereco" style="margin-top:6px; font-size:0.82rem; color:#2e7d32;">
+          <strong>Endereço na Folha:</strong> <span id="pbf-endereco">-</span>
+        </div>
+        <div style="font-size:0.75rem; color:#388e3c; margin-top:6px; border-top:1px dashed #a5d6a7; padding-top:4px;">
+          <em>💡 Dados sugeridos automaticamente pela folha. O entrevistador pode alterar qualquer campo livremente.</em>
+        </div>
+      </div>
+
       <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px">
         <div class="form-group">
           <label for="nome_rf">Nome do Responsável Familiar *</label>
@@ -316,7 +340,7 @@ function confirmarEncaminhamentoModal() {
   fecharModalEncaminhamento();
 }
 
-// Formatar CPF automaticamente
+// Formatar CPF automaticamente e buscar histórico / Bolsa Família
 cpfInput.addEventListener('input', function(e) {
   let v = e.target.value.replace(/\D/g,'').slice(0,11);
   if(v.length>9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/,'$1.$2.$3-$4');
@@ -325,22 +349,72 @@ cpfInput.addEventListener('input', function(e) {
   e.target.value = v;
 
   const digits = v.replace(/\D/g,'');
+  const pbfCard = document.getElementById('pbf-card');
   if (digits.length === 11) {
     fetch(`/api/cpf/${v}`)
       .then(r => r.json())
       .then(data => {
-        if (data.nome_rf && !nomeInput.value) {
-          nomeInput.value = data.nome_rf;
-          nomeInput.style.background = 'var(--md-sys-color-primary-container)';
-          nomeInput.title = 'Preenchido automaticamente pelo histórico';
-          setTimeout(() => nomeInput.style.background = '', 2000);
+        if (!data || Object.keys(data).length === 0) {
+          if (pbfCard) pbfCard.style.display = 'none';
+          return;
         }
-        if (data.bairro && !document.getElementById('bairro').value) document.getElementById('bairro').value = data.bairro;
-        if (data.codigo_familiar && !document.getElementById('codigo_familiar').value) document.getElementById('codigo_familiar').value = data.codigo_familiar;
-        if (data.qtd_membros && !document.getElementById('qtd_membros').value) document.getElementById('qtd_membros').value = data.qtd_membros;
-        if (data.renda_per_capita && !document.getElementById('renda_per_capita').value) document.getElementById('renda_per_capita').value = data.renda_per_capita;
+
+        const flashField = (elem, msg) => {
+          if (!elem) return;
+          elem.style.transition = 'background 0.3s ease';
+          elem.style.background = '#e8f5e9';
+          elem.title = msg;
+          setTimeout(() => { elem.style.background = ''; }, 2000);
+        };
+
+        const isFolha = data.origem_dados === 'folha_pbf';
+        const msg = isFolha ? 'Preenchido automaticamente pela Folha PBF (editável)' : 'Preenchido automaticamente pelo histórico (editável)';
+
+        if (data.nome_rf && (!nomeInput.value.trim() || isFolha)) {
+          nomeInput.value = data.nome_rf;
+          flashField(nomeInput, msg);
+        }
+        const bInput = document.getElementById('bairro');
+        if (data.bairro && (!bInput.value.trim() || isFolha)) {
+          bInput.value = data.bairro;
+          flashField(bInput, msg);
+        }
+        const cfInput = document.getElementById('codigo_familiar');
+        if (data.codigo_familiar && (!cfInput.value.trim() || isFolha)) {
+          cfInput.value = data.codigo_familiar;
+          flashField(cfInput, msg);
+        }
+        const qmInput = document.getElementById('qtd_membros');
+        if (data.qtd_membros && (!qmInput.value.trim() || isFolha)) {
+          qmInput.value = data.qtd_membros;
+          flashField(qmInput, msg);
+        }
+        const rpcInput = document.getElementById('renda_per_capita');
+        if (data.renda_per_capita && (!rpcInput.value.trim() || isFolha)) {
+          rpcInput.value = data.renda_per_capita;
+          flashField(rpcInput, msg);
+        }
+
+        // Exibe card do Bolsa Família se a família constar na folha de pagamento
+        if (data.is_pbf && data.pbf_dados && pbfCard) {
+          pbfCard.style.display = 'block';
+          document.getElementById('pbf-nis').textContent = data.pbf_dados.nis || 'Não informado';
+          document.getElementById('pbf-valor').textContent = data.pbf_dados.valor_beneficio || 'Consultar';
+          document.getElementById('pbf-situacao').textContent = data.pbf_dados.situacao || 'LIBERADO';
+          document.getElementById('pbf-badge-comp').textContent = data.pbf_dados.competencia || 'Folha PBF';
+          const endElem = document.getElementById('pbf-endereco');
+          if (endElem) endElem.textContent = data.pbf_dados.endereco || 'Não especificado';
+          const origAviso = document.getElementById('pbf-origem-aviso');
+          if (origAviso) origAviso.textContent = isFolha ? '✨ Novo Atendimento (Base Folha)' : '✅ Família com Histórico Prévio';
+        } else if (pbfCard) {
+          pbfCard.style.display = 'none';
+        }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (pbfCard) pbfCard.style.display = 'none';
+      });
+  } else {
+    if (pbfCard) pbfCard.style.display = 'none';
   }
 });
 

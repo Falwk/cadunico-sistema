@@ -166,7 +166,12 @@
               <a href="{{ url_for('historico_cpf', cpf=at.cpf) }}" class="cpf-link">{{ at.cpf }}</a>
             </td>
             <td style="font-weight:600;">
-              <div>{{ at.nome_rf }}</div>
+              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                <span>{{ at.nome_rf }}</span>
+                {% if at.beneficiario_pbf %}
+                  <span class="badge" style="background:#e8f5e9; color:#1b5e20; border:1px solid #81c784; font-size:0.72rem; padding:1px 6px; border-radius:10px; font-weight:700;" title="Beneficiário Bolsa Família ({{ at.valor_beneficio_pbf or 'Sim' }})">🟢 PBF {{ at.valor_beneficio_pbf or '' }}</span>
+                {% endif %}
+              </div>
               <div style="font-size:0.75rem; color:var(--md-sys-color-on-surface-variant); font-weight:400; margin-top:4px; display:flex; flex-wrap:wrap; gap:4px 12px;">
                 {% if at.bairro %}<span style="display:inline-flex; align-items:center; gap:2px;"><span class="ms sm" style="font-size:14px;">location_on</span> {{ at.bairro }}</span>{% endif %}
                 {% if at.codigo_familiar %}<span style="display:inline-flex; align-items:center; gap:2px;"><span class="ms sm" style="font-size:14px;">badge</span> Cód: <strong>{{ at.codigo_familiar }}</strong></span>{% endif %}
