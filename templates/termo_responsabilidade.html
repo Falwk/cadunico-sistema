@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="container" style="max-width:780px">
+  <div class="card" style="border:2px solid var(--md-sys-color-primary);">
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:14px;">
+      <span class="ms fill" style="font-size:36px; color:var(--md-sys-color-primary);">verified_user</span>
+      <div>
+        <h1 class="page-title" style="margin:0; font-size:1.35rem;">Termo de Responsabilidade e Confidencialidade</h1>
+        <span class="text-muted" style="font-size:0.84rem;">
+          Guia de Integridade SAGICAD/MDS (Informes nº 85, 88 e 92 · IN nº 18/2026) &amp; LGPD (Lei nº 13.709/2018)
+        </span>
+      </div>
+    </div>
+
+    {% for e in erros %}
+      <div class="alerta alerta-erro">{{ e }}</div>
+    {% endfor %}
+
+    <div style="background:var(--md-sys-color-surface-container-highest); border:1px solid var(--md-sys-color-outline-variant); border-radius:14px; padding:18px 20px; font-size:0.88rem; line-height:1.65; max-height:380px; overflow-y:auto; margin-bottom:18px;">
+      <p style="margin-bottom:12px;">
+        Pelo presente instrumento eletrônico, eu, <strong>{{ session.get('usuario_nome') }}</strong>, na condição de operador(a)/técnico(a) autorizado(a) junto à <strong>Secretaria Municipal de Trabalho e Assistência Social (SETAS) — Gestão do Cadastro Único de Tomé-Açu/PA</strong>, declaro ciência e assumo os seguintes deveres funcionais:
+      </p>
+
+      <p style="margin-bottom:10px;">
+        <strong>1. Uso Pessoal, Exclusivo e Intransferível (Informe SAGICAD nº 92):</strong><br>
+        A minha credencial de acesso (login e senha) é de uso estritamente individual. Comprometo-me a não compartilhar minha senha com terceiros, colegas ou estagiários, nem deixar sessões abertas sem supervisão em computadores compartilhados.
+      </p>
+
+      <p style="margin-bottom:10px;">
+        <strong>2. Proibição de Scripts, Robôs e Consultas Atípicas (Informes SAGICAD nº 85 e nº 88):</strong><br>
+        Comprometo-me a realizar consultas de CPF, NIS e Código Familiar exclusivamente para fins de atendimento presencial, visita domiciliar ou gestão oficial do programa, sendo expressamente vedado o uso de scripts automatizados, extensões de captura não homologadas ou consultas em massa fora dos canais oficiais de extração em lote (CECAD / Portal de Gestão).
+      </p>
+
+      <p style="margin-bottom:10px;">
+        <strong>3. Sigilo e Proteção de Dados Pessoais (LGPD — Lei Federal nº 13.709/2018):</strong><br>
+        Comprometo-me a preservar o sigilo absoluto das informações socioeconômicas, endereço, renda e composição familiar dos cidadãos atendidos, vedada a reprodução, fotografia de tela ou divulgação a pessoas não autorizadas.
+      </p>
+
+      <p style="margin-bottom:0;">
+        <strong>4. Monitoramento e Plano Municipal de Integridade (IN SAGICAD/MDS nº 18/2026):</strong><br>
+        Declaro estar ciente de que todas as operações realizadas sob minha credencial são registradas com data, horário, endereço IP e volume operacional, estando sujeitas à auditoria permanente da Coordenação Municipal e ao bloqueio cautelar imediato em caso de desvio de finalidade ou volume atípico.
+      </p>
+    </div>
+
+    <form method="POST" action="{{ url_for('termo_responsabilidade') }}">
+      <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; font-weight:600; font-size:0.9rem; margin-bottom:18px; padding:12px 14px; background:var(--md-sys-color-primary-container); color:var(--md-sys-color-on-primary-container); border-radius:12px;">
+        <input type="checkbox" name="aceite_termo" value="1" required style="width:20px; height:20px; margin-top:2px;">
+        <span>
+          Li integralmente e concordo com os termos de responsabilidade, sigilo (LGPD) e normas de integridade da SAGICAD/MDS acima descritos.
+        </span>
+      </label>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <a href="{{ url_for('logout') }}" class="btn btn-outline">Sair</a>
+        <button type="submit" class="btn btn-primary">
+          <span class="ms sm">check_circle</span> Confirmar Assinatura Digital e Continuar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

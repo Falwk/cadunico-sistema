@@ -31,13 +31,17 @@
     </div>
   </div>
 
-  <!-- Card Formulário de Importação de Nova Folha -->
+  <!-- Card Formulário de Importação de Nova Folha / Extração Oficial -->
   <div class="card" style="margin-bottom:24px;">
-    <div class="card-title">📥 Carregar / Atualizar Arquivo da Folha Mensal (CSV)</div>
-    <p style="font-size:0.875rem; color:#475569; margin-bottom:16px;">
-      Envie o arquivo original extraído do <strong>SIBEC / Caixa Econômica</strong> (layout padrão com colunas <code>PROG;REF_FOLHA;COD_FAMILIAR;CPF;NIS;NOME;...</code>).
-      O sistema processará os Responsáveis Familiares, atualizará a base de autocomplete e fará o cruzamento com os atendimentos existentes.
+    <div class="card-title">📥 Importação em Lote por Canais Oficiais Homologados (SIBEC / CECAD / Portal de Gestão)</div>
+    <p style="font-size:0.875rem; color:#475569; margin-bottom:10px;">
+      Em estrita conformidade com os <strong>Informes SAGICAD/MDS nº 85, 88 e IN nº 18/2026</strong> (que vedam consultas automatizadas registro a registro), utilize este canal para importar os arquivos <code>.CSV</code> extraídos oficialmente via:
     </p>
+    <ul style="font-size:0.83rem; color:#334155; margin:0 0 16px 18px; line-height:1.5;">
+      <li><strong>Portal de Gestão do Cadastro Único:</strong> menu <em>Consultas &gt; Consulta Qualificação</em> (exportação em lote <code>.csv</code>);</li>
+      <li><strong>CECAD / VIS DATA:</strong> tabulações e bases domiciliares/pessoas (<code>d.cod_familiar_fam</code>, <code>p.num_cpf_pessoa</code>, etc.);</li>
+      <li><strong>Folha de Pagamento SIBEC / Caixa:</strong> layout padrão (<code>PROG;REF_FOLHA;COD_FAMILIAR;CPF;NIS;NOME;...</code>).</li>
+    </ul>
 
     <form method="POST" action="{{ url_for('importar_folha_pbf_view') }}" enctype="multipart/form-data">
       <div class="form-group" style="margin-bottom:16px;">

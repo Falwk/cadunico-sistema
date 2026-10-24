@@ -165,7 +165,7 @@ def _conectar_pg_url(url):
     except Exception:
         pass
 
-    # 1. Tentativa via parâmetros explícitos
+    # 1. Tentativa via parâmetros explícitos com TCP Keepalive para estabilidade no Render/Supabase
     if host and user and password:
         try:
             return psycopg2.connect(
@@ -176,7 +176,11 @@ def _conectar_pg_url(url):
                 dbname=dbname,
                 sslmode='require',
                 cursor_factory=psycopg2.extras.RealDictCursor,
-                connect_timeout=15
+                connect_timeout=15,
+                keepalives=1,
+                keepalives_idle=30,
+                keepalives_interval=10,
+                keepalives_count=5,
             )
         except Exception as ex_kw:
             app.logger.warning(f"[BANCO PG] Tentativa via parâmetros diretos falhou ({ex_kw}), tentando URL completa...")
@@ -187,39 +191,121 @@ def _conectar_pg_url(url):
         if 'sslmode' not in url_conn.lower():
             delim = '&' if '?' in url_conn else '?'
             url_conn += f"{delim}sslmode=require"
-        return psycopg2.connect(url_conn, cursor_factory=psycopg2.extras.RealDictCursor, connect_timeout=15)
+        return psycopg2.connect(
+            url_conn,
+            cursor_factory=psycopg2.extras.RealDictCursor,
+            connect_timeout=15,
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=5,
+        )
     except Exception as ex_url:
         app.logger.error(f"[BANCO PG] Falha total na conexão PostgreSQL: {ex_url}")
         raise ex_url
 
 
+# Pool de conexões persistente para PostgreSQL (evita handshake SSL a cada clique)
+import threading as _threading_pool
+_PG_POOL_LIST = []
+_PG_POOL_LOCK = _threading_pool.Lock()
+_PG_POOL_MAX = 6
+
+
+class _PooledPGConn:
+    """Wrapper transparente de conexão PostgreSQL que devolve a conexão ao pool no .close()."""
+    def __init__(self, raw_conn):
+        object.__setattr__(self, '_conn', raw_conn)
+        object.__setattr__(self, '_returned', False)
+
+    def __getattr__(self, name):
+        return getattr(object.__getattribute__(self, '_conn'), name)
+
+    def __setattr__(self, name, value):
+        if name in ('_conn', '_returned'):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(object.__getattribute__(self, '_conn'), name, value)
+
+    def close(self):
+        if object.__getattribute__(self, '_returned'):
+            return
+        object.__setattr__(self, '_returned', True)
+        raw = object.__getattribute__(self, '_conn')
+        try:
+            if getattr(raw, 'closed', 1) == 0:
+                if not getattr(raw, 'autocommit', False):
+                    try:
+                        raw.rollback()
+                    except Exception:
+                        pass
+                try:
+                    raw.autocommit = False
+                except Exception:
+                    pass
+                with _PG_POOL_LOCK:
+                    if len(_PG_POOL_LIST) < _PG_POOL_MAX:
+                        _PG_POOL_LIST.append(raw)
+                        return
+            raw.close()
+        except Exception:
+            try:
+                raw.close()
+            except Exception:
+                pass
+
+
+def _obter_conexao_pg():
+    """Obtém uma conexão ativa do pool ou cria uma nova se necessário."""
+    while True:
+        raw = None
+        with _PG_POOL_LOCK:
+            if _PG_POOL_LIST:
+                raw = _PG_POOL_LIST.pop()
+        if raw is None:
+            break
+        try:
+            if getattr(raw, 'closed', 1) == 0:
+                return _PooledPGConn(raw)
+        except Exception:
+            pass
+        try:
+            raw.close()
+        except Exception:
+            pass
+    return _PooledPGConn(_conectar_pg_url(DATABASE_URL))
+
+
 def get_db():
-    """Retorna uma conexão com o banco configurado (PostgreSQL ou SQLite com fallback resiliente)."""
+    """Retorna uma conexão com o banco configurado (PostgreSQL com Pool ou SQLite com WAL)."""
     global _USE_PG, _PG_FAILED
     if _USE_PG and not _PG_FAILED:
         for tentativa in range(2):
             try:
-                conn = _conectar_pg_url(DATABASE_URL)
-                return conn
+                return _obter_conexao_pg()
             except Exception as e:
                 err_msg = str(e)
                 app.logger.warning(f"[BANCO] Tentativa {tentativa+1} ao PostgreSQL falhou ({err_msg}).")
                 if tentativa == 0:
                     import time
-                    time.sleep(0.5)
+                    time.sleep(0.4)
 
         # Fallback para SQLite APENAS se o arquivo database.db realmente existir e tiver dados
         if os.path.isfile(_DB_PATH) and os.path.getsize(_DB_PATH) > 10000:
             app.logger.warning(f"[BANCO] Alternando para SQLite local ({_DB_PATH}) pois a base existe.")
             _PG_FAILED = True
         else:
-            # Em produção na nuvem, SQLite vazio não deve ser usado silenciosamente
             app.logger.error("[BANCO] Conexão PostgreSQL falhou e SQLite local não possui base existente.")
-            return _conectar_pg_url(DATABASE_URL)
+            return _obter_conexao_pg()
 
     import sqlite3
-    conn = sqlite3.connect(_DB_PATH)
+    conn = sqlite3.connect(_DB_PATH, timeout=20)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA synchronous=NORMAL")
+    except Exception:
+        pass
     return conn
 
 
@@ -1690,7 +1776,7 @@ def _gerar_numero_vd(conn, ano: int) -> str:
 
 
 def _assegurar_colunas_usuarios_conn(conn):
-    """Garante imediatamente que as colunas de segurança e tentativas existam em usuarios, com tolerância total a falhas."""
+    """Garante imediatamente que as colunas de segurança, integridade SAGICAD e tentativas existam em usuarios."""
     if _is_pg():
         sqls = [
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS tentativas_login INTEGER NOT NULL DEFAULT 0",
@@ -1698,6 +1784,9 @@ def _assegurar_colunas_usuarios_conn(conn):
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email TEXT",
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS telefone TEXT",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ativo INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS termo_aceito_em TEXT",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS session_token TEXT",
         ]
     else:
         sqls = [
@@ -1706,6 +1795,9 @@ def _assegurar_colunas_usuarios_conn(conn):
             "ALTER TABLE usuarios ADD COLUMN unidade TEXT DEFAULT 'Tomé-Açu (Sede)'",
             "ALTER TABLE usuarios ADD COLUMN email TEXT",
             "ALTER TABLE usuarios ADD COLUMN telefone TEXT",
+            "ALTER TABLE usuarios ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE usuarios ADD COLUMN termo_aceito_em TEXT",
+            "ALTER TABLE usuarios ADD COLUMN session_token TEXT",
         ]
     cur = conn.cursor()
     for sql in sqls:
@@ -1918,6 +2010,15 @@ def init_db():
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS endereco TEXT",
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS beneficiario_pbf INTEGER DEFAULT 0",
             "ALTER TABLE atendimentos ADD COLUMN IF NOT EXISTS valor_beneficio_pbf TEXT",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ativo INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS termo_aceito_em TEXT",
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS session_token TEXT",
+            "CREATE INDEX IF NOT EXISTS idx_atendimentos_data_uid ON atendimentos(data, usuario_id)",
+            "CREATE INDEX IF NOT EXISTS idx_atendimentos_cpf ON atendimentos(cpf)",
+            "CREATE INDEX IF NOT EXISTS idx_atendimentos_codfam ON atendimentos(codigo_familiar)",
+            "CREATE INDEX IF NOT EXISTS idx_visitas_status_criado ON solicitacoes_visita(status, criado_em)",
+            "CREATE INDEX IF NOT EXISTS idx_audit_log_criado_em ON audit_log(criado_em)",
+            "CREATE INDEX IF NOT EXISTS idx_audit_log_uid_acao ON audit_log(usuario_id, acao)",
         ]
         for col_sql in migracoes:
             try:
@@ -2184,6 +2285,15 @@ def init_db():
             "ALTER TABLE atendimentos ADD COLUMN endereco TEXT",
             "ALTER TABLE atendimentos ADD COLUMN beneficiario_pbf INTEGER DEFAULT 0",
             "ALTER TABLE atendimentos ADD COLUMN valor_beneficio_pbf TEXT",
+            "ALTER TABLE usuarios ADD COLUMN ativo INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE usuarios ADD COLUMN termo_aceito_em TEXT",
+            "ALTER TABLE usuarios ADD COLUMN session_token TEXT",
+            "CREATE INDEX IF NOT EXISTS idx_atendimentos_data_uid ON atendimentos(data, usuario_id)",
+            "CREATE INDEX IF NOT EXISTS idx_atendimentos_cpf ON atendimentos(cpf)",
+            "CREATE INDEX IF NOT EXISTS idx_atendimentos_codfam ON atendimentos(codigo_familiar)",
+            "CREATE INDEX IF NOT EXISTS idx_visitas_status_criado ON solicitacoes_visita(status, criado_em)",
+            "CREATE INDEX IF NOT EXISTS idx_audit_log_criado_em ON audit_log(criado_em)",
+            "CREATE INDEX IF NOT EXISTS idx_audit_log_uid_acao ON audit_log(usuario_id, acao)",
         ]:
             try:
                 c.execute(col_sql)
@@ -2212,10 +2322,26 @@ def init_db():
         app.logger.warning(f"Não foi possível iniciar o agendador de backup 12h: {ex_sch}")
 
 
+import gzip as _gzip
+
+_operator_volume_tracker = {}
+
+
+def _is_fora_expediente(dt_belem=None) -> bool:
+    """Verifica se o horário (Belém UTC-3) está fora do expediente padrão (Seg-Sex, 07h às 19h)."""
+    if dt_belem is None:
+        dt_belem = datetime.now(_TZ_BELEM)
+    if dt_belem.weekday() >= 5:
+        return True
+    if dt_belem.hour < 7 or dt_belem.hour >= 19:
+        return True
+    return False
+
+
 def audit(acao: str, detalhe: str = ''):
-    """Registra uma ação no log de auditoria com tolerância total a falhas para nunca gerar erro 500 no usuário."""
+    """Registra uma ação no log de auditoria com monitoramento SAGICAD/MDS (Informes 85, 88 e 92)."""
     try:
-        ip = request.remote_addr if request else None
+        ip = request.headers.get('X-Forwarded-For', request.remote_addr).split(',')[0].strip() if request else None
     except Exception:
         ip = None
     try:
@@ -2224,6 +2350,14 @@ def audit(acao: str, detalhe: str = ''):
     except Exception:
         uid = None
         unome = '?'
+
+    agora_belem = datetime.now(_TZ_BELEM)
+    detalhe_final = detalhe or ''
+
+    # Sinaliza automaticamente operações realizadas fora do horário de expediente (Informes 85/88 SAGICAD)
+    if uid and _is_fora_expediente(agora_belem) and '[FORA_EXPEDIENTE]' not in detalhe_final:
+        detalhe_final = f"{detalhe_final} [FORA_EXPEDIENTE]".strip()
+
     try:
         conn = get_db()
         _exec(conn,
@@ -2231,29 +2365,57 @@ def audit(acao: str, detalhe: str = ''):
             (
                 uid,
                 unome,
-                acao, detalhe,
+                acao, detalhe_final,
                 ip,
-                datetime.now(_TZ_BELEM).isoformat(),
+                agora_belem.isoformat(),
             ),
         )
+
+        # Monitoramento automático de volumes atípicos de consulta por operador (Informes 85 e 88 SAGICAD)
+        if uid and acao in ('CONSULTA_CPF_AUTOCOMPLETE', 'CONSULTA_HISTORICO_FAMILIAR', 'BUSCA_DASHBOARD'):
+            import time as _t_mod
+            ts_now = _t_mod.time()
+            hist = [t for t in _operator_volume_tracker.get(uid, []) if ts_now - t < 300]
+            hist.append(ts_now)
+            _operator_volume_tracker[uid] = hist
+            if len(hist) == 25:
+                _exec(conn,
+                    "INSERT INTO audit_log (usuario_id,usuario_nome,acao,detalhe,ip,criado_em) VALUES (?,?,?,?,?,?)",
+                    (
+                        uid,
+                        unome,
+                        'ALERTA_SAGICAD_VOLUME_ATIPICO',
+                        f"Operador realizou 25+ consultas em menos de 5 minutos (Informe 85/88 SAGICAD) [ALERTA_CRITICO]",
+                        ip,
+                        agora_belem.isoformat(),
+                    ),
+                )
+
         conn.commit()
         conn.close()
     except Exception as e:
         app.logger.warning(f"[AUDIT] Erro ao registrar log ({acao}): {e}")
 
+
 # ---------------------------------------------------------------------------
-# Autenticação
+# Autenticação, Sessão Segura, Cabeçalhos HTTP e Compressão GZIP
 # ---------------------------------------------------------------------------
 
 def _requer_login():
     return 'usuario_id' not in session
 
 
+@app.route('/healthz')
+def healthz():
+    """Endpoint ultraleve de verificação de saúde para o Render (evita timeout de healthcheck)."""
+    return jsonify({"status": "ok", "db": "pg" if _is_pg() else "sqlite"}), 200
+
+
 @app.before_request
 def _verificar_inatividade_sessao():
-    """Encerra a sessão por inatividade (45 minutos) para proteger dados dos munícipes."""
+    """Encerra a sessão por inatividade (45 min), verifica suspensão cautelar (Informe 92) e Termo LGPD/SAGICAD."""
     try:
-        if request.endpoint == 'static':
+        if request.endpoint in ('static', 'healthz'):
             return
         if 'usuario_id' in session:
             agora = datetime.now(_TZ_BELEM).timestamp()
@@ -2270,8 +2432,72 @@ def _verificar_inatividade_sessao():
                 except (ValueError, TypeError):
                     pass
             session['_last_active'] = agora
+
+            # Verificação periódica (a cada 30s) de Bloqueio Cautelar / Sessão Única (Informe 92 SAGICAD)
+            last_sec = session.get('_last_sec_check', 0)
+            if (agora - float(last_sec or 0)) > 30:
+                session['_last_sec_check'] = agora
+                conn = get_db()
+                u_db = _fetchone(conn, "SELECT ativo, session_token, termo_aceito_em FROM usuarios WHERE id=?", (session['usuario_id'],))
+                conn.close()
+                if not u_db or u_db.get('ativo', 1) == 0:
+                    uid = session.get('usuario_id')
+                    session.clear()
+                    audit('SESSAO_ENCERRADA_CAUTELAR', f"usuario_id={uid} motivo=perfil_suspenso_inativo")
+                    flash('Seu perfil foi suspenso cautelarmente pela Administração. Contate a Coordenação do Cadastro Único.', 'erro')
+                    return redirect(url_for('login'))
+                db_tok = u_db.get('session_token')
+                sess_tok = session.get('session_token')
+                if db_tok and sess_tok and db_tok != sess_tok:
+                    uid = session.get('usuario_id')
+                    session.clear()
+                    audit('SESSAO_ENCERRADA_DUPLICADA', f"usuario_id={uid} motivo=novo_login_outro_dispositivo")
+                    flash('Sua conta foi acessada em outro computador/navegador. Por segurança (vedação de compartilhamento de senha - Informe nº 92 SAGICAD), esta sessão foi encerrada.', 'aviso')
+                    return redirect(url_for('login'))
+                if u_db.get('termo_aceito_em'):
+                    session['termo_aceito'] = True
+
+            # Exige assinatura do Termo de Responsabilidade e Confidencialidade (Informe 92 SAGICAD / LGPD)
+            if not session.get('termo_aceito') and request.endpoint not in (
+                'termo_responsabilidade', 'trocar_senha_obrigatorio', 'logout', 'login'
+            ):
+                return redirect(url_for('termo_responsabilidade'))
     except Exception as ex_sess:
         app.logger.warning(f"[SESSAO] Erro na verificação de inatividade: {ex_sess}")
+
+
+@app.after_request
+def _aplicar_protecoes_http_e_gzip(response):
+    """Aplica cabeçalhos de segurança HTTP (Hardening) e compressão GZIP automática."""
+    try:
+        response.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+        response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+        response.headers.setdefault('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
+
+        if request.endpoint != 'static' and 'usuario_id' in session and response.mimetype == 'text/html':
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+
+        # Compressão GZIP automática para respostas textuais/JSON maiores que 1 KB
+        accept_enc = request.headers.get('Accept-Encoding', '')
+        if (
+            'gzip' in accept_enc.lower()
+            and 200 <= response.status_code < 300
+            and not response.direct_passthrough
+            and 'Content-Encoding' not in response.headers
+            and response.mimetype in ('text/html', 'text/css', 'application/javascript', 'application/json')
+        ):
+            data = response.get_data()
+            if len(data) > 1024:
+                compressed = _gzip.compress(data, compresslevel=6)
+                response.set_data(compressed)
+                response.headers['Content-Encoding'] = 'gzip'
+                response.headers['Content-Length'] = str(len(compressed))
+                response.headers['Vary'] = 'Accept-Encoding'
+    except Exception:
+        pass
+    return response
 
 
 @app.route('/')
@@ -2449,9 +2675,14 @@ def login():
         _assegurar_colunas_usuarios_conn(conn)
         u = _fetchone(conn, "SELECT * FROM usuarios WHERE login=?", (login_,))
 
-        # 1. Verifica se a conta está sob bloqueio temporário por tentativas incorretas
+        # 1. Verifica se a conta está suspensa cautelarmente (Informe nº 92 SAGICAD) ou sob bloqueio temporário
         if u:
             u_dict = dict(u)
+            if u_dict.get('ativo', 1) == 0:
+                conn.close()
+                audit('LOGIN_CONTA_SUSPENSA', f"login={login_}")
+                erro = "Esta conta encontra-se suspensa cautelarmente pela Administração (Informe nº 92 SAGICAD/MDS). Procure a Coordenação do Cadastro Único."
+                return render_template('login.html', erro=erro)
             bloqueado_ate = u_dict.get('bloqueado_ate')
             if bloqueado_ate:
                 try:
@@ -2468,8 +2699,10 @@ def login():
 
         # 2. Validação da senha
         if u and check_password_hash(u['senha'], senha):
+            import secrets as _sec_mod
+            novo_tok = _sec_mod.token_hex(16)
             try:
-                _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL WHERE id=?", (u['id'],))
+                _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL, session_token=? WHERE id=?", (novo_tok, u['id']))
                 conn.commit()
             except Exception as ex_up:
                 try:
@@ -2478,7 +2711,7 @@ def login():
                     pass
                 _assegurar_colunas_usuarios_conn(conn)
                 try:
-                    _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL WHERE id=?", (u['id'],))
+                    _exec(conn, "UPDATE usuarios SET tentativas_login=0, bloqueado_ate=NULL, session_token=? WHERE id=?", (novo_tok, u['id']))
                     conn.commit()
                 except Exception:
                     try:
@@ -2491,17 +2724,24 @@ def login():
                     except Exception:
                         pass
             conn.close()
+            u_dict = dict(u)
             session.permanent = True
-            session['_last_active'] = datetime.now(_TZ_BELEM).timestamp()
+            agora_ts = datetime.now(_TZ_BELEM).timestamp()
+            session['_last_active'] = agora_ts
+            session['_last_sec_check'] = agora_ts
+            session['session_token'] = novo_tok
             session['usuario_id'] = u['id']
             session['usuario_nome'] = u['nome']
             session['perfil'] = u['perfil']
             session['unidade'] = u.get('unidade') or 'Tomé-Açu (Sede)'
             session['acesso_sibec'] = bool(u.get('acesso_sibec'))
             session['trocar_senha'] = bool(u.get('trocar_senha'))
+            session['termo_aceito'] = bool(u_dict.get('termo_aceito_em'))
             audit('LOGIN', f"login={login_}")
             if u.get('trocar_senha'):
                 return redirect(url_for('trocar_senha_obrigatorio'))
+            if not session['termo_aceito']:
+                return redirect(url_for('termo_responsabilidade'))
             return redirect(url_for('dashboard'))
         else:
             if u:
@@ -2583,8 +2823,33 @@ def trocar_senha_obrigatorio():
             session['trocar_senha'] = False
             audit('TROCA_SENHA', 'senha alterada por obrigação no primeiro acesso')
             flash('Senha alterada com sucesso!', 'ok')
+            if not session.get('termo_aceito'):
+                return redirect(url_for('termo_responsabilidade'))
             return redirect(url_for('dashboard'))
     return render_template('trocar_senha.html', erros=erros)
+
+
+@app.route('/termo-responsabilidade', methods=['GET', 'POST'])
+def termo_responsabilidade():
+    """Aceite eletrônico do Termo de Responsabilidade e Confidencialidade (Informe nº 92 SAGICAD/MDS e LGPD)."""
+    if _requer_login():
+        return redirect(url_for('login'))
+    erros = []
+    if request.method == 'POST':
+        if request.form.get('aceite_termo') != '1':
+            erros.append('Você deve marcar a caixa de confirmação para assinar digitalmente o Termo.')
+        else:
+            agora_iso = datetime.now(_TZ_BELEM).isoformat()
+            conn = get_db()
+            _assegurar_colunas_usuarios_conn(conn)
+            _exec(conn, "UPDATE usuarios SET termo_aceito_em=? WHERE id=?", (agora_iso, session['usuario_id']))
+            conn.commit()
+            conn.close()
+            session['termo_aceito'] = True
+            audit('ACEITE_TERMO_CONFIDENCIALIDADE', f"termo_sagicad_lgpd_assinado_em={agora_iso}")
+            flash('Termo de Responsabilidade e Confidencialidade (SAGICAD/LGPD) assinado digitalmente com sucesso!', 'ok')
+            return redirect(url_for('dashboard'))
+    return render_template('termo_responsabilidade.html', erros=erros)
 
 
 # ---------------------------------------------------------------------------
@@ -3314,6 +3579,9 @@ def api_cpf(cpf):
     """Retorna dados da família (atendimentos e folha do Bolsa Família) para autocomplete instantâneo."""
     if _requer_login():
         return jsonify({}), 401
+    if not _check_rate_limit(f"cpf_uid_{session.get('usuario_id')}", max_requests=25, window_seconds=300):
+        audit('BLOQUEIO_TAXA_CONSULTA_CPF', "Operador excedeu limite de 25 consultas em 5 min (Informe 85/88 SAGICAD)")
+        return jsonify({'erro': 'Limite de consultas por minuto excedido (Proteção de Integridade SAGICAD).'}), 429
     cpf_limpo = ''.join(c for c in cpf if c.isdigit())
     if not cpf_limpo:
         return jsonify({})
@@ -4687,6 +4955,33 @@ def editar_usuario(uid):
     return render_template('editar_usuario.html', u=u, erros=erros)
 
 
+@app.route('/admin/usuarios/<int:uid>/alternar-status', methods=['POST'])
+def alternar_status_usuario(uid):
+    """Suspende cautelarmente ou reativa o perfil de um operador (Informe nº 92 SAGICAD/MDS)."""
+    if session.get('perfil') not in ('admin', 'coordenador'):
+        return redirect(url_for('dashboard'))
+    if uid == session.get('usuario_id'):
+        flash('Você não pode suspender sua própria conta em uso.', 'aviso')
+        return redirect(url_for('admin_usuarios'))
+    conn = get_db()
+    _assegurar_colunas_usuarios_conn(conn)
+    u = _fetchone(conn, "SELECT * FROM usuarios WHERE id=?", (uid,))
+    if u:
+        u_dict = dict(u)
+        atual = 1 if u_dict.get('ativo', 1) != 0 else 0
+        novo_status = 0 if atual == 1 else 1
+        _exec(conn, "UPDATE usuarios SET ativo=?, session_token=NULL WHERE id=?", (novo_status, uid))
+        conn.commit()
+        acao_txt = 'REATIVAR_OPERADOR' if novo_status == 1 else 'BLOQUEIO_CAUTELAR_OPERADOR'
+        audit(acao_txt, f"uid={uid} login={u['login']} novo_status={'Ativo' if novo_status == 1 else 'Suspenso'}")
+        if novo_status == 0:
+            flash(f"🚫 Operador(a) {u['nome']} suspenso(a) cautelarmente (Informe nº 92 SAGICAD). Sua sessão ativa foi encerrada imediatamente.", 'aviso')
+        else:
+            flash(f"✅ Operador(a) {u['nome']} reativado(a) com sucesso.", 'ok')
+    conn.close()
+    return redirect(url_for('admin_usuarios'))
+
+
 @app.route('/admin/usuarios/<int:uid>/excluir', methods=['POST'])
 def excluir_usuario(uid):
     if session.get('perfil') != 'admin':
@@ -4703,7 +4998,7 @@ def excluir_usuario(uid):
 
 
 # ---------------------------------------------------------------------------
-# Admin: log de auditoria
+# Admin: log de auditoria e Painel de Integridade SAGICAD/MDS
 # ---------------------------------------------------------------------------
 
 @app.route('/admin/zerar-numeracao-vd', methods=['POST'])
@@ -4722,14 +5017,52 @@ def zerar_numeracao_vd():
 
 @app.route('/admin/auditoria')
 def auditoria():
-    if session.get('perfil') != 'admin':
+    if session.get('perfil') not in ('admin', 'coordenador'):
         return redirect(url_for('dashboard'))
     conn = get_db()
-    registros = _fetchall(conn,
-        "SELECT * FROM audit_log ORDER BY criado_em DESC LIMIT 200"
+    _assegurar_colunas_usuarios_conn(conn)
+    filtro = request.args.get('filtro', 'todos').strip()
+
+    where_sql = ""
+    if filtro == 'alertas':
+        where_sql = "WHERE (acao LIKE 'ALERTA_%' OR acao LIKE '%BLOQUE%' OR acao LIKE 'SESSAO_ENCERRADA%' OR acao='LOGIN_FALHA')"
+    elif filtro == 'fora_expediente':
+        where_sql = "WHERE detalhe LIKE '%[FORA_EXPEDIENTE]%'"
+    elif filtro == 'consultas':
+        where_sql = "WHERE (acao LIKE 'CONSULTA_%' OR acao='BUSCA_DASHBOARD')"
+    elif filtro == 'exportacoes':
+        where_sql = "WHERE acao LIKE 'EXPORTAR_%'"
+
+    registros = _fetchall(conn, f"SELECT * FROM audit_log {where_sql} ORDER BY criado_em DESC LIMIT 250")
+
+    hoje_prefix = datetime.now(_TZ_BELEM).strftime('%Y-%m-%d') + '%'
+    total_alertas = _fetchone(conn, "SELECT COUNT(*) as n FROM audit_log WHERE (acao LIKE 'ALERTA_%' OR acao LIKE '%BLOQUE%' OR acao LIKE 'SESSAO_ENCERRADA%')")['n']
+    total_fora_exp = _fetchone(conn, "SELECT COUNT(*) as n FROM audit_log WHERE detalhe LIKE '%[FORA_EXPEDIENTE]%'")['n']
+
+    ranking_hoje = _fetchall(conn,
+        f"""SELECT usuario_nome, COUNT(*) as total_ops
+            FROM audit_log
+            WHERE criado_em LIKE {PH} AND usuario_nome IS NOT NULL AND usuario_nome != '?'
+            GROUP BY usuario_nome
+            ORDER BY total_ops DESC LIMIT 6""",
+        (hoje_prefix,)
     )
+
+    usuarios_all = _fetchall(conn, "SELECT id, nome, perfil, ativo, termo_aceito_em FROM usuarios")
+    total_ativos = sum(1 for u in usuarios_all if dict(u).get('ativo', 1) != 0)
+    total_termo_ok = sum(1 for u in usuarios_all if dict(u).get('ativo', 1) != 0 and dict(u).get('termo_aceito_em'))
+
     conn.close()
-    return render_template('auditoria.html', registros=registros)
+    return render_template(
+        'auditoria.html',
+        registros=registros,
+        filtro=filtro,
+        total_alertas=total_alertas,
+        total_fora_exp=total_fora_exp,
+        ranking_hoje=ranking_hoje,
+        total_ativos=total_ativos,
+        total_termo_ok=total_termo_ok,
+    )
 
 
 def _gerar_backup_zip_bytes():
@@ -6026,7 +6359,8 @@ def importar_folha_pbf_view():
             conn.close()
             sucesso = executar_importacao(temp_csv_path)
             if sucesso:
-                flash('Folha de Pagamento do Bolsa Família processada e importada com sucesso!', 'ok')
+                audit('IMPORTACAO_LOTE_OFICIAL_CSV', f"arquivo={arquivo.filename} (Via Institucional Homologada SAGICAD)")
+                flash('Base Oficial (Folha SIBEC / Consulta Qualificação CECAD) processada e importada com sucesso!', 'ok')
             else:
                 flash('Falha ao processar o arquivo CSV. Verifique o formato.', 'erro')
         except Exception as e:
@@ -7755,6 +8089,65 @@ def _gerar_modelo_documento_html(tipo='visita', nome_rf='', cpf_rf='', nis='', e
 </div>
 {footer_banner_html}"""
 
+    elif tipo == 'plano_integridade':
+        return f"""{header_banner_html}
+<div style="text-align: center; margin: 12px 0 18px 0;">
+    <h2 style="font-size: 13.5pt; font-weight: bold; color: #047857; text-transform: uppercase; margin: 0;">
+        PLANO MUNICIPAL DE INTEGRIDADE E SEGURANÇA DA INFORMAÇÃO DO CADASTRO ÚNICO
+    </h2>
+    <span style="font-size: 9.5pt; font-weight: bold; color: #475569;">
+        Em conformidade com a Instrução Normativa SAGICAD/MDS nº 18/2026 e Informes nº 85, 88 e 92
+    </span>
+</div>
+
+<p style="font-size: 10pt; font-weight: bold; color: #047857; margin-top: 12px;">
+    1. OBJETIVO E FUNDAMENTAÇÃO NORMATIVA:
+</p>
+<p style="font-size: 9.5pt; line-height: 1.55; text-align: justify; text-indent: 28px;">
+    O presente Plano Municipal de Integridade do Cadastro Único do Município de Tomé-Açu/PA estabelece os fluxos internos de governança, controle de acesso, prevenção a fraudes cibernéticas e monitoramento operacional, nos termos da <strong>Instrução Normativa SAGICAD/MDS nº 18/2026</strong>, da Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018 — LGPD) e das diretrizes dos Informes SAGICAD nº 85, nº 88 e nº 92.
+</p>
+
+<p style="font-size: 10pt; font-weight: bold; color: #047857; margin-top: 12px;">
+    2. MONITORAMENTO DE OPERAÇÕES E PREVENÇÃO A VOLUMES ATÍPICOS (INFORMES 85 E 88):
+</p>
+<ul style="font-size: 9.5pt; line-height: 1.55; color: #1E293B; margin-top: 4px;">
+    <li><strong>Monitoramento Sistemático de Logs:</strong> A Coordenação Municipal realiza conferência semanal do Painel de Auditoria e Integridade para identificar picos atípicos de consultas, cadastramentos ou atualizações fora do padrão médio humano.</li>
+    <li><strong>Controle de Horário de Expediente:</strong> Operações registradas fora do horário regulamentar (07h00 às 19h00, de segunda a sexta-feira) são automaticamente sinalizadas com alerta de auditoria para verificação imediata da gestão.</li>
+    <li><strong>Vedação Absoluta a Robôs e Scripts:</strong> É terminantemente proibido o uso de extensões de navegador, scripts automatizados, macros ou softwares de captura de tela/dados (<em>web scraping</em>) nos portais federais do Cadastro Único, SIBEC e CECAD.</li>
+</ul>
+
+<p style="font-size: 10pt; font-weight: bold; color: #047857; margin-top: 12px;">
+    3. GESTÃO RÍGIDA DE PERFIS, SENHAS E BLOQUEIO CAUTELAR (INFORME Nº 92 / GERID):
+</p>
+<ul style="font-size: 9.5pt; line-height: 1.55; color: #1E293B; margin-top: 4px;">
+    <li><strong>Revisão Mensal de Operadores:</strong> A gestão municipal audita mensalmente a aba "Entrevistadores/Operadores" no Portal Analítico e no sistema GERID/GOV.BR, desativando imediatamente servidores desligados, transferidos ou em afastamento legal.</li>
+    <li><strong>Uso Pessoal e Intransferível:</strong> Todos os operadores assinam digitalmente e fisicamente o Termo de Responsabilidade e Confidencialidade, sendo vedado o compartilhamento de credenciais ou sessões simultâneas.</li>
+    <li><strong>Bloqueio Preventivo Local:</strong> Diante de qualquer indício de desvio de finalidade ou acesso suspeito, a Coordenação efetua a suspensão cautelar imediata do perfil antes mesmo de diligência federal.</li>
+</ul>
+
+<p style="font-size: 10pt; font-weight: bold; color: #047857; margin-top: 12px;">
+    4. EXTRAÇÃO MASSIVA EXCLUSIVA POR CANAIS OFICIAIS HOMOLOGADOS:
+</p>
+<p style="font-size: 9.5pt; line-height: 1.55; text-align: justify; text-indent: 28px;">
+    Para fins de planejamento, busca ativa, averiguação e revisão cadastral, a equipe técnica municipal utiliza exclusivamente a exportação institucional em lote (.CSV) via <strong>Portal de Gestão do Cadastro Único (Consultas &gt; Consulta Qualificação)</strong>, <strong>CECAD</strong>, <strong>VIS DATA</strong> e <strong>Folha SIBEC</strong>, preservando a estabilidade da infraestrutura nacional.
+</p>
+
+<div style="text-align: right; margin-top: 22px; font-size: 10pt; color: #334155;">
+    Tomé-Açu/PA, {data_extenso}.
+</div>
+
+<div style="margin-top: 38px; display: flex; justify-content: space-between; text-align: center;">
+    <div style="width: 45%; border-top: 1px solid #0F172A; padding-top: 6px;">
+        <strong style="font-size: 10pt; color: #0F172A; display: block;">{operador}</strong>
+        <span style="font-size: 8.5pt; color: #64748B;">Coordenação Municipal do Cadastro Único</span>
+    </div>
+    <div style="width: 45%; border-top: 1px solid #0F172A; padding-top: 6px;">
+        <strong style="font-size: 10pt; color: #0F172A; display: block;">Secretaria Municipal de Assistência Social</strong>
+        <span style="font-size: 8.5pt; color: #64748B;">SETAS — Prefeitura Municipal de Tomé-Açu/PA</span>
+    </div>
+</div>
+{footer_banner_html}"""
+
     else: # Modelo Solicitação de Visita (default)
         return f"""{header_banner_html}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; background: #F8FAFC; border: 1px solid #CBD5E1; padding: 8px 14px; border-radius: 4px;">
@@ -7887,9 +8280,14 @@ def novo_documento():
         operador_nome=operador_nome
     )
 
+    titulo_padrao = (
+        "Plano Municipal de Integridade do Cadastro Único (IN SAGICAD nº 18/2026)"
+        if modelo_tipo == 'plano_integridade'
+        else f"{modelo_tipo.capitalize()} Oficial - {nome_rf or 'Novo Documento'}"
+    )
     doc_fake = {
         'id': None,
-        'titulo': f"{modelo_tipo.capitalize()} Oficial - {nome_rf or 'Novo Documento'}",
+        'titulo': titulo_padrao,
         'tipo': modelo_tipo,
         'conteudo_html': conteudo_inicial,
         'atendimento_id': atendimento_id,

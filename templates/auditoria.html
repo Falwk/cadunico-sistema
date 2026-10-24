@@ -1,33 +1,124 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="container">
-  <div class="flex" style="margin-bottom:20px">
-    <h1 class="page-title mb-0">Log de Auditoria</h1>
-    <span class="text-muted" style="margin-left:auto">Últimas 200 ações</span>
+  <div class="flex" style="margin-bottom:20px; align-items:center; flex-wrap:wrap; gap:12px;">
+    <div>
+      <h1 class="page-title mb-0">🛡️ Monitoramento de Integridade & Auditoria SAGICAD</h1>
+      <p style="margin:4px 0 0 0; font-size:0.85rem; color:var(--text-muted);">
+        Conformidade operacional com os <strong>Informes SAGICAD/MDS nº 85, 88, 92</strong> e <strong>Instrução Normativa nº 18/2026</strong>.
+      </p>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">
+      <a href="{{ url_for('novo_documento', modelo='plano_integridade') }}" class="btn btn-outline btn-sm" style="border-color:#B45309; color:#B45309; font-weight:700;">
+        📜 Plano de Integridade (IN 18/2026)
+      </a>
+      <a href="{{ url_for('admin_usuarios') }}" class="btn btn-outline btn-sm" style="border-color:#047857; color:#047857; font-weight:700;">
+        👥 Revisão de Operadores (Informe 92)
+      </a>
+    </div>
   </div>
+
+  <!-- Cards de Indicadores SAGICAD -->
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:14px; margin-bottom:20px;">
+    <div class="card" style="margin:0; padding:16px; border-left:4px solid #EF4444;">
+      <div style="font-size:0.75rem; font-weight:800; text-transform:uppercase; color:#B91C1C;">Alertas de Volume / Bloqueios</div>
+      <div style="font-size:1.8rem; font-weight:800; color:#991B1B; margin:4px 0;">{{ total_alertas or 0 }}</div>
+      <div style="font-size:0.75rem; color:#64748B;">Detecção de pico atípico ou bloqueio (Inf. 85/88)</div>
+    </div>
+
+    <div class="card" style="margin:0; padding:16px; border-left:4px solid #F59E0B;">
+      <div style="font-size:0.75rem; font-weight:800; text-transform:uppercase; color:#B45309;">Acessos Fora do Expediente</div>
+      <div style="font-size:1.8rem; font-weight:800; color:#92400E; margin:4px 0;">{{ total_fora_exp or 0 }}</div>
+      <div style="font-size:0.75rem; color:#64748B;">Antes das 07h, após 19h ou fim de semana</div>
+    </div>
+
+    <div class="card" style="margin:0; padding:16px; border-left:4px solid #0284C7;">
+      <div style="font-size:0.75rem; font-weight:800; text-transform:uppercase; color:#0369A1;">Termo de Confidencialidade</div>
+      <div style="font-size:1.8rem; font-weight:800; color:#075985; margin:4px 0;">{{ total_termo_ok or 0 }} / {{ total_ativos or 0 }}</div>
+      <div style="font-size:0.75rem; color:#64748B;">Operadores ativos com Termo SAGICAD assinado</div>
+    </div>
+
+    <div class="card" style="margin:0; padding:16px; border-left:4px solid #10B981;">
+      <div style="font-size:0.75rem; font-weight:800; text-transform:uppercase; color:#047857;">Volume de Operações Hoje</div>
+      {% if ranking_hoje %}
+        <div style="margin-top:6px; font-size:0.78rem; line-height:1.45;">
+          {% for rk in ranking_hoje[:3] %}
+            <div style="display:flex; justify-content:space-between;">
+              <span style="font-weight:600;">{{ rk.usuario_nome[:18] }}</span>
+              <strong style="color:#047857;">{{ rk.total_ops }} ops</strong>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div style="font-size:0.82rem; color:#64748B; margin-top:8px;">Sem operações registradas hoje.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Filtros Rápidos de Auditoria -->
+  <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+    <a href="{{ url_for('auditoria', filtro='todos') }}"
+       class="btn btn-sm {{ 'btn-primary' if (filtro or 'todos') == 'todos' else 'btn-outline' }}">
+      📋 Todos os Registros
+    </a>
+    <a href="{{ url_for('auditoria', filtro='alertas') }}"
+       class="btn btn-sm {{ 'btn-primary' if filtro == 'alertas' else 'btn-outline' }}"
+       style="{{ 'background:#DC2626;border-color:#B91C1C;' if filtro == 'alertas' else 'border-color:#FCA5A5;color:#B91C1C;' }}">
+      🚨 Alertas & Bloqueios ({{ total_alertas or 0 }})
+    </a>
+    <a href="{{ url_for('auditoria', filtro='fora_expediente') }}"
+       class="btn btn-sm {{ 'btn-primary' if filtro == 'fora_expediente' else 'btn-outline' }}"
+       style="{{ 'background:#D97706;border-color:#B45309;' if filtro == 'fora_expediente' else 'border-color:#FCD34D;color:#B45309;' }}">
+      🌙 Fora do Expediente ({{ total_fora_exp or 0 }})
+    </a>
+    <a href="{{ url_for('auditoria', filtro='consultas') }}"
+       class="btn btn-sm {{ 'btn-primary' if filtro == 'consultas' else 'btn-outline' }}">
+      🔍 Consultas de CPF / Histórico
+    </a>
+    <a href="{{ url_for('auditoria', filtro='exportacoes') }}"
+       class="btn btn-sm {{ 'btn-primary' if filtro == 'exportacoes' else 'btn-outline' }}">
+      📥 Exportações & Backups
+    </a>
+  </div>
+
   <div class="card">
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
-            <th>Data/Hora</th>
-            <th>Usuário</th>
-            <th>Ação</th>
-            <th>Detalhe</th>
+            <th>Data/Hora (Belém)</th>
+            <th>Operador</th>
+            <th>Evento / Ação</th>
+            <th>Detalhe & Marcadores de Integridade</th>
             <th>IP</th>
           </tr>
         </thead>
         <tbody>
           {% for r in registros %}
-          <tr>
+          {% set is_alerta = ('ALERTA_' in (r.acao or '')) or ('BLOQUE' in (r.acao or '')) or ('SUSPENSO' in (r.acao or '')) %}
+          {% set is_fora_exp = '[FORA_EXPEDIENTE]' in (r.detalhe or '') %}
+          <tr style="{{ 'background:#FEF2F2;' if is_alerta else ('background:#FFFBEB;' if is_fora_exp else '') }}">
             <td style="white-space:nowrap;font-size:.8rem">{{ r.criado_em[:19].replace('T',' ') }}</td>
-            <td>{{ r.usuario_nome or '—' }}</td>
-            <td><span class="tag">{{ r.acao }}</span></td>
-            <td style="font-size:.82rem;color:var(--cinza-t)">{{ r.detalhe or '—' }}</td>
-            <td style="font-size:.8rem;color:var(--cinza-t)">{{ r.ip or '—' }}</td>
+            <td><strong>{{ r.usuario_nome or '—' }}</strong></td>
+            <td>
+              {% if is_alerta %}
+                <span class="tag" style="background:#FEE2E2; color:#991B1B; border:1px solid #FCA5A5; font-weight:800;">🚨 {{ r.acao }}</span>
+              {% elif 'TERMO_' in (r.acao or '') %}
+                <span class="tag" style="background:#DCFCE7; color:#166534; border:1px solid #86EFAC; font-weight:700;">📜 {{ r.acao }}</span>
+              {% else %}
+                <span class="tag">{{ r.acao }}</span>
+              {% endif %}
+            </td>
+            <td style="font-size:.82rem;color:var(--cinza-t)">
+              {% if is_fora_exp %}
+                <span class="tag" style="background:#FEF3C7; color:#92400E; border:1px solid #FDE68A; font-weight:700; margin-right:6px;">🌙 FORA DO EXPEDIENTE</span>
+              {% endif %}
+              {{ (r.detalhe or '—').replace('[FORA_EXPEDIENTE]', '') }}
+            </td>
+            <td style="font-size:.8rem;color:var(--cinza-t)"><code>{{ r.ip or '—' }}</code></td>
           </tr>
           {% else %}
-          <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--cinza-t)">Nenhum registro.</td></tr>
+          <tr><td colspan="5" style="text-align:center;padding:32px;color:var(--cinza-t)">Nenhum registro encontrado para este filtro.</td></tr>
           {% endfor %}
         </tbody>
       </table>

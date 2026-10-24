@@ -30,13 +30,16 @@
             <th>Login</th>
             <th>Unidade / Polo</th>
             <th>Perfil</th>
+            <th>Status Operador (GERID)</th>
+            <th>Termo SAGICAD</th>
             <th>Status Senha</th>
             <th>Ações</th>
           </tr>
         </thead>
         <tbody>
           {% for u in usuarios %}
-          <tr>
+          {% set is_ativo = (u.ativo is not defined) or (u.ativo is none) or (u.ativo != 0) %}
+          <tr style="{{ 'opacity:0.65; background:#FEF2F2;' if not is_ativo else '' }}">
             <td><strong>{{ u.nome }}</strong></td>
             <td><code>{{ u.login }}</code></td>
             <td>
@@ -58,6 +61,24 @@
               {% endif %}
             </td>
             <td>
+              {% if is_ativo %}
+                <span class="tag" style="background:#DCFCE7; color:#166534; border:1px solid #86EFAC; font-weight:700;">🟢 Ativo</span>
+              {% else %}
+                <span class="tag" style="background:#FEE2E2; color:#991B1B; border:1px solid #FCA5A5; font-weight:800;">🔴 Suspenso (Cautelar)</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if u.termo_aceito_em %}
+                <span class="tag" style="background:#E0F2FE; color:#0369A1; border:1px solid #BAE6FD; font-weight:700;" title="Assinado em {{ u.termo_aceito_em[:16].replace('T', ' ') }}">
+                  📜 Assinado
+                </span>
+              {% else %}
+                <span class="tag" style="background:#FEF3C7; color:#B45309; border:1px solid #FDE68A; font-weight:600;">
+                  ⏳ Pendente
+                </span>
+              {% endif %}
+            </td>
+            <td>
               {% set tent = u.tentativas_login or 0 %}
               {% if tent >= 5 %}
                 <span class="tag" style="background:#FFE4E6; color:#9F1239; border:1px solid #FECDD3; font-weight:800;">
@@ -71,8 +92,23 @@
                 <span style="color:#10B981; font-weight:600; font-size:0.85rem;">✓ Normal</span>
               {% endif %}
             </td>
-            <td style="display:flex; gap:6px; align-items:center;">
+            <td style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
               <a href="{{ url_for('editar_usuario', uid=u.id) }}" class="btn btn-outline btn-sm">Editar</a>
+
+              {% if u.id != session.usuario_id %}
+              <form method="POST" action="{{ url_for('alternar_status_usuario', uid=u.id) }}"
+                    onsubmit="return confirm('{{ 'Deseja SUSPENDER CAUTELARMENTE o acesso de ' ~ u.nome ~ ' (Informe nº 92 SAGICAD)? O operador será desconectado imediatamente.' if is_ativo else 'Deseja REATIVAR o perfil de ' ~ u.nome ~ '?' }}')">
+                {% if is_ativo %}
+                <button type="submit" class="btn btn-outline btn-sm" style="border-color:#EF4444; color:#B91C1C; font-weight:700;" title="Bloqueio Cautelar Preventivo (Informe 92 SAGICAD)">
+                  ⏸️ Suspender
+                </button>
+                {% else %}
+                <button type="submit" class="btn btn-outline btn-sm" style="border-color:#10B981; color:#047857; font-weight:700;" title="Reativar acesso do operador">
+                  ▶️ Reativar
+                </button>
+                {% endif %}
+              </form>
+              {% endif %}
 
               {% if u.id != session.usuario_id %}
               <form method="POST" action="{{ url_for('resetar_tentativas_usuario', uid=u.id) }}"
@@ -83,7 +119,7 @@
               </form>
               {% endif %}
 
-              {% if u.id != session.usuario_id %}
+              {% if u.id != session.usuario_id and session.perfil == 'admin' %}
               <form method="POST" action="{{ url_for('excluir_usuario', uid=u.id) }}"
                     onsubmit="return confirm('Excluir usuário {{ u.nome }}?')">
                 <button class="btn btn-danger btn-sm">Excluir</button>

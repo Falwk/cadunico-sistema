@@ -58,44 +58,48 @@ def executar_importacao(csv_path=None):
     total_linhas = 0
     familias = {} # cpf -> dict de dados consolidados
 
-    with open(csv_path, 'r', encoding='latin1') as f:
+    with open(csv_path, 'r', encoding='latin1', errors='replace') as f:
         header_line = f.readline()
-        headers = [h.strip().upper() for h in header_line.split(';')]
+        sep = ';' if ';' in header_line else ','
+        headers = [h.strip().strip('"').upper() for h in header_line.split(sep)]
         
-        def idx(col):
-            try:
-                return headers.index(col)
-            except ValueError:
-                return -1
+        def idx_any(*cols):
+            for col in cols:
+                c_up = col.upper()
+                if c_up in headers:
+                    return headers.index(c_up)
+            return -1
 
-        i_ref = idx('REF_FOLHA')
-        i_codfam = idx('COD_FAMILIAR')
-        i_cpf = idx('CPF')
-        i_nis = idx('NIS')
-        i_nome = idx('NOME')
-        i_vlrtotal = idx('VLRTOTAL')
-        i_vlrbenef = idx('VLRBENEF')
-        i_sitbenef = idx('SITBENEFICIO')
-        i_sitbenefic = idx('SITBENEFICIARIO')
-        i_sitfam = idx('SITFAM')
-        i_marcarf = idx('MARCA_RF')
-        i_renda = idx('RENDA_PER_CAPITA')
-        i_qtd = idx('QTD_PESSOAS')
-        i_end = idx('ENDERECO')
-        i_bairro = idx('BAIRRO')
-        i_cep = idx('CEP')
-        i_tel1 = idx('TELEFONE1')
+        # Suporte híbrido: Folha SIBEC/PBF + Extração Oficial CECAD / Portal de Gestão (Consulta Qualificação)
+        i_ref = idx_any('REF_FOLHA', 'D.DAT_ATUAL_FAM', 'DAT_ATUAL_FAM')
+        i_codfam = idx_any('COD_FAMILIAR', 'D.COD_FAMILIAR_FAM', 'COD_FAMILIAR_FAM')
+        i_cpf = idx_any('CPF', 'P.NUM_CPF_PESSOA', 'NUM_CPF_PESSOA', 'CPF_RF')
+        i_nis = idx_any('NIS', 'P.NUM_NIS_PESSOA_ATUAL', 'NUM_NIS_PESSOA_ATUAL', 'NIS_RF')
+        i_nome = idx_any('NOME', 'P.NOM_PESSOA', 'NOM_PESSOA', 'NOME_RF')
+        i_vlrtotal = idx_any('VLRTOTAL', 'VLR_TOTAL')
+        i_vlrbenef = idx_any('VLRBENEF', 'VLR_BENEFICIO')
+        i_sitbenef = idx_any('SITBENEFICIO')
+        i_sitbenefic = idx_any('SITBENEFICIARIO')
+        i_sitfam = idx_any('SITFAM', 'D.COD_EST_CADASTRAL_MEMB')
+        i_marcarf = idx_any('MARCA_RF', 'P.COD_PARENTESCO_RF_PESSOA', 'COD_PARENTESCO_RF_PESSOA')
+        i_renda = idx_any('RENDA_PER_CAPITA', 'D.VLR_RENDA_MEDIA_FAM', 'VLR_RENDA_MEDIA_FAM')
+        i_qtd = idx_any('QTD_PESSOAS', 'D.QTD_PESSOAS_DOMIC_FAM', 'QTD_MEMBROS')
+        i_end = idx_any('ENDERECO', 'D.NOM_LOGRADOURO_FAM', 'NOM_LOGRADOURO_FAM')
+        i_bairro = idx_any('BAIRRO', 'D.NOM_LOCALIDADE_FAM', 'NOM_LOCALIDADE_FAM')
+        i_cep = idx_any('CEP', 'D.NUM_CEP_LOGRADOURO_FAM', 'NUM_CEP_LOGRADOURO_FAM')
+        i_tel1 = idx_any('TELEFONE1', 'D.NUM_TEL_CONTATO_1_FAM', 'NUM_TEL_CONTATO_1_FAM')
 
         for line in f:
             total_linhas += 1
             if not line.strip():
                 continue
-            parts = line.split(';')
+            parts = [p.strip().strip('"') for p in line.split(sep)]
             
-            # Filtra apenas Responsáveis Familiares (MARCA_RF == 'S')
-            marca_rf = parts[i_marcarf].strip().upper() if i_marcarf != -1 and i_marcarf < len(parts) else ''
-            if marca_rf != 'S':
-                continue
+            # Filtra Responsáveis Familiares (SIBEC: MARCA_RF == 'S' | CECAD/Consulta Qualificação: COD_PARENTESCO == '1' ou sem coluna)
+            if i_marcarf != -1 and i_marcarf < len(parts):
+                marca_rf = parts[i_marcarf].strip().upper()
+                if marca_rf and marca_rf not in ('S', '1', 'SIM', 'RF', 'RESPONSAVEL'):
+                    continue
 
             cpf_raw = parts[i_cpf].strip() if i_cpf != -1 and i_cpf < len(parts) else ''
             cpf_limpo = ''.join(c for c in cpf_raw if c.isdigit())
