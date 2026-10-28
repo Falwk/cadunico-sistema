@@ -15,14 +15,39 @@
   })();
 </script>
 <meta name="theme-color" content="#006E2D">
+<link rel="manifest" href="/manifest.json">
 
-<!-- Material Design 3 Expressive: fontes e ícones -->
+<!-- Material Design 3 Expressive: fontes e ícones otimizados para Google Chrome -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,100..1000&display=swap">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/m3-tokens.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/m3.css') }}">
+
+<!-- Speculation Rules API (Google Chrome 109+): pré-carregamento instantâneo ao passar o mouse no menu -->
+<script type="speculationrules">
+{
+  "prefetch": [
+    {
+      "where": {
+        "and": [
+          { "href_matches": "/*" },
+          { "not": { "href_matches": "/logout*" } },
+          { "not": { "href_matches": "/exportar*" } },
+          { "not": { "href_matches": "/admin/backup*" } },
+          { "not": { "href_matches": "/*pdf*" } },
+          { "not": { "href_matches": "/*docx*" } },
+          { "not": { "href_matches": "/*marcar-lida*" } },
+          { "not": { "href_matches": "/*sincronizar*" } },
+          { "not": { "selector_matches": "[onclick], form *" } }
+        ]
+      },
+      "eagerness": "moderate"
+    }
+  ]
+}
+</script>
 </head>
 <body>
 
@@ -32,8 +57,8 @@
   <aside class="sidebar">
     <div class="sidebar-brand">
       <a href="{{ url_for('dashboard') }}" class="sidebar-brand-box" title="Cadastro Único 25 Anos">
-        <img src="{{ url_for('static', filename='logos/cadunico_25anos_cor.png') }}" alt="Cadastro Único 25 Anos" class="logo-light">
-        <img src="{{ url_for('static', filename='logos/cadunico_25anos_preto.png') }}" alt="Cadastro Único 25 Anos" class="logo-dark">
+        <img src="{{ url_for('static', filename='logos/cadunico_25anos_cor.png') }}" alt="Cadastro Único 25 Anos" class="logo-light" fetchpriority="high" decoding="async">
+        <img src="{{ url_for('static', filename='logos/cadunico_25anos_preto.png') }}" alt="Cadastro Único 25 Anos" class="logo-dark" fetchpriority="high" decoding="async">
       </a>
     </div>
 
@@ -105,7 +130,7 @@
 
     <div class="sidebar-footer">
       <div style="margin-bottom: 8px;">
-        <img src="{{ url_for('static', filename='logos/grafismo_cadunico_horizontal.png') }}" alt="CadÚnico 25 Anos" style="height: 28px; max-width: 100%; object-fit: contain; opacity: 0.9;">
+        <img src="{{ url_for('static', filename='logos/grafismo_cadunico_horizontal.png') }}" alt="CadÚnico 25 Anos" loading="lazy" decoding="async" style="height: 28px; max-width: 100%; object-fit: contain; opacity: 0.9;">
       </div>
       Developed by <a href="https://github.com/Falwk" target="_blank" rel="noopener noreferrer">Jefferson Souto</a>
     </div>
@@ -118,7 +143,7 @@
       <div class="header-left">
         <div class="header-title-badge">
           <div class="logo-wrap">
-            <img src="{{ logo_prefeitura_b64 or logo_prefeitura }}" alt="Prefeitura de Tomé-Açu">
+            <img src="{{ logo_prefeitura or logo_prefeitura_b64 }}" alt="Prefeitura de Tomé-Açu" fetchpriority="high" decoding="async">
           </div>
           <span class="org">SETAS — Secretaria de Assistência Social</span>
         </div>

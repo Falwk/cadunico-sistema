@@ -410,10 +410,33 @@ def _get_assistentes_sociais(conn):
     return _fetchall(conn, sql, (p1, p2, p1, p2))
 
 
+_LOGO_EXISTS_CACHE = {}
+_LOGO_B64_CACHE = {}
+
+
 def _logo_url(filename):
-    """Retorna a URL da logo se o arquivo existir, senão None."""
-    if os.path.exists(os.path.join(LOGOS_DIR, filename)):
+    """Retorna a URL da logo se o arquivo existir (com cache em memória para evitar I/O de disco a cada request)."""
+    if filename not in _LOGO_EXISTS_CACHE:
+        _LOGO_EXISTS_CACHE[filename] = os.path.exists(os.path.join(LOGOS_DIR, filename))
+    if _LOGO_EXISTS_CACHE[filename]:
         return url_for('static', filename=f'logos/{filename}')
+    return None
+
+
+def _get_logo_b64_cached(filename):
+    """Lê e codifica a logo em Base64 uma única vez na memória RAM."""
+    if filename in _LOGO_B64_CACHE:
+        return _LOGO_B64_CACHE[filename]
+    path_f = os.path.join(LOGOS_DIR, filename)
+    if os.path.exists(path_f):
+        try:
+            with open(path_f, 'rb') as f:
+                b64 = base64.b64encode(f.read()).decode('utf-8')
+                _LOGO_B64_CACHE[filename] = f"data:image/png;base64,{b64}"
+                return _LOGO_B64_CACHE[filename]
+        except Exception:
+            pass
+    _LOGO_B64_CACHE[filename] = None
     return None
 
 
@@ -421,27 +444,10 @@ import base64
 
 @app.context_processor
 def inject_logos():
-    """Disponibiliza as logos em todos os templates via variáveis logo_*."""
+    """Disponibiliza as logos em todos os templates via variáveis logo_* (otimizado com cache em RAM)."""
     logo_25_url = _logo_url('cadunico_25anos.png')
-    logo_25_b64 = None
-    path_25 = os.path.join(LOGOS_DIR, 'cadunico_25anos.png')
-    if os.path.exists(path_25):
-        try:
-            with open(path_25, 'rb') as f:
-                b64 = base64.b64encode(f.read()).decode('utf-8')
-                logo_25_b64 = f"data:image/png;base64,{b64}"
-        except Exception:
-            pass
-
-    logo_pref_b64 = None
-    path_pref = os.path.join(LOGOS_DIR, 'prefeitura.png')
-    if os.path.exists(path_pref):
-        try:
-            with open(path_pref, 'rb') as f:
-                b64_p = base64.b64encode(f.read()).decode('utf-8')
-                logo_pref_b64 = f"data:image/png;base64,{b64_p}"
-        except Exception:
-            pass
+    logo_25_b64 = _get_logo_b64_cached('cadunico_25anos.png')
+    logo_pref_b64 = _get_logo_b64_cached('prefeitura.png')
 
     return dict(
         logo_prefeitura=_logo_url('prefeitura.png'),
@@ -981,19 +987,28 @@ def _config_defaults() -> dict:
     }
 
 
+_CONFIG_CACHE = {'data': None, 'ts': 0.0}
+
+
 def get_config() -> dict:
-    """Retorna todas as configurações do relatório do banco."""
+    """Retorna todas as configurações do relatório do banco (com cache em memória de 25s para reduzir TTFB)."""
+    import time as _t
+    agora_ts = _t.time()
+    if _CONFIG_CACHE['data'] is not None and (agora_ts - _CONFIG_CACHE['ts']) < 25.0:
+        return dict(_CONFIG_CACHE['data'])
     conn = get_db()
     rows = _fetchall(conn, "SELECT chave, valor FROM config_relatorio")
     conn.close()
     cfg = _config_defaults()
     for row in rows:
         cfg[row['chave']] = row['valor']
+    _CONFIG_CACHE['data'] = dict(cfg)
+    _CONFIG_CACHE['ts'] = agora_ts
     return cfg
 
 
 def set_config(chave: str, valor: str):
-    """Atualiza ou insere uma configuração."""
+    """Atualiza ou insere uma configuração e invalida o cache em memória."""
     conn = get_db()
     if _USE_PG:
         _exec(conn,
@@ -1007,6 +1022,8 @@ def set_config(chave: str, valor: str):
         )
     conn.commit()
     conn.close()
+    _CONFIG_CACHE['data'] = None
+    _CONFIG_CACHE['ts'] = 0.0
 
 
 def _processar_sla_visitas(visitas, cfg=None):
@@ -2475,7 +2492,10 @@ def _aplicar_protecoes_http_e_gzip(response):
         response.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
         response.headers.setdefault('Permissions-Policy', 'geolocation=(), microphone=(), camera=()')
 
-        if request.endpoint != 'static' and 'usuario_id' in session and response.mimetype == 'text/html':
+        if request.endpoint == 'static' or request.path.startswith('/static/'):
+            # Cache agressivo no Disk/Memory Cache do Google Chrome para CSS, Logos e Ícones
+            response.headers['Cache-Control'] = 'public, max-age=604800, stale-while-revalidate=86400'
+        elif 'usuario_id' in session and response.mimetype == 'text/html':
             response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
             response.headers['Pragma'] = 'no-cache'
 
@@ -2512,6 +2532,35 @@ def tutorial():
     return redirect(url_for('dashboard'))
 
 
+_NOTIF_USER_CACHE = {}
+
+
+@app.route('/manifest.json')
+def web_app_manifest():
+    """Web App Manifest para instalação como aplicativo nativo no Google Chrome (Desktop/Mobile)."""
+    manifest = {
+        "name": "CadÚnico 25 Anos — Sistema de Gestão SETAS",
+        "short_name": "CadÚnico SETAS",
+        "description": "Sistema Municipal de Gestão do Cadastro Único e Programa Bolsa Família — Tomé-Açu/PA",
+        "start_url": "/dashboard",
+        "display": "standalone",
+        "background_color": "#F6FBF4",
+        "theme_color": "#006E2D",
+        "lang": "pt-BR",
+        "icons": [
+            {
+                "src": "/static/logos/cadunico_25anos_cor.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any"
+            }
+        ]
+    }
+    resp = jsonify(manifest)
+    resp.headers['Cache-Control'] = 'public, max-age=86400'
+    return resp
+
+
 def _criar_notificacao(conn, usuario_id, titulo, mensagem, link="", tipo="visita_concluida"):
     """Cria um registro de notificação persistente para o usuário especificado."""
     try:
@@ -2521,6 +2570,7 @@ def _criar_notificacao(conn, usuario_id, titulo, mensagem, link="", tipo="visita
                VALUES (?, ?, ?, ?, ?, 0, ?)""",
             (usuario_id, titulo, mensagem, link, tipo, agora)
         )
+        _NOTIF_USER_CACHE.pop(usuario_id, None)
     except Exception as e:
         app.logger.warning(f"[NOTIF] Erro ao criar notificacao: {e}")
 
@@ -2536,8 +2586,14 @@ def inject_notificacoes_visitas():
             'notif_total_geral': 0
         }
     try:
-        conn = get_db()
+        import time as _t
         uid = session['usuario_id']
+        agora_ts = _t.time()
+        cached = _NOTIF_USER_CACHE.get(uid)
+        if cached and (agora_ts - cached['ts']) < 20.0:
+            return cached['data']
+
+        conn = get_db()
         perfil = session.get('perfil')
         if perfil in ('admin', 'coordenador'):
             visitas = _fetchall(conn, "SELECT * FROM solicitacoes_visita WHERE status='Pendente' ORDER BY criado_em ASC")
@@ -2560,13 +2616,15 @@ def inject_notificacoes_visitas():
         total_mensagens = len(notifs_list)
         total_geral = len(visitas_atrasadas) + total_mensagens
 
-        return {
+        res_data = {
             'notif_visitas_atrasadas': visitas_atrasadas,
             'notif_total_atrasadas': len(visitas_atrasadas),
             'notif_mensagens': notifs_list,
             'notif_total_mensagens': total_mensagens,
             'notif_total_geral': total_geral,
         }
+        _NOTIF_USER_CACHE[uid] = {'data': res_data, 'ts': agora_ts}
+        return res_data
     except Exception:
         return {
             'notif_visitas_atrasadas': [],
@@ -2582,10 +2640,12 @@ def marcar_notificacao_lida(notif_id):
     if _requer_login():
         return redirect(url_for('login'))
     conn = get_db()
-    notif = _fetchone(conn, "SELECT * FROM notificacoes_usuario WHERE id=? AND usuario_id=?", (notif_id, session['usuario_id']))
+    uid = session['usuario_id']
+    notif = _fetchone(conn, "SELECT * FROM notificacoes_usuario WHERE id=? AND usuario_id=?", (notif_id, uid))
     if notif:
         _exec(conn, "UPDATE notificacoes_usuario SET lida=1 WHERE id=?", (notif_id,))
         conn.commit()
+        _NOTIF_USER_CACHE.pop(uid, None)
         link = notif['link'] or url_for('dashboard')
         conn.close()
         return redirect(link)
