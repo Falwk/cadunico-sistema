@@ -20,23 +20,29 @@
         <button type="submit" class="btn btn-outline btn-sm">Filtrar</button>
       </form>
 
+      {% if session.perfil in ('admin', 'coordenador') %}
       <form method="GET" action="{{ url_for('exportar_relatorio') }}" style="display:flex; gap:6px; align-items:center;">
         <input type="hidden" name="mes" value="{{ mes }}">
-        <select name="formato" style="max-width:170px;">
+        <select name="formato" style="min-width:175px;">
           <option value="excel">Excel (.xlsx)</option>
           <option value="pdf">Quantitativo PDF</option>
           <option value="word">Quantitativo Word</option>
         </select>
         <button type="submit" class="btn btn-success btn-sm">Exportar Quantitativo</button>
       </form>
+      {% endif %}
 
-      <form method="GET" action="{{ url_for('exportar_registro') }}" style="display:flex; gap:6px; align-items:center;">
+      <form method="GET" action="{{ url_for('exportar_registro') }}" style="display:flex; gap:6px; align-items:center;"
+            onsubmit="this.target = (this.formato.value === 'pdf_imprimir') ? '_blank' : '_self';">
         <input type="hidden" name="mes" value="{{ mes }}">
-        <select name="formato" style="max-width:170px;">
-          <option value="pdf">Registro Detalhado PDF</option>
-          <option value="word">Registro Detalhado Word</option>
+        <select name="formato" style="min-width:235px;">
+          <option value="pdf_imprimir">🖨️ Imprimir Registro Detalhado (PDF)</option>
+          <option value="pdf">⬇️ Baixar Registro Detalhado (PDF)</option>
+          {% if session.perfil in ('admin', 'coordenador') %}
+          <option value="word">📝 Registro Detalhado Word</option>
+          {% endif %}
         </select>
-        <button type="submit" class="btn btn-purple btn-sm">Exportar Registro</button>
+        <button type="submit" class="btn btn-purple btn-sm">Imprimir / Exportar</button>
       </form>
     </div>
   </div>
@@ -151,6 +157,7 @@
       <div style="flex:1; min-width:180px;">
         <label for="formato_ent" style="font-weight:700; font-size:0.84rem; margin-bottom:4px; color:var(--cad-verde-escuro);">Formato de Download:</label>
         <select id="formato_ent" name="formato" style="padding:10px; border-radius:8px; border:1px solid #CBD5E1; background:#F8FAFC;">
+          <option value="registro_pdf">🖨️ Registro Detalhado p/ Impressão (PDF)</option>
           <option value="excel">📊 Planilha Excel (.XLSX)</option>
           <option value="pdf">📄 Relatório Quantitativo (PDF)</option>
           <option value="word">📝 Relatório Quantitativo (Word)</option>
@@ -327,7 +334,13 @@
   <!-- Atendimentos Detalhados Table -->
   {% if atendimentos %}
   <div class="card">
-    <div class="card-title">Atendimentos Detalhados</div>
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <span>Atendimentos Detalhados</span>
+      <a href="{{ url_for('exportar_registro', mes=mes, imprimir='1') }}" target="_blank" class="btn btn-purple btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+        <span class="ms sm">print</span>
+        <span>Imprimir Registro Detalhado (PDF)</span>
+      </a>
+    </div>
     <div class="table-wrap">
       <table>
         <thead>

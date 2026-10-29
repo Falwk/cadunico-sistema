@@ -4765,30 +4765,38 @@ def exportar_relatorio():
 def exportar_registro():
     if _requer_login():
         return redirect(url_for('login'))
-    if session.get('perfil') not in ('admin', 'coordenador'):
-        audit('ACESSO_NEGADO_EXPORTAR', "rota=/exportar/registro")
-        flash('Acesso restrito: o download do registro detalhado é permitido apenas para Administradores e Coordenação.', 'erro')
-        return redirect(url_for('dashboard'))
     mes = request.args.get('mes', date.today().strftime('%Y-%m'))
     formato = request.args.get('formato', 'pdf').lower()
-    audit('EXPORTAR_REGISTRO', f"mes={mes} formato={formato}")
+    modo_imprimir = (formato == 'pdf_imprimir') or (request.args.get('imprimir') == '1')
+    is_gestao = session.get('perfil') in ('admin', 'coordenador')
+
+    # Entrevistadores e Assistentes Sociais podem imprimir/baixar o Registro Detalhado em PDF (restrito aos seus próprios registros via dados_relatorio)
+    if formato == 'word' and not is_gestao:
+        audit('ACESSO_NEGADO_EXPORTAR', "rota=/exportar/registro formato=word")
+        flash('A exportação editável em Word é restrita à Coordenação e Administração. Utilize a opção Registro Detalhado PDF para impressão.', 'aviso')
+        formato = 'pdf'
+
+    escopo = 'geral' if is_gestao else f"individual_uid_{session.get('usuario_id')}"
+    audit('EXPORTAR_REGISTRO', f"mes={mes} formato={formato} escopo={escopo}")
     atendimentos, quant, entrevistadores, grafico_tipos, grafico_origens, total_geral, grafico_ents, grafico_bairros, grafico_orgaos, grafico_situacoes_enc, resumo_visitas_rma = dados_relatorio(mes)
 
-    if formato == 'word':
+    sufixo_nome = "" if is_gestao else f"_{session.get('usuario_nome', 'Entrevistador').replace(' ', '_')}"
+
+    if formato == 'word' and is_gestao:
         try:
             output = criar_word_registro(mes, atendimentos, quant=quant, total_geral=total_geral)
         except RuntimeError as erro:
             return str(erro), 500
         return send_file(output, as_attachment=True,
-                         download_name=f"Registro_Detalhado_{mes}.docx",
+                         download_name=f"Registro_Detalhado{sufixo_nome}_{mes}.docx",
                          mimetype='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
-    # default: pdf
+    # default: pdf (download ou abertura direta para impressão no Chrome)
     try:
         output = criar_pdf_registro(mes, atendimentos, quant=quant, total_geral=total_geral)
     except RuntimeError as erro:
         return str(erro), 500
-    return send_file(output, as_attachment=True,
-                     download_name=f"Registro_Detalhado_{mes}.pdf",
+    return send_file(output, as_attachment=not modo_imprimir,
+                     download_name=f"Registro_Detalhado{sufixo_nome}_{mes}.pdf",
                      mimetype='application/pdf')
 
 
@@ -4986,8 +4994,6 @@ def exportar_entrevistador():
                 quant_ent[t][nome_entrevistador] += 1
                 tot_geral += 1
 
-    audit('EXPORTAR_ENTREVISTADOR', f"uid={usuario_id} mes={mes} formato={formato}")
-
     if formato == 'excel':
         output = criar_excel_entrevistador(mes, usuario_id)
         if not output:
@@ -5038,6 +5044,24 @@ def exportar_entrevistador():
             return send_file(output, as_attachment=True, download_name=fn, mimetype='application/pdf')
         except Exception as e:
             flash(f"Erro ao gerar PDF: {str(e)}", "erro")
+            return redirect(url_for('relatorio', mes=mes))
+
+    elif formato == 'registro_pdf':
+        try:
+            from relatorio_oficial import criar_pdf_registro_detalhado
+            output = criar_pdf_registro_detalhado(
+                mes=mes,
+                mes_nome=nome_mes(mes),
+                atendimentos=ats_dict_list,
+                quant=quant_ent,
+                total_geral=tot_geral,
+                assinatura_nome=nome_entrevistador,
+                assets_dir=os.path.join(BASE_DIR, 'static', 'report_assets'),
+            )
+            fn = f"Registro_Detalhado_{nome_entrevistador.replace(' ', '_')}_{mes}.pdf"
+            return send_file(output, as_attachment=False, download_name=fn, mimetype='application/pdf')
+        except Exception as e:
+            flash(f"Erro ao gerar Registro Detalhado PDF: {str(e)}", "erro")
             return redirect(url_for('relatorio', mes=mes))
 
     return redirect(url_for('relatorio', mes=mes))
