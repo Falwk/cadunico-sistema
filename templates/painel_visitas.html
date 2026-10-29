@@ -178,7 +178,12 @@
         <option value="Rural"  {% if filtros.get('zona') == 'Rural'  %}selected{% endif %}>Rural</option>
       </select>
 
-      <input type="text" name="bairro" value="{{ filtros.get('bairro', '') }}" placeholder="Bairro..." style="max-width:150px;">
+      <input type="text" name="bairro" value="{{ filtros.get('bairro', '') }}" placeholder="Bairro..." list="lista-bairros-urbanos" autocomplete="off" style="max-width:150px;">
+      <datalist id="lista-bairros-urbanos">
+        {% for b in bairros_urbanos %}
+          <option value="{{ b }}">{{ b }} (Zona Urbana)</option>
+        {% endfor %}
+      </datalist>
       <input type="date" name="data_ini" value="{{ filtros.get('data_ini', '') }}" title="Data inicial" style="max-width:150px;">
       <input type="date" name="data_fim" value="{{ filtros.get('data_fim', '') }}" title="Data final" style="max-width:150px;">
       <input type="search" name="busca" value="{{ filtros.get('busca', '') }}" placeholder="Buscar por CPF, Nº VD (ex: VD-001) ou Nome..." style="flex:1; min-width:240px;">

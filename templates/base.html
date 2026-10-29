@@ -359,6 +359,69 @@
     }
 
     aplicarFormatacaoCampos();
+
+    /* Autocompletar inteligente de Bairros, Vilas, Ramais e Comunidades:
+       - Campo vazio (lista suspensa / clique na seta): exibe APENAS os 26 bairros urbanos originais.
+       - Ao digitar no campo: sugere automaticamente vilas, novos residenciais, ramais, PAs, quilombos e aldeias. */
+    const LOCALIDADES_SUGESTAO_EXTRA = {{ localidades_sugestao_extra|default([])|tojson }};
+    function removerAcentos(txt) {
+      return (txt || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    const inputsBairro = document.querySelectorAll('input[list="lista-bairros-urbanos"]');
+    inputsBairro.forEach(function(inp) {
+      const dl = document.getElementById('lista-bairros-urbanos');
+      if (!dl) return;
+
+      function manterApenasBairrosOriginais() {
+        if (!dl.dataset.extraAtivo) return;
+        dl.querySelectorAll('option[data-extra-loc="1"]').forEach(function(opt) { opt.remove(); });
+        delete dl.dataset.extraAtivo;
+      }
+
+      function habilitarSugestoesExtrasAoDigitar() {
+        if (dl.dataset.extraAtivo || !LOCALIDADES_SUGESTAO_EXTRA.length) return;
+        const frag = document.createDocumentFragment();
+        LOCALIDADES_SUGESTAO_EXTRA.forEach(function(item) {
+          const opt = document.createElement('option');
+          opt.value = item.nome;
+          opt.setAttribute('data-extra-loc', '1');
+          const semAcento = removerAcentos(item.nome);
+          opt.textContent = semAcento !== item.nome
+            ? item.cat + ' • ' + semAcento
+            : item.cat;
+          frag.appendChild(opt);
+        });
+        dl.appendChild(frag);
+        dl.dataset.extraAtivo = '1';
+      }
+
+      inp.addEventListener('focus', function() {
+        if (!this.value || !this.value.trim()) {
+          manterApenasBairrosOriginais();
+        }
+      });
+
+      inp.addEventListener('mousedown', function() {
+        if (!this.value || !this.value.trim()) {
+          manterApenasBairrosOriginais();
+        }
+      });
+
+      inp.addEventListener('keydown', function(e) {
+        if (e.key && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          habilitarSugestoesExtrasAoDigitar();
+        }
+      });
+
+      inp.addEventListener('input', function() {
+        if (this.value && this.value.trim().length > 0) {
+          habilitarSugestoesExtrasAoDigitar();
+        } else {
+          manterApenasBairrosOriginais();
+        }
+      });
+    });
   });
 
   document.addEventListener('click', function(e) {
