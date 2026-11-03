@@ -441,13 +441,20 @@ def _get_logo_b64_cached(filename):
 
 
 import base64
+import secrets as _secrets_csrf
 
 @app.context_processor
 def inject_logos():
-    """Disponibiliza as logos em todos os templates via variáveis logo_* (otimizado com cache em RAM)."""
+    """Disponibiliza as logos e o token CSRF em todos os templates (otimizado com cache em RAM)."""
     logo_25_url = _logo_url('cadunico_25anos.png')
     logo_25_b64 = _get_logo_b64_cached('cadunico_25anos.png')
     logo_pref_b64 = _get_logo_b64_cached('prefeitura.png')
+
+    csrf_tok = ''
+    if 'usuario_id' in session:
+        if not session.get('csrf_token'):
+            session['csrf_token'] = _secrets_csrf.token_hex(16)
+        csrf_tok = session['csrf_token']
 
     return dict(
         logo_prefeitura=_logo_url('prefeitura.png'),
@@ -460,6 +467,7 @@ def inject_logos():
         bairros_urbanos=get_bairros_por_usuario(session.get('unidade')),
         localidades_sugestao_extra=LOCALIDADES_SUGESTAO_DIGITACAO,
         motivos_visita=MOTIVOS_VISITA,
+        csrf_token=csrf_tok,
     )
 
 # ---------------------------------------------------------------------------
@@ -694,7 +702,10 @@ def _garantir_pdf_valido(file_bytes, nome_arquivo="documento.pdf"):
 @app.route('/anexo/download/<path:filename>')
 @app.route('/anexo/view/<path:filename>')
 def servir_arquivo_anexo(filename):
-    """Serve arquivos de upload com restauração automática do banco caso o disco do Render tenha sido reiniciado."""
+    """Serve arquivos de upload com autenticação obrigatória e restauração automática do banco."""
+    if _requer_login():
+        return redirect(url_for('login'))
+
     local_path = os.path.join(app.root_path, 'static', 'uploads', filename)
     nome_simples = filename.split('/')[-1].split('\\')[-1]
     ext = nome_simples.rsplit('.', 1)[-1].lower() if '.' in nome_simples else ''
@@ -2554,10 +2565,45 @@ def healthz():
 
 @app.before_request
 def _verificar_inatividade_sessao():
-    """Encerra a sessão por inatividade (45 min), verifica suspensão cautelar (Informe 92) e Termo LGPD/SAGICAD."""
+    """Encerra a sessão por inatividade (45 min), valida proteção contra CSRF (OWASP), verifica suspensão cautelar (Informe 92) e Termo LGPD/SAGICAD."""
     try:
         if request.endpoint in ('static', 'healthz'):
             return
+
+        # ── Proteção Defesa em Profundidade contra CSRF (OWASP Cheat Sheet) ──
+        if request.method in ('POST', 'PUT', 'DELETE', 'PATCH') and not request.path.startswith('/api/v1/'):
+            import urllib.parse as _urlparse_csrf
+            sec_fetch_site = (request.headers.get('Sec-Fetch-Site') or '').strip().lower()
+            if sec_fetch_site == 'cross-site':
+                audit('ALERTA_CSRF_BLOQUEADO', f"rota={request.path} motivo=sec_fetch_site_cross_site")
+                abort(403)
+
+            host_atual = (request.host or '').split(':')[0].strip().lower()
+            origin_hdr = (request.headers.get('Origin') or '').strip()
+            referer_hdr = (request.headers.get('Referer') or '').strip()
+
+            if origin_hdr and origin_hdr.lower() != 'null':
+                origin_host = (_urlparse_csrf.urlparse(origin_hdr).hostname or '').strip().lower()
+                if origin_host and host_atual and origin_host != host_atual:
+                    audit('ALERTA_CSRF_BLOQUEADO', f"rota={request.path} origin={origin_hdr} host={host_atual}")
+                    abort(403)
+            elif referer_hdr:
+                ref_host = (_urlparse_csrf.urlparse(referer_hdr).hostname or '').strip().lower()
+                if ref_host and host_atual and ref_host != host_atual:
+                    audit('ALERTA_CSRF_BLOQUEADO', f"rota={request.path} referer={referer_hdr} host={host_atual}")
+                    abort(403)
+
+            # Se houver token CSRF enviado no formulário ou cabeçalho, exige correspondência criptográfica com a sessão
+            if 'usuario_id' in session and session.get('csrf_token'):
+                tok_enviado = (
+                    request.form.get('csrf_token')
+                    or request.headers.get('X-CSRF-Token')
+                    or ''
+                ).strip()
+                if tok_enviado and not hmac.compare_digest(tok_enviado, str(session.get('csrf_token'))):
+                    audit('ALERTA_CSRF_BLOQUEADO', f"rota={request.path} motivo=csrf_token_invalido")
+                    abort(403)
+
         if 'usuario_id' in session:
             agora = datetime.now(_TZ_BELEM).timestamp()
             ultimo_acesso = session.get('_last_active')
@@ -2574,9 +2620,9 @@ def _verificar_inatividade_sessao():
                     pass
             session['_last_active'] = agora
 
-            # Verificação periódica (a cada 30s) de Bloqueio Cautelar / Sessão Única (Informe 92 SAGICAD)
+            # Verificação de Bloqueio Cautelar / Sessão Única / Revogação pós-Logout (a cada 15s ou em ações POST)
             last_sec = session.get('_last_sec_check', 0)
-            if (agora - float(last_sec or 0)) > 30:
+            if request.method in ('POST', 'PUT', 'DELETE', 'PATCH') or (agora - float(last_sec or 0)) > 15:
                 session['_last_sec_check'] = agora
                 conn = get_db()
                 u_db = _fetchone(conn, "SELECT ativo, session_token, termo_aceito_em FROM usuarios WHERE id=?", (session['usuario_id'],))
@@ -2589,11 +2635,11 @@ def _verificar_inatividade_sessao():
                     return redirect(url_for('login'))
                 db_tok = u_db.get('session_token')
                 sess_tok = session.get('session_token')
-                if db_tok and sess_tok and db_tok != sess_tok:
+                if sess_tok and db_tok != sess_tok:
                     uid = session.get('usuario_id')
                     session.clear()
-                    audit('SESSAO_ENCERRADA_DUPLICADA', f"usuario_id={uid} motivo=novo_login_outro_dispositivo")
-                    flash('Sua conta foi acessada em outro computador/navegador. Por segurança (vedação de compartilhamento de senha - Informe nº 92 SAGICAD), esta sessão foi encerrada.', 'aviso')
+                    audit('SESSAO_ENCERRADA_REVOGADA', f"usuario_id={uid} motivo=logout_ou_novo_login_outro_dispositivo")
+                    flash('Sua sessão foi encerrada (por logout anterior ou acesso em outro dispositivo — Informe nº 92 SAGICAD). Faça login novamente.', 'aviso')
                     return redirect(url_for('login'))
                 if u_db.get('termo_aceito_em'):
                     session['termo_aceito'] = True
@@ -2604,6 +2650,9 @@ def _verificar_inatividade_sessao():
             ):
                 return redirect(url_for('termo_responsabilidade'))
     except Exception as ex_sess:
+        from werkzeug.exceptions import HTTPException
+        if isinstance(ex_sess, HTTPException):
+            raise ex_sess
         app.logger.warning(f"[SESSAO] Erro na verificação de inatividade: {ex_sess}")
 
 
@@ -2852,6 +2901,12 @@ def _notificar_admin_senha_incorreta(usuario, tentativas):
 def login():
     erro = None
     if request.method == 'POST':
+        ip_cliente = request.headers.get('X-Forwarded-For', request.remote_addr or '127.0.0.1').split(',')[0].strip()
+        if not _check_rate_limit(f"login_ip_{ip_cliente}", max_requests=15, window_seconds=300):
+            audit('LOGIN_RATE_LIMIT_IP', f"ip={ip_cliente}")
+            erro = "Muitas tentativas de acesso a partir deste endereço IP. Aguarde alguns minutos e tente novamente."
+            return render_template('login.html', erro=erro), 429
+
         login_ = request.form.get('login', '').strip()
         senha = request.form.get('senha', '').strip()
         conn = get_db()
@@ -2914,6 +2969,7 @@ def login():
             session['_last_active'] = agora_ts
             session['_last_sec_check'] = agora_ts
             session['session_token'] = novo_tok
+            session['csrf_token'] = _sec_mod.token_hex(16)
             session['usuario_id'] = u['id']
             session['usuario_nome'] = u['nome']
             session['perfil'] = u['perfil']
@@ -2967,9 +3023,8 @@ def login():
                         except Exception:
                             pass
                     conn.close()
-                    restantes = 5 - novas_tentativas
                     audit('LOGIN_FALHA', f"login={login_} tentativas={novas_tentativas}")
-                    erro = f"Login ou senha incorretos. Você tem mais {restantes} tentativa(s) antes do bloqueio temporário."
+                    erro = 'Login ou senha incorretos.'
             else:
                 conn.close()
                 erro = 'Login ou senha incorretos.'
@@ -2978,6 +3033,15 @@ def login():
 
 @app.route('/logout')
 def logout():
+    uid = session.get('usuario_id')
+    if uid:
+        try:
+            conn = get_db()
+            _exec(conn, "UPDATE usuarios SET session_token=NULL WHERE id=?", (uid,))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
     audit('LOGOUT')
     session.clear()
     return redirect(url_for('login'))
@@ -3956,13 +4020,15 @@ def historico_familiar():
             )
             atendimentos = [dict(a) for a in ats_rows]
             
+            filtro_visita = "" if session.get('perfil') in ('admin', 'coordenador', 'assistente_social') else f"AND (v.solicitante_id={PH} OR v.responsavel_id={PH})"
+            params_visita = [cpf_alvo] if session.get('perfil') in ('admin', 'coordenador', 'assistente_social') else [cpf_alvo, session['usuario_id'], session['usuario_id']]
             vis_rows = _fetchall(conn,
                 f"""SELECT v.id AS id, v.cpf_rf, v.nome_rf, v.logradouro, v.numero, v.complemento, v.bairro, v.referencia, v.zona, v.motivo, v.data_realizada, v.status, v.solicitante_id, v.responsavel_id, v.observacoes, v.motivo_cancelamento, v.anexo_url, v.anexo_nome, v.atendimento_id, v.criado_em, v.atualizado_em, v.parecer_tecnico_txt, v.numero_vd, v.parecer_as_url, v.parecer_as_nome, v.telefone1, v.telefone2, u1.nome AS solicitante_nome, u2.nome AS responsavel_nome
                     FROM solicitacoes_visita v
                     LEFT JOIN usuarios u1 ON v.solicitante_id=u1.id
                     LEFT JOIN usuarios u2 ON v.responsavel_id=u2.id
-                    WHERE v.cpf_rf={PH} ORDER BY v.criado_em DESC""",
-                (cpf_alvo,)
+                    WHERE v.cpf_rf={PH} {filtro_visita} ORDER BY v.criado_em DESC""",
+                params_visita
             )
             visitas = [dict(v) for v in vis_rows]
 
@@ -7761,6 +7827,14 @@ def pdf_visita(visita_id):
     if not visita:
         conn.close()
         abort(404)
+    perfil = session.get('perfil')
+    uid = session.get('usuario_id')
+    if perfil not in ('admin', 'coordenador', 'assistente_social'):
+        if visita.get('solicitante_id') != uid and visita.get('responsavel_id') != uid:
+            conn.close()
+            audit('ACESSO_NEGADO_PDF_VISITA', f"visita_id={visita_id} usuario_id={uid}")
+            flash('Acesso restrito: você só pode exportar PDF de solicitações de visita vinculadas ao seu usuário.', 'erro')
+            return redirect(url_for('painel_visitas'))
     conn.close()
 
     pdf_bytes, numero_vd = gerar_pdf_visita(visita_id)

@@ -15,6 +15,7 @@
   })();
 </script>
 <meta name="theme-color" content="#006E2D">
+<meta name="csrf-token" content="{{ csrf_token|default('') }}">
 <link rel="manifest" href="/manifest.json">
 
 <!-- Material Design 3 Expressive: fontes e ícones otimizados para Google Chrome -->
@@ -359,6 +360,36 @@
     }
 
     aplicarFormatacaoCampos();
+
+    /* Proteção CSRF automática (OWASP): injeta token de sessão oculto em todos os formulários POST */
+    const CSRF_TOKEN = {{ csrf_token|default('')|tojson }};
+    if (CSRF_TOKEN) {
+      function injetarCsrfFormularios() {
+        document.querySelectorAll('form').forEach(function(form) {
+          const metodo = (form.getAttribute('method') || 'GET').toUpperCase();
+          if (metodo === 'POST' && !form.querySelector('input[name="csrf_token"]')) {
+            const inputCsrf = document.createElement('input');
+            inputCsrf.type = 'hidden';
+            inputCsrf.name = 'csrf_token';
+            inputCsrf.value = CSRF_TOKEN;
+            form.appendChild(inputCsrf);
+          }
+        });
+      }
+      injetarCsrfFormularios();
+      document.addEventListener('submit', function(e) {
+        if (e.target && e.target.tagName === 'FORM') {
+          const metodo = (e.target.getAttribute('method') || 'GET').toUpperCase();
+          if (metodo === 'POST' && !e.target.querySelector('input[name="csrf_token"]')) {
+            const inputCsrf = document.createElement('input');
+            inputCsrf.type = 'hidden';
+            inputCsrf.name = 'csrf_token';
+            inputCsrf.value = CSRF_TOKEN;
+            e.target.appendChild(inputCsrf);
+          }
+        }
+      }, true);
+    }
 
     /* Autocompletar inteligente de Bairros, Vilas, Ramais e Comunidades:
        - Campo vazio (lista suspensa / clique na seta): exibe APENAS os 26 bairros urbanos originais.
