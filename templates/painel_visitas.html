@@ -62,11 +62,11 @@
   <!-- Status KPI Cards (Manual de Marca 25 Anos) -->
   <div class="stat-grid">
 
-    <a href="{{ url_for('painel_visitas', status='Pendente') }}" class="stat-card warn">
+    <a href="{{ url_for('painel_visitas', status='Pendente_No_Prazo') }}" class="stat-card warn">
       <span class="t">
-        {% if session.get('perfil') in ('assistente_social', 'admin') %}<span class="ms sm">inbox</span> Novas Solicitações{% else %}Pendentes{% endif %}
+        {% if session.get('perfil') in ('assistente_social', 'admin', 'coordenador') %}<span class="ms sm">schedule</span> Pendentes (No Prazo){% else %}Pendentes (No Prazo){% endif %}
       </span>
-      <div class="v">{{ contadores.get('Pendente', 0) }}</div>
+      <div class="v">{{ contadores.get('Pendente_No_Prazo', contadores.get('Pendente', 0)) }}</div>
     </a>
 
     <a href="{{ url_for('painel_visitas', status='encaminhada_social') }}" class="stat-card sec">
@@ -100,6 +100,28 @@
     </div>
 
   </div>
+
+  {% if session.get('perfil') in ('admin', 'coordenador') %}
+  <!-- Gráfico Exclusivo Admin / Coordenador: Pendentes (No Prazo) vs Realizadas vs Atrasadas -->
+  <div class="card" style="margin-bottom:20px; border-top:4px solid #00542A;">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+      <span style="display:flex; align-items:center; gap:8px; color:#00542A; font-weight:800;">
+        📊 Panorama de Visitas: Realizadas × Pendentes (No Prazo) × Atrasadas
+      </span>
+      <span style="font-size:0.75rem; background:#E6F4EA; color:#00542A; border:1px solid #86EFAC; padding:4px 12px; border-radius:20px; font-weight:700;">
+        Visão Exclusiva Administrador & Coordenador
+      </span>
+    </div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:20px; align-items:center;">
+      <div style="position:relative; width:100%; height:190px;">
+        <canvas id="chart-painel-visitas-bar" aria-label="Gráfico de Barras de Visitas" role="img"></canvas>
+      </div>
+      <div style="position:relative; width:100%; height:190px;">
+        <canvas id="chart-painel-visitas-rosca" aria-label="Gráfico de Rosca de Visitas" role="img"></canvas>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 
   <!-- Main Card with Filters + Table -->
   <div class="card">
@@ -425,4 +447,79 @@
     modal.style.display = 'none';
   }
 </script>
+
+{% if session.get('perfil') in ('admin', 'coordenador') %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+  const realizadas = {{ contadores.get('Realizada', 0) | tojson }};
+  const pendentesNoPrazo = {{ contadores.get('Pendente_No_Prazo', 0) | tojson }};
+  const atrasadas = {{ total_visitas_atrasadas | default(0) | tojson }};
+  const labels = ['Realizadas', 'Pendentes (No Prazo)', 'Atrasadas (Prazo Excedido)'];
+  const valores = [realizadas, pendentesNoPrazo, atrasadas];
+  const cores = ['#00883A', '#F59E0B', '#E11D48'];
+
+  const elBar = document.getElementById('chart-painel-visitas-bar');
+  if (elBar) {
+    new Chart(elBar, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Visitas',
+          data: valores,
+          backgroundColor: cores,
+          borderRadius: 8,
+          maxBarThickness: 42
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { stepSize: 1, precision: 0 } },
+          x: { grid: { display: false }, ticks: { font: { weight: '700', size: 11 } } }
+        }
+      }
+    });
+  }
+
+  const elRosca = document.getElementById('chart-painel-visitas-rosca');
+  if (elRosca) {
+    const soma = valores.reduce((a, b) => a + b, 0);
+    new Chart(elRosca, {
+      type: 'doughnut',
+      data: {
+        labels: labels,
+        datasets: [{
+          data: soma > 0 ? valores : [1, 0, 0],
+          backgroundColor: soma > 0 ? cores : ['#E2E8F0', '#E2E8F0', '#E2E8F0'],
+          borderColor: '#FFFFFF',
+          borderWidth: 2,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '58%',
+        plugins: {
+          legend: { position: 'right', labels: { font: { weight: '600', size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                if (soma === 0) return ' Nenhuma visita registrada';
+                const pct = ((ctx.parsed / soma) * 100).toFixed(1);
+                return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+})();
+</script>
+{% endif %}
 {% endblock %}

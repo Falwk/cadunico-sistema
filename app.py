@@ -1190,7 +1190,7 @@ def _processar_sla_visitas(visitas, cfg=None):
         except Exception:
             dias_decorridos = 0
 
-        atrasada = (v_dict.get('status') == 'Pendente') and (dias_decorridos > prazo_dias)
+        atrasada = (v_dict.get('status') in ('Pendente', 'encaminhada_social')) and (dias_decorridos > prazo_dias)
         dias_atraso = (dias_decorridos - prazo_dias) if atrasada else 0
 
         if atrasada:
@@ -4138,9 +4138,10 @@ def dados_relatorio(mes):
     )
     grafico_situacoes_enc = [{'nome': s, 'total': t} for s, t in situacoes_enc_quant.items() if t > 0]
 
-    # Estatísticas de Visitas Domiciliares (Urbana vs Rural e Realizadas para o RMA)
-    filtro_vis_usuario = "" if session['perfil'] == 'admin' else f"AND (sv.solicitante_id={PH} OR sv.responsavel_id={PH})"
-    params_vis = [mes + '%', mes + '%'] + ([session['usuario_id'], session['usuario_id']] if session['perfil'] != 'admin' else [])
+    # Estatísticas de Visitas Domiciliares (Realizadas vs Pendentes no Prazo vs Atrasadas)
+    is_gestor = session['perfil'] in ('admin', 'coordenador')
+    filtro_vis_usuario = "" if is_gestor else f"AND (sv.solicitante_id={PH} OR sv.responsavel_id={PH})"
+    params_vis = [mes + '%', mes + '%'] + ([session['usuario_id'], session['usuario_id']] if not is_gestor else [])
 
     vis_mes = _fetchall(conn,
         f"""SELECT sv.*, u_sol.nome as solicitante_nome, u_res.nome as responsavel_nome
@@ -4152,16 +4153,36 @@ def dados_relatorio(mes):
         params_vis
     )
 
-    visitas_realizadas = [dict(v) for v in vis_mes if v['status'] == 'Realizada']
+    cfg_vis = get_config()
+    vis_mes_proc, _ = _processar_sla_visitas(vis_mes, cfg_vis)
+
+    visitas_realizadas = [dict(v) for v in vis_mes_proc if v.get('status') in ('Realizada', 'concluida_social')]
     visitas_urbana = [v for v in visitas_realizadas if (v.get('zona') or 'Urbana') == 'Urbana']
     visitas_rural = [v for v in visitas_realizadas if (v.get('zona') or '') == 'Rural']
+    pendentes_no_prazo_mes = [v for v in vis_mes_proc if v.get('status') in ('Pendente', 'encaminhada_social') and not v.get('atrasada')]
+    atrasadas_mes = [v for v in vis_mes_proc if v.get('status') in ('Pendente', 'encaminhada_social') and v.get('atrasada')]
+
+    # Panorama geral ativo de visitas (diferenciando estritamente Pendentes no Prazo de Atrasadas)
+    todas_vis_rows = _fetchall(conn,
+        f"SELECT sv.* FROM solicitacoes_visita sv WHERE 1=1 {filtro_vis_usuario}",
+        ([session['usuario_id'], session['usuario_id']] if not is_gestor else [])
+    )
+    todas_vis_proc, _ = _processar_sla_visitas(todas_vis_rows, cfg_vis)
+    geral_realizadas = len([v for v in todas_vis_proc if v.get('status') in ('Realizada', 'concluida_social')])
+    geral_pendentes_no_prazo = len([v for v in todas_vis_proc if v.get('status') in ('Pendente', 'encaminhada_social') and not v.get('atrasada')])
+    geral_atrasadas = len([v for v in todas_vis_proc if v.get('status') in ('Pendente', 'encaminhada_social') and v.get('atrasada')])
 
     resumo_visitas_rma = {
         'total_realizadas': len(visitas_realizadas),
+        'total_realizadas_geral': geral_realizadas,
         'total_urbana': len(visitas_urbana),
         'total_rural': len(visitas_rural),
-        'total_pendentes': len([v for v in vis_mes if v['status'] == 'Pendente']),
-        'total_canceladas': len([v for v in vis_mes if v['status'] in ('Cancelada', 'Não Localizada')]),
+        'total_pendentes': geral_pendentes_no_prazo,
+        'total_pendentes_no_prazo': geral_pendentes_no_prazo,
+        'total_atrasadas': geral_atrasadas,
+        'total_pendentes_mes_no_prazo': len(pendentes_no_prazo_mes),
+        'total_atrasadas_mes': len(atrasadas_mes),
+        'total_canceladas': len([v for v in vis_mes_proc if v.get('status') in ('Cancelada', 'Não Localizada')]),
         'visitas_realizadas_lista': visitas_realizadas,
     }
 
@@ -6821,8 +6842,8 @@ def painel_visitas():
     )
     _, total_visitas_atrasadas = _processar_sla_visitas(visitas_pendentes_all, cfg)
 
-    # ── Se o filtro de status for "Atrasada", busca todas as pendentes e filtra por SLA
-    if status_filtro == 'Atrasada':
+    # ── Se o filtro de status for "Atrasada" ou "Pendente_No_Prazo", busca todas as pendentes e filtra por SLA
+    if status_filtro in ('Atrasada', 'Pendente_No_Prazo'):
         visitas_raw = _fetchall(conn,
             f"""SELECT sv.id AS id, sv.cpf_rf, sv.nome_rf, sv.logradouro, sv.numero, sv.complemento, sv.bairro, sv.referencia, sv.zona, sv.motivo, sv.data_realizada, sv.status, sv.solicitante_id, sv.responsavel_id, sv.observacoes, sv.motivo_cancelamento, sv.anexo_url, sv.anexo_nome, sv.atendimento_id, sv.criado_em, sv.atualizado_em, sv.parecer_tecnico_txt, sv.numero_vd, sv.parecer_as_url, sv.parecer_as_nome, sv.telefone1, sv.telefone2,
                        sv.tipo_competencia, sv.motivo_encaminhamento, sv.parecer_social, sv.atribuido_para, sv.data_encaminhamento,
@@ -6835,7 +6856,10 @@ def painel_visitas():
             params_acesso
         )
         visitas_proc, _ = _processar_sla_visitas(visitas_raw, cfg)
-        visitas = [v for v in visitas_proc if v['atrasada']]
+        if status_filtro == 'Atrasada':
+            visitas = [v for v in visitas_proc if v['atrasada']]
+        else:
+            visitas = [v for v in visitas_proc if not v['atrasada']]
         total_filtrado = len(visitas)
         total_paginas = max(1, (total_filtrado + por_pagina - 1) // por_pagina)
         visitas = visitas[(pagina - 1) * por_pagina : pagina * por_pagina]
@@ -6880,6 +6904,11 @@ def painel_visitas():
     # Se concluida_social somar em Realizadas para coerência
     if contadores.get('concluida_social'):
         contadores['Realizada'] = contadores.get('Realizada', 0) + contadores.get('concluida_social', 0)
+
+    # Diferencia Pendentes (Dentro do Prazo) de Atrasadas (Fora do Prazo SLA)
+    total_pendentes_bruto = len(visitas_pendentes_all)
+    total_pendentes_no_prazo = max(0, total_pendentes_bruto - total_visitas_atrasadas)
+    contadores['Pendente_No_Prazo'] = total_pendentes_no_prazo
 
     # ── Lista de Assistentes Sociais (para modal de encaminhamento rápido) ───
     assistentes_sociais = _get_assistentes_sociais(conn)

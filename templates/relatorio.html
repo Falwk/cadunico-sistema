@@ -103,7 +103,7 @@
         <select id="usuario_id" name="usuario_id" required style="padding:10px; border-radius:8px; border:1px solid #CBD5E1; background:#F8FAFC;">
           <option value="">-- Selecione o Entrevistador --</option>
           {% for u in todos_usuarios %}
-            {% if session.perfil == 'admin' or session.usuario_id == u.id %}
+            {% if session.perfil in ('admin', 'coordenador') or session.usuario_id == u.id %}
               <option value="{{ u.id }}">{{ u.nome }} ({{ u.unidade }})</option>
             {% endif %}
           {% endfor %}
@@ -128,8 +128,61 @@
     </form>
   </div>
 
-  {% if session.perfil == 'admin' %}
-  <!-- Row 1 Charts (Admin): Origem do Atendimento -->
+  {% if session.perfil in ('admin', 'coordenador') %}
+  <!-- Card Exclusivo Admin / Coordenador: Gráfico de Situação das Visitas Domiciliares -->
+  <div class="card chart-card" style="margin-bottom:24px; border-top:4px solid #00542A;">
+    <div class="card-title" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <span style="display:flex; align-items:center; gap:8px; color:#00542A; font-weight:800; font-size:1.08rem;">
+        🏠 Gráfico de Visitas Domiciliares: Realizadas × Pendentes (No Prazo) × Atrasadas
+      </span>
+      <span style="font-size:0.76rem; background:#E6F4EA; color:#00542A; border:1px solid #86EFAC; padding:4px 12px; border-radius:20px; font-weight:700;">
+        Visão Gestor (Admin & Coordenador)
+      </span>
+    </div>
+
+    <p style="font-size:0.85rem; color:#475569; margin-bottom:14px;">
+      As solicitações <strong>Atrasadas (prazo SLA excedido)</strong> são contabilizadas separadamente das <strong>Pendentes (dentro do prazo)</strong> para evitar duplicidade. Clique nos indicadores abaixo para filtrar no painel de visitas.
+    </p>
+
+    <!-- Indicadores Clicáveis Diferenciados -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:12px; margin-bottom:18px;">
+      <a href="{{ url_for('painel_visitas', status='Realizada') }}" style="text-decoration:none; background:#F0FDF4; border:1.5px solid #86EFAC; border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <span style="font-size:0.75rem; font-weight:800; color:#15803D; text-transform:uppercase; display:block;">✅ Visitas Realizadas</span>
+          <span style="font-size:0.72rem; color:#166534;">No mês: <strong>{{ resumo_visitas_rma.total_realizadas if resumo_visitas_rma else 0 }}</strong> | Geral: <strong>{{ resumo_visitas_rma.total_realizadas_geral if resumo_visitas_rma else 0 }}</strong></span>
+        </div>
+        <div id="kpi-vis-realizadas" style="font-size:1.75rem; font-weight:800; color:#15803D;">{{ (resumo_visitas_rma.total_realizadas if resumo_visitas_rma.total_realizadas > 0 else resumo_visitas_rma.total_realizadas_geral) if resumo_visitas_rma else 0 }}</div>
+      </a>
+
+      <a href="{{ url_for('painel_visitas', status='Pendente_No_Prazo') }}" style="text-decoration:none; background:#FFFBEB; border:1.5px solid #FDE047; border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <span style="font-size:0.75rem; font-weight:800; color:#B45309; text-transform:uppercase; display:block;">⏳ Pendentes (No Prazo)</span>
+          <span style="font-size:0.72rem; color:#92400E;">Dentro do SLA (sem atraso)</span>
+        </div>
+        <div id="kpi-vis-pendentes" style="font-size:1.75rem; font-weight:800; color:#B45309;">{{ resumo_visitas_rma.total_pendentes_no_prazo if resumo_visitas_rma else 0 }}</div>
+      </a>
+
+      <a href="{{ url_for('painel_visitas', status='Atrasada') }}" style="text-decoration:none; background:#FFF1F2; border:1.5px solid #FECDD3; border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <span style="font-size:0.75rem; font-weight:800; color:#BE123C; text-transform:uppercase; display:block;">⚠️ Visitas Atrasadas</span>
+          <span style="font-size:0.72rem; color:#9F1239;">Prazo SLA excedido</span>
+        </div>
+        <div id="kpi-vis-atrasadas" style="font-size:1.75rem; font-weight:800; color:#BE123C;">{{ resumo_visitas_rma.total_atrasadas if resumo_visitas_rma else 0 }}</div>
+      </a>
+    </div>
+
+    <!-- Gráficos Lado a Lado: Barras Comparativas + Rosca de Proporção -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:20px; align-items:center;">
+      <div style="position:relative; width:100%; height:220px;">
+        <canvas id="chart-visitas-status-bar" aria-label="Gráfico de Barras de Visitas Domiciliares" role="img"></canvas>
+      </div>
+      <div style="position:relative; width:100%; height:220px;">
+        <canvas id="chart-visitas-status-doughnut" aria-label="Gráfico de Proporção de Visitas Domiciliares" role="img"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row 1 Charts (Admin / Coordenador): Origem do Atendimento -->
   <div class="card chart-card" style="margin-bottom:24px;">
     <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
       <span style="display:flex; align-items:center; gap:8px; color:var(--cad-roxo);">
@@ -382,6 +435,89 @@
 <script>
 (function(){
   const CORES_CAD = ['#00542A', '#00883A', '#783DB2', '#FAB614', '#0E7490', '#92400E', '#7C3AED', '#1D4ED8'];
+
+  {% if session.perfil in ('admin', 'coordenador') %}
+  // 0. Gráfico de Visitas Domiciliares: Realizadas x Pendentes (No Prazo) x Atrasadas (Exclusivo Admin / Coordenador)
+  const visRealizadasMes = {{ (resumo_visitas_rma.total_realizadas if resumo_visitas_rma else 0) | tojson }};
+  const visRealizadasGeral = {{ (resumo_visitas_rma.total_realizadas_geral if resumo_visitas_rma else 0) | tojson }};
+  const visRealizadasVal = visRealizadasMes > 0 ? visRealizadasMes : visRealizadasGeral;
+  const visPendentesNoPrazoVal = {{ (resumo_visitas_rma.total_pendentes_no_prazo if resumo_visitas_rma else 0) | tojson }};
+  const visAtrasadasVal = {{ (resumo_visitas_rma.total_atrasadas if resumo_visitas_rma else 0) | tojson }};
+
+  const labelsVisStatus = [
+    'Realizadas',
+    'Pendentes (No Prazo)',
+    'Atrasadas (Prazo Excedido)'
+  ];
+  const dataVisStatus = [visRealizadasVal, visPendentesNoPrazoVal, visAtrasadasVal];
+  const coresVisStatus = ['#00883A', '#F59E0B', '#E11D48'];
+
+  if (document.getElementById('chart-visitas-status-bar')) {
+    new Chart(document.getElementById('chart-visitas-status-bar'), {
+      type: 'bar',
+      data: {
+        labels: labelsVisStatus,
+        datasets: [{
+          label: 'Quantidade de Visitas',
+          data: dataVisStatus,
+          backgroundColor: coresVisStatus,
+          borderRadius: 8,
+          maxBarThickness: 44
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.parsed.y} visita(s)`
+            }
+          }
+        },
+        scales: {
+          y: { beginAtZero: true, grid: { color: '#F1F5F9' }, ticks: { stepSize: 1, precision: 0 } },
+          x: { grid: { display: false }, ticks: { font: { weight: '700', size: 11 } } }
+        }
+      }
+    });
+  }
+
+  if (document.getElementById('chart-visitas-status-doughnut')) {
+    const somaVisStatus = dataVisStatus.reduce((a, b) => a + b, 0);
+    new Chart(document.getElementById('chart-visitas-status-doughnut'), {
+      type: 'doughnut',
+      data: {
+        labels: labelsVisStatus,
+        datasets: [{
+          data: somaVisStatus > 0 ? dataVisStatus : [1, 0, 0],
+          backgroundColor: somaVisStatus > 0 ? coresVisStatus : ['#E2E8F0', '#E2E8F0', '#E2E8F0'],
+          borderColor: '#FFFFFF',
+          borderWidth: 2,
+          hoverOffset: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '58%',
+        plugins: {
+          legend: { position: 'right', labels: { font: { weight: '600', size: 11 } } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                if (somaVisStatus === 0) return ' Nenhuma visita registrada';
+                const pct = ((ctx.parsed / somaVisStatus) * 100).toFixed(1);
+                return ` ${ctx.label}: ${ctx.parsed} (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+  }
+  {% endif %}
 
   // 1. Gráfico de Origens (Rosca / Donut Chart)
   const origensData = [
